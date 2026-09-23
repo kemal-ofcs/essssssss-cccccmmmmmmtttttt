@@ -4,6 +4,7 @@ import { type FormEvent, useCallback, useEffect, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { CompanyProfileCard } from "@/components/CompanyProfileCard";
 import { DatabaseBackupCard } from "@/components/DatabaseBackupCard";
+import { LicenseCard } from "@/components/license/LicenseCard";
 import { MailSettingsCard } from "@/components/MailSettingsCard";
 import { PasswordRecoveryCard } from "@/components/PasswordRecoveryCard";
 import { TwoFactorCard } from "@/components/TwoFactorCard";
@@ -421,6 +422,7 @@ export default function SettingsPage() {
 
       {/* Keamanan akun sendiri: tidak dijaga izin apa pun, karena setiap
           operator berhak mengamankan akunnya — termasuk role paling terbatas. */}
+      <LicenseCard />
       <TwoFactorCard />
       <PasswordRecoveryCard />
       <DatabaseBackupCard provider={provider} />

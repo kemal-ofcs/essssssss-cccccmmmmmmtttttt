@@ -1,6 +1,7 @@
 pub mod app_identity;
 pub mod commands;
 pub mod config;
+pub mod license;
 pub mod models;
 pub mod portability;
 pub mod secrets;

@@ -61,17 +61,45 @@ cd ~/proyek/smart-pos
 # 2. Ganti identitas proyek (nama crate, bundle id, judul aplikasi)
 bun scripts/rename-project.ts smart-pos "Smart POS" id.tokoanda.smartpos
 
-# 3. Pasang dependensi kedua workspace
+# 3. Buat kunci lisensi produk ini (sekali per aplikasi), di E:\Freelance\lisensi
+bun run keygen kos-smart-pos
+#    lalu tempel public key-nya ke PRODUCT_PUBLIC_KEY_HEX di
+#    web-desktop/src-tauri/src/desktop/license.rs dan jalankan
+#    `bun run scripts/sync-rust-modules.ts` dari folder mobile/
+
+# 4. Pasang dependensi kedua workspace
 bun run setup
 
-# 4. Jalankan
+# 5. Jalankan
 cd web-desktop
 bun run tauri dev     # aplikasi Desktop
 bun dev               # aplikasi Web di http://localhost:3000
 ```
 
-Saat pertama dijalankan, aplikasi menampilkan layar provisioning. Pilih jenis
-database, isi alamatnya, tekan **Cek database**, lalu buat Superadmin pertama.
+Alur pertama kali di Desktop/Mobile: **Lisensi → Provisioning → Login →
+Pengaturan**. Layar pertama menampilkan kode perangkat dan kolom lisensi
+("Langkah 1 dari 2"); terbitkan lisensi pengembang dengan
+`bun run buat kos-smart-pos --pemegang "Pengembang" --perangkat <kode>` lalu
+tempel. Setelah itu layar provisioning: pilih jenis database, isi alamatnya,
+tekan **Cek database**, lalu buat Superadmin pertama. Setelah login, halaman
+pertama adalah **Pengaturan** (atau halaman pertama yang boleh dibuka role itu).
+Web tidak memeriksa lisensi.
+
+### Lisensi offline (Desktop + Mobile)
+
+- `license.rs` di `web-desktop/src-tauri/src/desktop/` memeriksa lisensi `LIS1`
+  bertanda tangan Ed25519 tanpa jaringan; berkasnya mandiri dan tersalin ke
+  Mobile oleh `sync-rust-modules.ts`. Penerbitnya adalah alat
+  `E:\Freelance\lisensi` (di luar repo; private key tidak pernah masuk sini).
+- `rename-project.ts` mengganti `LICENSE_PRODUCT` menjadi `kos-<slug>` dan
+  mengosongkan `PRODUCT_PUBLIC_KEY_HEX`: selama masih nol, SEMUA lisensi
+  ditolak. Setiap aplikasi wajib punya pasangan kunci sendiri.
+- Tanpa lisensi, lisensi tidak sah, atau perangkat tidak terdaftar → login
+  diblokir. Sewa habis, atau build lebih baru dari `pembaruan_sampai` → mode
+  baca-saja (hanya izin `*.view` dan ekspor cadangan yang lolos), ditegakkan di
+  `require_permission`.
+- Lisensi tersimpan di `setting_gex_system.app_license` (ikut sinkronisasi):
+  dipasang sekali per lembaga. Kartu Lisensi di Pengaturan khusus Superadmin.
 
 ---
 

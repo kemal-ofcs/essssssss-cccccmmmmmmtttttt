@@ -13,7 +13,16 @@ if (existsSync(desktopIcons)) {
   console.log("Copied icons to src-tauri/icons");
 }
 
-const filesToCopy = ["lib/db.ts", "lib/db-schema.ts", "lib/db-migrations.ts"];
+const filesToCopy = [
+  "lib/db.ts",
+  "lib/db-schema.ts",
+  "lib/db-migrations.ts",
+  // UI lisensi yang tidak bergantung pada `Modal` — kontrak Modal kedua
+  // workspace berbeda, jadi `LicenseNotice.tsx` ditulis terpisah di masing-masing.
+  "components/license/LicenseActivationPanel.tsx",
+  "components/license/LicenseBootstrapField.tsx",
+  "components/license/LicenseCard.tsx",
+];
 
 for (const file of filesToCopy) {
   const src = join(desktopSrc, file);

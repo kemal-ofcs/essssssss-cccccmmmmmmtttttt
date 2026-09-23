@@ -7,6 +7,7 @@ import {
   useMemo,
   useState,
 } from "react";
+import { LicenseBootstrapField } from "@/components/license/LicenseBootstrapField";
 import {
   type BootstrapStatus,
   bootstrapSuperadmin,
@@ -69,6 +70,7 @@ export function BootstrapPanel({
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
+  const [license, setLicense] = useState("");
   const [feedback, setFeedback] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [checking, setChecking] = useState(false);
@@ -206,6 +208,7 @@ export function BootstrapPanel({
         authToken: needsCredentials ? authToken : undefined,
         provider: needsCredentials ? provider : undefined,
         allowInsecureTransport: needsCredentials ? allowInsecure : undefined,
+        license,
       });
       setPassword("");
       setConfirmation("");
@@ -530,6 +533,7 @@ export function BootstrapPanel({
                 className="min-h-11 rounded-xl border border-white/15 bg-slate-950 px-3 text-sm text-white"
               />
             </label>
+            <LicenseBootstrapField value={license} onChange={setLicense} />
             <label className="grid gap-1.5 text-xs font-bold text-slate-300">
               Password kuat
               <input

@@ -9,6 +9,8 @@ const DESKTOP_COMMANDS: &[&str] = &[
     "desktop_record_activity",
     "desktop_get_session",
     "desktop_get_runtime_status",
+    "desktop_get_license_status",
+    "desktop_install_license",
     "desktop_get_bootstrap_status",
     "desktop_bootstrap_superadmin",
     "desktop_check_bootstrap_database",
@@ -154,8 +156,55 @@ fn expose_build_value(name: &str, local: &HashMap<String, String>) -> Option<Str
     value
 }
 
+/// Tanggal build (WIB) untuk pemeriksa lisensi (`license.rs`): versi yang
+/// dibangun setelah masa pembaruan sebuah lisensi habis tidak tercakup olehnya.
+///
+/// `KOS_BUILD_DATE` di environment menang, supaya membangun ulang versi lama
+/// bisa memakai tanggal rilis aslinya. `rerun-if-changed=src` memaksa tanggal
+/// dihitung ulang setiap kali kodenya berubah — tanpa itu build inkremental
+/// menyimpan tanggal build PERTAMA selamanya, dan versi baru akan tampak lama.
+fn expose_build_date() {
+    println!("cargo:rerun-if-env-changed=KOS_BUILD_DATE");
+    println!("cargo:rerun-if-changed=src");
+    let date = env::var("KOS_BUILD_DATE")
+        .ok()
+        .map(|value| value.trim().to_owned())
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| {
+            let seconds = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|elapsed| elapsed.as_secs() as i64)
+                .unwrap_or_default();
+            // civil_from_days (Howard Hinnant), sama dengan license.rs.
+            let days = (seconds + 7 * 3600).div_euclid(86_400) + 719_468;
+            let era = days.div_euclid(146_097);
+            let day_of_era = days - era * 146_097;
+            let year_of_era = (day_of_era - day_of_era / 1460 + day_of_era / 36_524
+                - day_of_era / 146_096)
+                / 365;
+            let day_of_year = day_of_era - (365 * year_of_era + year_of_era / 4 - year_of_era / 100);
+            let month_prime = (5 * day_of_year + 2) / 153;
+            let day = day_of_year - (153 * month_prime + 2) / 5 + 1;
+            let month = if month_prime < 10 { month_prime + 3 } else { month_prime - 9 };
+            let year = year_of_era + era * 400 + i64::from(month <= 2);
+            format!("{year:04}-{month:02}-{day:02}")
+        });
+    let bytes = date.as_bytes();
+    let valid = bytes.len() == 10
+        && bytes.iter().enumerate().all(|(index, byte)| {
+            if matches!(index, 4 | 7) {
+                *byte == b'-'
+            } else {
+                byte.is_ascii_digit()
+            }
+        });
+    assert!(valid, "KOS_BUILD_DATE harus berformat YYYY-MM-DD, bukan '{date}'.");
+    println!("cargo:rustc-env=KOS_BUILD_DATE={date}");
+}
+
 fn main() {
     println!("cargo:rerun-if-changed=../.env");
+    expose_build_date();
     let local = local_build_values();
     expose_build_value("TURSO_DATABASE_URL", &local);
     expose_build_value("TURSO_AUTH_TOKEN", &local);

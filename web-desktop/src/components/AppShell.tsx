@@ -6,6 +6,7 @@ import type { ReactNode } from "react";
 import { type AppArea, canAccessArea } from "@/lib/auth/access";
 import { useAuth } from "@/lib/context/AuthContext";
 import { AutoSyncRunner } from "./AutoSyncRunner";
+import { LicenseHolderLabel, LicenseNotice } from "./license/LicenseNotice";
 
 interface NavItem {
   readonly area: AppArea;
@@ -21,7 +22,6 @@ interface NavItem {
  * Menyembunyikan menu saja tidak pernah cukup: backend tetap wajib memeriksa.
  */
 const NAV_ITEMS: readonly NavItem[] = [
-  { area: "home", href: "/", label: "Beranda" },
   { area: "items", href: "/items", label: "Item" },
   { area: "activity", href: "/activity", label: "Aktivitas" },
   { area: "operators", href: "/operators", label: "Operator" },
@@ -64,6 +64,7 @@ export function AppShell({ children, contentClassName = "" }: AppShellProps) {
           >
             App Template
           </Link>
+          <LicenseHolderLabel className="hidden max-w-[14rem] truncate text-[11px] text-slate-500 sm:block" />
           <nav className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
             {visible.map((item) => {
               const active =
@@ -102,6 +103,7 @@ export function AppShell({ children, contentClassName = "" }: AppShellProps) {
           ) : null}
         </div>
       </header>
+      <LicenseNotice />
 
       <main
         id="main-content"

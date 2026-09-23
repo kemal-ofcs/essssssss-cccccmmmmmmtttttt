@@ -35,6 +35,8 @@ pub fn run() {
             // nama yang sama pada kedua target.
             mobile::commands::desktop_get_session,
             mobile::commands::desktop_get_runtime_status,
+            mobile::commands::desktop_get_license_status,
+            mobile::commands::desktop_install_license,
             mobile::commands::desktop_login,
             mobile::commands::desktop_logout,
             // Pemulihan password, konfigurasi email, dan verifikasi dua langkah

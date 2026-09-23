@@ -6,6 +6,7 @@ use zeroize::Zeroizing;
 
 use super::{
     config::MobileState,
+    license,
     models::{
         CommandError, MobileLoginResult, MobileRuntimeStatus, MobileSession, MobileSyncStatus,
         OperatorUser, SessionMode,
@@ -46,8 +47,8 @@ pub(crate) fn require_permission(
     state: &MobileState,
     permission: &str,
 ) -> Result<OperatorUser, CommandError> {
-    let session = state.session.lock().map_err(|_| CommandError::internal())?;
-    let session = session.as_ref().ok_or_else(|| {
+    let mut session = state.session.lock().map_err(|_| CommandError::internal())?;
+    let session = session.as_mut().ok_or_else(|| {
         CommandError::new(
             "DESKTOP_SESSION_MISSING",
             "Session Desktop tidak tersedia. Silakan login kembali.",
@@ -65,6 +66,9 @@ pub(crate) fn require_permission(
             "Akses ditolak untuk tindakan ini.",
         ));
     }
+    // Gerbang izin TUNGGAL: mode baca-saja lisensi ditegakkan di sini, jadi
+    // command yang memakai gerbang lain akan lolos darinya.
+    license::enforce_any(state, &mut session.license, &[permission])?;
     Ok(session.operator.clone())
 }
 
@@ -126,6 +130,26 @@ pub fn desktop_get_runtime_status(
     })
 }
 
+/// Status lisensi perangkat ini. Sengaja tanpa sesi: layar login perlu tahu
+/// apakah harus menampilkan layar aktivasi (beserta kode perangkat) sebelum
+/// siapa pun bisa masuk.
+#[tauri::command]
+pub async fn desktop_get_license_status(
+    state: State<'_, MobileState>,
+) -> Result<license::LicenseStatus, CommandError> {
+    license::status(&state).await
+}
+
+/// Pasang lisensi. Tanpa sesi hanya bila lisensi saat ini tidak aktif penuh;
+/// mengganti lisensi yang masih aktif menuntut Superadmin.
+#[tauri::command]
+pub async fn desktop_install_license(
+    state: State<'_, MobileState>,
+    license: String,
+) -> Result<license::LicenseStatus, CommandError> {
+    license::install(&state, &license).await
+}
+
 #[tauri::command]
 pub async fn desktop_get_bootstrap_status(
     state: State<'_, MobileState>,
@@ -162,6 +186,7 @@ pub async fn desktop_bootstrap_superadmin(
     auth_token: Option<String>,
     provider: Option<turso::DatabaseProvider>,
     allow_insecure_transport: Option<bool>,
+    license: Option<String>,
 ) -> Result<Value, CommandError> {
     if state
         .session
@@ -174,6 +199,12 @@ pub async fn desktop_bootstrap_superadmin(
             "Bootstrap hanya tersedia sebelum sesi pengguna aktif.",
         ));
     }
+    // Lisensi diverifikasi SEBELUM Superadmin dibuat: lisensi yang ditolak
+    // setelahnya meninggalkan database yang tidak bisa dipakai login sekaligus
+    // tidak bisa diprovisioning ulang. Kolom kosong = pakai lisensi yang sudah
+    // dipasang di layar aktivasi sebelum provisioning.
+    let license_text = license::bootstrap_license_text(&state, license)?;
+    let device_code = license::current_device_code(&state)?;
 
     // Kredensial dari form SELALU menang atas kredensial yang sudah tersimpan.
     // Dulu cabang "sudah terkonfigurasi" langsung memakai klien vault dan
@@ -194,8 +225,13 @@ pub async fn desktop_bootstrap_superadmin(
     // saja. Karena itu ia ikut dalam balasan ini, dan layar bootstrap wajib
     // menampilkannya sampai pengguna menyatakan sudah menyimpannya.
     let recovery_codes = if status.required {
-        client.bootstrap_superadmin(draft).await?
+        license::check_installable(&license_text, &device_code)?;
+        let codes = client.bootstrap_superadmin(draft).await?;
+        license::store_bootstrap_license(&state, &client, &license_text).await?;
+        codes
     } else {
+        // Database yang sudah berisi: lisensinya (bila ada) sudah di sana, dan
+        // yang belum berlisensi ditangani layar lisensi sebelum login.
         Vec::new()
     };
     state.set_database_config(&config)?;
@@ -363,6 +399,11 @@ pub async fn desktop_link_bootstrap_database(
             "Database ini belum memiliki Superadmin aktif. Lanjutkan provisioning untuk membuat akun pertama.",
         ));
     }
+    // SEBELUM pull: pull menimpa setting lokal dengan isi database, termasuk
+    // lisensi yang dipasang di layar aktivasi sebelum provisioning.
+    if let Err(error) = license::publish_local_if_cloud_missing(&state, &client).await {
+        eprintln!("[link-database] Lisensi lokal gagal dibawa ke database: {}", error.code);
+    }
     state.set_database_config(&config)?;
     let _ = sync::pull_snapshot(&state).await;
     storage::audit(&state.data_dir, None, "bootstrap-database-linked", None);
@@ -409,6 +450,10 @@ pub async fn desktop_login(
         ));
     }
     ensure_login_not_locked(&state, &identifier)?;
+    // Lisensi diperiksa SEBELUM kredensial, satu kali untuk jalur online dan
+    // offline sekaligus. Statusnya sudah terbuka lewat
+    // `desktop_get_license_status`, jadi urutan ini tidak membocorkan apa pun.
+    let license_grant = license::gate_login(&state).await?;
     let password = Zeroizing::new(password);
 
     // Alasan kegagalan koneksi cloud, disimpan supaya pesan error terakhir bisa
@@ -475,6 +520,7 @@ pub async fn desktop_login(
                     Some(MobileSession {
                         operator: operator.clone(),
                         mode: SessionMode::Online,
+                        license: license_grant,
                     });
 
                 return Ok(MobileLoginResult {
@@ -592,6 +638,7 @@ pub async fn desktop_login(
     *state.session.lock().map_err(|_| CommandError::internal())? = Some(MobileSession {
         operator: credential.operator.clone(),
         mode: SessionMode::Offline,
+        license: license_grant,
     });
     Ok(MobileLoginResult {
         sukses: true,

@@ -125,6 +125,40 @@ console.log(
 	`Selesai. ${changedOccurrences} penggantian di ${changedFiles} berkas.`,
 );
 console.log("");
+
+// Lisensi: aplikasi baru WAJIB punya kode produk dan pasangan kunci sendiri.
+// Kalau kode produk template ikut terbawa, lisensi yang diterbitkan untuk satu
+// aplikasi sah juga di aplikasi lain. Public key dikembalikan ke nol, sehingga
+// aplikasi menolak SEMUA lisensi sampai `keygen` untuk produk ini dijalankan.
+const licenseProduct = `kos-${slug}`;
+if (licenseProduct.length > 40) {
+	console.error(`Kode produk lisensi "${licenseProduct}" lebih dari 40 karakter; pakai slug yang lebih pendek.`);
+	process.exit(1);
+}
+for (const relative of [
+	"web-desktop/src-tauri/src/desktop/license.rs",
+	"mobile/src-tauri/src/mobile/license.rs",
+]) {
+	const file = join(process.cwd(), relative);
+	const original = readFileSync(file, "utf-8");
+	const updated = original
+		.replace(
+			/pub const LICENSE_PRODUCT: &str = "[^"]*";/,
+			`pub const LICENSE_PRODUCT: &str = "${licenseProduct}";`,
+		)
+		.replace(
+			/const PRODUCT_PUBLIC_KEY_HEX: &str =\s*"[0-9a-f]{64}";/,
+			`const PRODUCT_PUBLIC_KEY_HEX: &str =\n    "${"0".repeat(64)}";`,
+		);
+	if (!updated.includes(`"${licenseProduct}"`) || !updated.includes("0".repeat(64))) {
+		console.error(`Gagal menyetel kode produk lisensi di ${relative}.`);
+		process.exit(1);
+	}
+	writeFileSync(file, updated, "utf-8");
+}
+console.log(`Kode produk lisensi: ${licenseProduct} (public key dikosongkan).`);
+console.log("");
+
 // Verifikasi otomatis. Rename yang "berhasil" tetapi menyisakan identitas
 // produk lain jauh lebih berbahaya daripada rename yang gagal terang-terangan:
 // yang tertinggal justru pemisah domain kriptografi dan nama cookie, dan tidak
@@ -145,7 +179,16 @@ if (verification.exitCode !== 0) {
 console.log("Langkah berikutnya:");
 console.log("  1. bun run setup");
 console.log(
-	"  2. cd web-desktop && bun run tauri dev   (atau: bun dev untuk Web)",
+	`  2. Di E:\\Freelance\\lisensi: bun run keygen ${licenseProduct}`,
+);
+console.log(
+	"     lalu tempel public key-nya ke PRODUCT_PUBLIC_KEY_HEX di web-desktop/src-tauri/src/desktop/license.rs",
+);
+console.log(
+	"     dan jalankan `bun run scripts/sync-rust-modules.ts` dari folder mobile/.",
+);
+console.log(
+	"  3. cd web-desktop && bun run tauri dev   (atau: bun dev untuk Web)",
 );
 console.log("  3. Jalankan aplikasi, lalu isi layar provisioning database.");
 console.log("");

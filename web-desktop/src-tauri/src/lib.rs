@@ -20,6 +20,8 @@ pub fn run() {
             // Sesi & runtime
             desktop::commands::desktop_get_session,
             desktop::commands::desktop_get_runtime_status,
+            desktop::commands::desktop_get_license_status,
+            desktop::commands::desktop_install_license,
             desktop::commands::desktop_login,
             desktop::commands::desktop_logout,
             // Provisioning database

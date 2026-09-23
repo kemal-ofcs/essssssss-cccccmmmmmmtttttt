@@ -4,6 +4,7 @@ import Link from "next/link";
 import { type FormEvent, useCallback, useEffect, useState } from "react";
 import { CompanyProfileCard } from "@/components/CompanyProfileCard";
 import { DatabaseBackupCard } from "@/components/DatabaseBackupCard";
+import { LicenseCard } from "@/components/license/LicenseCard";
 import { MailSettingsCard } from "@/components/MailSettingsCard";
 import { MobileAppShell } from "@/components/MobileAppShell";
 import { PasswordRecoveryCard } from "@/components/PasswordRecoveryCard";
@@ -474,6 +475,7 @@ export default function SettingsPage() {
 
       {/* Keamanan akun sendiri: tidak dijaga izin apa pun, karena setiap
           operator berhak mengamankan akunnya. */}
+      <LicenseCard />
       <TwoFactorCard />
       <PasswordRecoveryCard />
       <DatabaseBackupCard provider={provider} />

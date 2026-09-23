@@ -1,6 +1,4 @@
-import { triggerHaptic } from "@/lib/client/haptics";
-
-("use client");
+"use client";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -12,13 +10,17 @@ import {
   useState,
 } from "react";
 import { BootstrapPanel } from "@/components/BootstrapPanel";
+import { LicenseActivationPanel } from "@/components/license/LicenseActivationPanel";
 import { FeedbackBanner } from "@/components/ui/FeedbackBanner";
+import { triggerHaptic } from "@/lib/client/haptics";
 import { useAuth } from "@/lib/context/AuthContext";
 import {
   type BootstrapStatus,
   getBootstrapStatus,
 } from "@/lib/gateways/bootstrap";
+import { isLicenseBlocking } from "@/lib/gateways/license";
 import { getServerUrl, setServerUrl } from "@/lib/gateways/server-config";
+import { useLicenseStatus } from "@/lib/hooks/useLicenseStatus";
 import { useOnlineStatus } from "@/lib/hooks/useOnlineStatus";
 
 function parseCooldownSeconds(msg: string): number {
@@ -81,6 +83,20 @@ export default function LoginPage() {
     refreshBootstrapStatus();
   }, [refreshBootstrapStatus]);
 
+  // Dibaca ulang setiap status database berubah: perangkat yang baru
+  // bergabung ke database berlisensi menemukan lisensinya di sana.
+  const {
+    status: licenseStatus,
+    refresh: refreshLicense,
+    setStatus: setLicenseStatus,
+  } = useLicenseStatus(false);
+  useEffect(() => {
+    if (bootstrapStatus) void refreshLicense();
+  }, [bootstrapStatus, refreshLicense]);
+  // Pemasangan baru meminta lisensi SEBELUM provisioning; perangkat lain
+  // milik lembaga yang sama melewatinya karena lisensinya sudah di database.
+  const [joiningLicensedDatabase, setJoiningLicensedDatabase] = useState(false);
+
   // Live countdown ticker
   useEffect(() => {
     if (cooldownSeconds <= 0) return;
@@ -104,8 +120,10 @@ export default function LoginPage() {
   const [isSavingServer, setIsSavingServer] = useState(false);
 
   useEffect(() => {
+    // `/` meneruskan ke halaman pertama akun ini (Pengaturan bila boleh).
+    // Dulu `/dashboard` — rute yang tidak ada di Mobile.
     if (!authLoading && isAuthenticated) {
-      router.replace("/dashboard");
+      router.replace("/");
     }
   }, [authLoading, isAuthenticated, router]);
 
@@ -141,7 +159,7 @@ export default function LoginPage() {
       );
       if (result.sukses) {
         triggerHaptic("success");
-        router.replace("/dashboard");
+        router.replace("/");
       } else {
         triggerHaptic("error");
         if (result.requiresTotp) setNeedsTotp(true);
@@ -149,6 +167,7 @@ export default function LoginPage() {
         setErrorMessage(msg);
         const cooldown = parseCooldownSeconds(msg);
         if (cooldown > 0) setCooldownSeconds(cooldown);
+        void refreshLicense();
       }
     } catch (err: unknown) {
       triggerHaptic("error");
@@ -159,6 +178,9 @@ export default function LoginPage() {
       setErrorMessage(message);
       const cooldown = parseCooldownSeconds(message);
       if (cooldown > 0) setCooldownSeconds(cooldown);
+      // Login bisa ditolak karena lisensinya; membaca ulang status memunculkan
+      // layar aktivasi alih-alih membiarkan form login buntu.
+      void refreshLicense();
     } finally {
       setIsSubmitting(false);
       isSubmittingRef.current = false;
@@ -203,6 +225,36 @@ export default function LoginPage() {
     );
   }
 
+  if (
+    !isAuthenticated &&
+    bootstrapStatus?.required &&
+    !joiningLicensedDatabase &&
+    licenseStatus &&
+    isLicenseBlocking(licenseStatus)
+  ) {
+    return (
+      <div className="min-h-dvh flex items-center bg-slate-950 p-4 pt-[calc(1.5rem+env(safe-area-inset-top))] pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
+        <div className="w-full max-w-sm mx-auto rounded-3xl border border-white/15 bg-slate-900/90 p-6 shadow-2xl">
+          <p className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+            Langkah 1 dari 2 · setelah lisensi aktif, lanjut ke pengaturan
+            database
+          </p>
+          <LicenseActivationPanel
+            status={licenseStatus}
+            onInstalled={setLicenseStatus}
+          />
+          <button
+            type="button"
+            onClick={() => setJoiningLicensedDatabase(true)}
+            className="mt-3 min-h-10 w-full rounded-xl border border-sky-500/30 bg-sky-500/10 px-3 text-xs font-semibold text-sky-300 active:scale-[0.98] transition"
+          >
+            Perangkat ini bergabung ke database lembaga yang sudah berlisensi
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (!isAuthenticated && bootstrapStatus?.required) {
     return (
       <BootstrapPanel
@@ -219,6 +271,29 @@ export default function LoginPage() {
         onCompleted={refreshBootstrapStatus}
         onCancel={() => setShowDatabaseSetup(false)}
       />
+    );
+  }
+
+  if (!isAuthenticated && licenseStatus && isLicenseBlocking(licenseStatus)) {
+    return (
+      <div className="min-h-dvh flex items-center bg-slate-950 p-4 pt-[calc(1.5rem+env(safe-area-inset-top))] pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
+        <div className="w-full max-w-sm mx-auto rounded-3xl border border-white/15 bg-slate-900/90 p-6 shadow-2xl">
+          <LicenseActivationPanel
+            status={licenseStatus}
+            onInstalled={(next) => {
+              setLicenseStatus(next);
+              setErrorMessage("");
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => setShowDatabaseSetup(true)}
+            className="mt-3 min-h-10 w-full rounded-xl border border-sky-500/30 bg-sky-500/10 px-3 text-xs font-semibold text-sky-300 active:scale-[0.98] transition"
+          >
+            Koneksi Database
+          </button>
+        </div>
+      </div>
     );
   }
 
@@ -426,8 +501,11 @@ export default function LoginPage() {
       </div>
 
       {/* Footer Info */}
-      <footer className="text-center text-[11px] text-slate-500">
-        CONTOH operasional Native Mobile v0.1 • 100% Offline-First
+      <footer className="text-center text-[11px] text-slate-500 space-y-0.5">
+        {licenseStatus?.license ? (
+          <p>Berlisensi untuk {licenseStatus.license.holder}</p>
+        ) : null}
+        <p>CONTOH operasional Native Mobile v0.1 • 100% Offline-First</p>
       </footer>
 
       {/* Server Config Modal */}

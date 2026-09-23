@@ -24,6 +24,9 @@ const filesToSync = [
   "sync.rs",
   "turso.rs",
   "commands.rs",
+  // Pemeriksa lisensi offline. Wajib identik: satu lisensi dipasang sekali per
+  // lembaga dan dibaca Desktop maupun Mobile dari database yang sama.
+  "license.rs",
 ];
 
 for (const file of filesToSync) {

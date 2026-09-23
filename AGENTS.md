@@ -302,3 +302,25 @@ Detail lengkap ada di `README.md`.
     bertahan diam-diam — dan dokumen yang bertentangan dengan kode lebih
     berbahaya daripada dokumen yang diam, karena ia menuntun orang berikutnya
     mengulang bug yang sudah diperbaiki.
+34. **Lisensi offline Ed25519 (Desktop + Mobile).** Alur pertama kali adalah
+    Lisensi → Provisioning → Login → Pengaturan. `web-desktop/src-tauri/src/desktop/license.rs`
+    memeriksa lisensi `LIS1` tanpa jaringan dan SENGAJA mandiri (helper tanggal
+    dibawa sendiri) supaya bisa disalin utuh; ia ikut `sync-rust-modules.ts`.
+    Penerbitnya alat `E:\Freelance\lisensi` di luar repo — private key tidak
+    pernah masuk sini. `LICENSE_PRODUCT` diganti `rename-project.ts` menjadi
+    `kos-<slug>` dan `PRODUCT_PUBLIC_KEY_HEX` dikembalikan ke nol: selama nol,
+    SEMUA lisensi ditolak, jadi setiap aplikasi wajib `keygen` sendiri.
+    Gerbangnya ada di tiga tempat dan tidak boleh ditambal di tempat lain:
+    `gate_login` di awal `desktop_login` (satu kali untuk jalur online dan
+    offline), `enforce_any` di `require_permission` (mode baca-saja: hanya
+    `*.view`, `sync.retry`, `database_backup.export`), dan
+    `check_installable` sebelum Superadmin dibuat. Lisensi disimpan di
+    `setting_gex_system.app_license` (ikut sinkronisasi, rute `setting/update`)
+    dan TIDAK boleh masuk `DEVICE_LOCAL_SETTING_KEYS`. Tes memakai vektor
+    kanonik alat penerbit (produk `kos-absensi`) lewat `parse_license_for`,
+    jadi vektornya tidak perlu dibuat ulang per aplikasi. Web tidak menegakkan
+    lisensi. `LicenseNotice.tsx` ditulis terpisah per workspace karena kontrak
+    `Modal` keduanya berbeda; komponen lisensi lain ikut `filesToCopy`.
+    Halaman pertama setelah login ditentukan SATU fungsi, `landingPath`
+    (`src/lib/auth/landing.ts`): Pengaturan bila boleh, lalu Item, Aktivitas,
+    Riwayat Reset — hanya rute yang ada di kedua workspace.

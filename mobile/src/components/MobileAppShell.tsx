@@ -6,6 +6,7 @@ import type { ReactNode } from "react";
 import { type AppArea, canAccessArea } from "@/lib/auth/access";
 import { useAuth } from "@/lib/context/AuthContext";
 import { AutoSyncRunner } from "./AutoSyncRunner";
+import { LicenseHolderLabel, LicenseNotice } from "./license/LicenseNotice";
 
 interface NavItem {
   readonly area: AppArea;
@@ -14,7 +15,6 @@ interface NavItem {
 }
 
 const NAV_ITEMS: readonly NavItem[] = [
-  { area: "home", href: "/", label: "Beranda" },
   { area: "items", href: "/items", label: "Item" },
   { area: "activity", href: "/activity", label: "Aktivitas" },
   { area: "settings", href: "/settings", label: "Atur" },
@@ -49,7 +49,9 @@ export function MobileAppShell({ children, title }: MobileAppShellProps) {
             {user.nama_operator} — {user.role}
           </p>
         ) : null}
+        <LicenseHolderLabel className="mt-0.5 block truncate text-[10px] text-slate-500" />
       </header>
+      <LicenseNotice />
 
       <main
         id="main-content"
