@@ -101,7 +101,7 @@ function rowToProfile(row: Record<string, unknown>): CompanyProfile {
  *
  * Pemasangan yang belum pernah menyuntingnya menerima nilai bawaan TANPA baris
  * apa pun ditulis. Menyeed baris di sini akan membuat setiap perangkat baru
- * mendorong "Nama Perusahaan" ke cloud, dan perangkat yang sinkron belakangan
+ * mendorong "Company Name" ke cloud, dan perangkat yang sinkron belakangan
  * menimpa identitas asli yang sudah diisi orang lain.
  */
 export async function readCompanyProfile(
@@ -120,7 +120,7 @@ export async function readCompanyProfile(
   if (!row) {
     return {
       id: COMPANY_PROFILE_ID,
-      company_name: "Nama Perusahaan",
+      company_name: "Company Name",
       branch_name: null,
       logo_url: null,
       signature_url: null,

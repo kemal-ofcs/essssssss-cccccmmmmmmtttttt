@@ -28,9 +28,9 @@ export async function requestWebApi<T>(
   if (response.status === 401) invalidateWebSession();
   if (!response.ok) {
     throw new Error(
-      payload?.pesan ?? "Permintaan server tidak dapat diproses.",
+      payload?.pesan ?? "The server request could not be processed.",
     );
   }
-  if (!payload) throw new Error("Respons server tidak valid.");
+  if (!payload) throw new Error("Invalid server response.");
   return payload;
 }

@@ -12,6 +12,8 @@ import {
 import { BootstrapPanel } from "@/components/BootstrapPanel";
 import { LicenseActivationPanel } from "@/components/license/LicenseActivationPanel";
 import { FeedbackBanner } from "@/components/ui/FeedbackBanner";
+import { Icon } from "@/components/ui/Icon";
+import { Modal } from "@/components/ui/Modal";
 import { triggerHaptic } from "@/lib/client/haptics";
 import { useAuth } from "@/lib/context/AuthContext";
 import {
@@ -25,15 +27,15 @@ import { useOnlineStatus } from "@/lib/hooks/useOnlineStatus";
 
 function parseCooldownSeconds(msg: string): number {
   if (
-    !msg.toLowerCase().includes("terlalu banyak") &&
+    !msg.toLowerCase().includes("too many") &&
     !msg.toLowerCase().includes("rate_limited") &&
-    !msg.toLowerCase().includes("dikunci")
+    !msg.toLowerCase().includes("locked")
   ) {
     return 0;
   }
   let totalSec = 0;
-  const minMatch = msg.match(/(\d+)\s*menit/i);
-  const secMatch = msg.match(/(\d+)\s*detik/i);
+  const minMatch = msg.match(/(\d+)\s*minute/i);
+  const secMatch = msg.match(/(\d+)\s*second/i);
   if (minMatch) totalSec += Number.parseInt(minMatch[1], 10) * 60;
   if (secMatch) totalSec += Number.parseInt(secMatch[1], 10);
   if (totalSec === 0) totalSec = 120;
@@ -163,7 +165,7 @@ export default function LoginPage() {
       } else {
         triggerHaptic("error");
         if (result.requiresTotp) setNeedsTotp(true);
-        const msg = result.pesan || "Login gagal.";
+        const msg = result.pesan || "Sign-in failed.";
         setErrorMessage(msg);
         const cooldown = parseCooldownSeconds(msg);
         if (cooldown > 0) setCooldownSeconds(cooldown);
@@ -174,7 +176,7 @@ export default function LoginPage() {
       const message =
         err instanceof Error
           ? err.message
-          : "Gagal terhubung ke modul autentikasi.";
+          : "Could not reach the sign-in module.";
       setErrorMessage(message);
       const cooldown = parseCooldownSeconds(message);
       if (cooldown > 0) setCooldownSeconds(cooldown);
@@ -197,7 +199,7 @@ export default function LoginPage() {
       const savedOrigin = await setServerUrl(target);
       setServerUrlState(savedOrigin);
       setCustomServerUrl(savedOrigin);
-      setServerSaveMessage(`Server berhasil disetel ke: ${savedOrigin}`);
+      setServerSaveMessage(`Server set to: ${savedOrigin}`);
       triggerHaptic("success");
       setTimeout(() => {
         setIsServerModalOpen(false);
@@ -206,7 +208,9 @@ export default function LoginPage() {
     } catch (err: unknown) {
       triggerHaptic("error");
       setServerSaveMessage(
-        err instanceof Error ? err.message : "Gagal menyimpan URL server.",
+        err instanceof Error
+          ? err.message
+          : "The server URL could not be saved.",
       );
     } finally {
       isSubmittingRef.current = false;
@@ -216,13 +220,10 @@ export default function LoginPage() {
 
   if (!isAuthenticated && !bootstrapChecked) {
     return (
-      <div className="min-h-dvh flex items-center justify-center bg-slate-950">
-        <div className="flex flex-col items-center gap-3">
-          <div className="size-10 rounded-full border-3 border-sky-400 border-t-transparent animate-spin" />
-          <span className="text-xs font-semibold text-slate-400">
-            Memeriksa konfigurasi database...
-          </span>
-        </div>
+      <div className="flex min-h-dvh items-center justify-center bg-background">
+        <output className="block text-body-md text-on-surface-variant">
+          Checking database settings...
+        </output>
       </div>
     );
   }
@@ -235,11 +236,10 @@ export default function LoginPage() {
     isLicenseBlocking(licenseStatus)
   ) {
     return (
-      <div className="min-h-dvh flex items-center bg-slate-950 p-4 pt-[calc(1.5rem+env(safe-area-inset-top))] pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
-        <div className="w-full max-w-sm mx-auto rounded-3xl border border-white/15 bg-slate-900/90 p-6 shadow-2xl">
-          <p className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate-500">
-            Langkah 1 dari 2 · setelah lisensi aktif, lanjut ke pengaturan
-            database
+      <div className="flex min-h-dvh items-center bg-background p-4">
+        <div className="app-panel mx-auto w-full max-w-sm p-5">
+          <p className="mb-3 font-mono text-label-caps uppercase text-on-surface-variant">
+            Step 1 of 2 · database setup follows
           </p>
           <LicenseActivationPanel
             status={licenseStatus}
@@ -248,9 +248,9 @@ export default function LoginPage() {
           <button
             type="button"
             onClick={() => setJoiningLicensedDatabase(true)}
-            className="mt-3 min-h-10 w-full rounded-xl border border-sky-500/30 bg-sky-500/10 px-3 text-xs font-semibold text-sky-300 active:scale-[0.98] transition"
+            className="app-btn app-btn-secondary mt-3 w-full"
           >
-            Perangkat ini bergabung ke database lembaga yang sudah berlisensi
+            This device is joining an already licensed database
           </button>
         </div>
       </div>
@@ -278,8 +278,8 @@ export default function LoginPage() {
 
   if (!isAuthenticated && licenseStatus && isLicenseBlocking(licenseStatus)) {
     return (
-      <div className="min-h-dvh flex items-center bg-slate-950 p-4 pt-[calc(1.5rem+env(safe-area-inset-top))] pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
-        <div className="w-full max-w-sm mx-auto rounded-3xl border border-white/15 bg-slate-900/90 p-6 shadow-2xl">
+      <div className="flex min-h-dvh items-center bg-background p-4">
+        <div className="app-panel mx-auto w-full max-w-sm p-5">
           <LicenseActivationPanel
             status={licenseStatus}
             onInstalled={(next) => {
@@ -290,9 +290,9 @@ export default function LoginPage() {
           <button
             type="button"
             onClick={() => setShowDatabaseSetup(true)}
-            className="mt-3 min-h-10 w-full rounded-xl border border-sky-500/30 bg-sky-500/10 px-3 text-xs font-semibold text-sky-300 active:scale-[0.98] transition"
+            className="app-btn app-btn-secondary mt-3 w-full"
           >
-            Koneksi Database
+            Database connection
           </button>
         </div>
       </div>
@@ -300,30 +300,23 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-dvh flex flex-col justify-between bg-slate-950 p-6 pt-[calc(2rem+env(safe-area-inset-top))] pb-[calc(2rem+env(safe-area-inset-bottom))]">
-      <div className="w-full max-w-sm mx-auto my-auto flex flex-col items-center">
-        {/* Brand Banner */}
-        <div className="flex flex-col items-center text-center mb-6">
-          <p className="mb-4 text-2xl font-black text-white">App Template</p>
-          <h1 className="text-2xl font-black tracking-tight text-white">
-            App Template
-          </h1>
-          <p className="text-xs font-semibold text-slate-400 mt-1">
-            Mobile Edition • Android & iOS
-          </p>
-
-          <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
-            <div className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs">
+    <div className="flex min-h-dvh flex-col justify-between bg-background p-4">
+      <div className="mx-auto my-auto flex w-full max-w-sm flex-col gap-4">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h1 className="text-headline-xl text-on-surface">App Template</h1>
+            <p className="mt-1 text-body-md text-on-surface-variant">
+              Sign in to continue.
+            </p>
+          </div>
+          <div className="flex shrink-0 flex-col items-end gap-2">
+            <span className="inline-flex items-center gap-1.5 rounded-md border border-surface-container bg-surface-container-lowest px-2 py-0.5 font-mono text-code-sm text-on-surface-variant">
               <span
-                className={`size-2 rounded-full ${
-                  isOnline ? "bg-emerald-400" : "bg-amber-400"
-                }`}
+                aria-hidden="true"
+                className={`size-2 rounded-full ${isOnline ? "bg-success" : "bg-on-tertiary-container"}`}
               />
-              <span className="text-slate-300 font-medium">
-                {isOnline ? "Online" : "Offline"}
-              </span>
-            </div>
-
+              {isOnline ? "Online" : "Offline"}
+            </span>
             <button
               type="button"
               onClick={() => {
@@ -331,9 +324,10 @@ export default function LoginPage() {
                 setServerSaveMessage("");
                 setIsServerModalOpen(true);
               }}
-              className="inline-flex items-center gap-1.5 rounded-full border border-sky-500/30 bg-sky-500/10 px-3 py-1 text-xs font-semibold text-sky-300 hover:bg-sky-500/20 active:scale-95 transition"
+              className="inline-flex min-h-9 items-center gap-1.5 rounded-md px-2 text-body-sm font-semibold text-secondary"
             >
-              <span>⚙️ Server</span>
+              <Icon name="settings" className="size-4" />
+              Server
             </button>
           </div>
         </div>
@@ -341,86 +335,71 @@ export default function LoginPage() {
         {/* Database cloud tersimpan tetapi tidak menjawab: tawarkan konfigurasi
             ulang, jangan biarkan pengguna menebak-nebak di form login. */}
         {bootstrapStatus?.configured && !bootstrapStatus.reachable ? (
-          <div className="mb-4 w-full rounded-2xl border border-amber-500/30 bg-amber-950/50 p-4 text-xs leading-5 text-amber-100">
-            <p className="font-bold text-amber-300">
-              Database cloud tidak dapat dihubungi
+          <div className="space-y-1.5 rounded-md border border-tertiary-fixed-dim bg-tertiary-fixed p-3 text-body-md text-on-tertiary-fixed">
+            <p className="font-semibold">
+              The cloud database cannot be reached
             </p>
-            <p className="mt-1 text-[11px] text-amber-200/90">
+            <p>
               {bootstrapStatus.message ??
-                "Perangkat ini masih menunjuk database lama."}
+                "This device still points at the old database."}
             </p>
-            <p className="mt-1 text-[11px] text-amber-200/70">
-              Kalau internet aktif dan database sudah diganti/dihapus, arahkan
-              aplikasi ke database yang baru. Login offline tetap bisa dipakai
-              bila perangkat ini pernah login online sebelumnya.
+            <p>
+              If the internet is up and the database was replaced or deleted,
+              point the app at the new one. Offline sign-in still works if this
+              device has signed in online before.
             </p>
             <button
               type="button"
               onClick={() => setShowDatabaseSetup(true)}
-              className="mt-3 min-h-10 w-full rounded-xl border border-amber-400/40 bg-amber-500/10 px-3 text-xs font-bold text-amber-200 active:scale-[0.98] transition"
+              className="app-btn app-btn-secondary mt-1 w-full"
             >
-              Konfigurasi ulang database
+              Reconfigure database
             </button>
           </div>
         ) : null}
 
-        {/* Login Form Card */}
-        <div className="w-full rounded-3xl border border-white/15 bg-slate-900/90 p-6 shadow-2xl backdrop-blur-2xl">
+        <div className="app-panel p-4">
           {cooldownSeconds > 0 ? (
-            <div className="mb-4 rounded-2xl border border-amber-500/30 bg-amber-950/50 p-4 text-center text-xs font-medium text-amber-200 backdrop-blur-md">
-              <div className="flex items-center justify-center gap-2 mb-1">
-                <span className="text-base animate-pulse">⏳</span>
-                <span className="font-bold text-amber-300">
-                  Akun Terkunci Sementara
-                </span>
-              </div>
-              <p className="text-[11px] text-amber-200/80">
-                Terlalu banyak percobaan gagal. Silakan coba lagi dalam:
+            <output className="block mb-4 rounded-md border border-tertiary-fixed-dim bg-tertiary-fixed p-3 text-center text-body-md text-on-tertiary-fixed">
+              <p className="font-semibold">Account temporarily locked</p>
+              <p className="mt-1">Too many failed attempts. Try again in</p>
+              <p className="mt-2 font-mono text-code-lg font-bold">
+                {Math.floor(cooldownSeconds / 60) > 0
+                  ? `${Math.floor(cooldownSeconds / 60)}m `
+                  : ""}
+                {cooldownSeconds % 60}s
               </p>
-              <div className="mt-2 inline-flex items-center gap-1 rounded-xl bg-slate-950/80 px-3 py-1 font-mono text-sm font-black text-amber-400 border border-amber-500/20">
-                <span>
-                  {Math.floor(cooldownSeconds / 60) > 0
-                    ? `${Math.floor(cooldownSeconds / 60)}m `
-                    : ""}
-                  {cooldownSeconds % 60}s
-                </span>
-              </div>
-            </div>
+            </output>
           ) : errorMessage ? (
-            <FeedbackBanner
-              type="error"
-              message={errorMessage}
-              className="mb-4"
-              onClose={() => setErrorMessage("")}
-            />
+            <div className="mb-4">
+              <FeedbackBanner
+                tone="error"
+                onDismiss={() => setErrorMessage("")}
+              >
+                {errorMessage}
+              </FeedbackBanner>
+            </div>
           ) : null}
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            <div>
-              <label
-                htmlFor="username"
-                className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5"
-              >
-                Username / Kode Operator
+            <div className="space-y-1.5">
+              <label htmlFor="username" className="app-label">
+                Username or operator code
               </label>
               <input
                 id="username"
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder="contoh: super001 atau SPD001"
                 autoComplete="username"
                 required
                 disabled={cooldownSeconds > 0}
-                className="w-full min-h-12 rounded-2xl border border-white/15 bg-slate-950 px-4 text-sm text-white placeholder-slate-500 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-400/20 transition disabled:opacity-50"
+                className="app-input"
               />
             </div>
 
-            <div>
-              <label
-                htmlFor="password"
-                className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5"
-              >
+            <div className="space-y-1.5">
+              <label htmlFor="password" className="app-label">
                 Password
               </label>
               <input
@@ -428,13 +407,33 @@ export default function LoginPage() {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
                 autoComplete="current-password"
                 required
                 disabled={cooldownSeconds > 0}
-                className="w-full min-h-12 rounded-2xl border border-white/15 bg-slate-950 px-4 text-sm text-white placeholder-slate-500 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-400/20 transition disabled:opacity-50"
+                className="app-input"
               />
             </div>
+
+            {needsTotp ? (
+              <div className="space-y-1.5">
+                <label htmlFor="totp-input" className="app-label">
+                  Two-step verification code
+                </label>
+                <input
+                  id="totp-input"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  maxLength={16}
+                  value={totpCode}
+                  onChange={(event) => setTotpCode(event.target.value)}
+                  placeholder="123456 or a backup code"
+                  className="app-input font-mono tracking-[0.25em]"
+                />
+                <p className="text-body-sm text-on-surface-variant">
+                  Open your authenticator app, or enter a backup code.
+                </p>
+              </div>
+            ) : null}
 
             <button
               type="submit"
@@ -444,170 +443,101 @@ export default function LoginPage() {
                 !username.trim() ||
                 !password
               }
-              className="mt-2 flex min-h-12 w-full items-center justify-center rounded-2xl bg-gradient-to-r from-sky-400 via-sky-500 to-blue-600 font-black text-sm text-slate-950 shadow-xl shadow-sky-950/60 disabled:opacity-50 active:scale-[0.98] transition-all"
+              className="app-btn app-btn-primary w-full"
             >
-              {isSubmitting ? (
-                <div className="flex items-center gap-2">
-                  <div className="size-4 rounded-full border-2 border-slate-950 border-t-transparent animate-spin" />
-                  <span>Memverifikasi...</span>
-                </div>
-              ) : cooldownSeconds > 0 ? (
-                <span>Terkunci ({cooldownSeconds}s)</span>
-              ) : (
-                <span>Masuk Aplikasi</span>
-              )}
+              {isSubmitting
+                ? "Signing in..."
+                : cooldownSeconds > 0
+                  ? `Locked (${cooldownSeconds}s)`
+                  : "Sign in"}
             </button>
-
-            {needsTotp ? (
-              <div className="space-y-1.5">
-                <label
-                  htmlFor="totp-input"
-                  className="text-[11px] font-bold text-slate-300"
-                >
-                  Kode Verifikasi 2FA
-                </label>
-                <input
-                  id="totp-input"
-                  inputMode="numeric"
-                  autoComplete="one-time-code"
-                  maxLength={16}
-                  value={totpCode}
-                  onChange={(event) => setTotpCode(event.target.value)}
-                  placeholder="123456 atau kode cadangan"
-                  className="w-full min-h-12 rounded-2xl border border-white/15 bg-slate-950 px-4 text-sm font-mono tracking-[0.25em] text-white placeholder-slate-600 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-400/20 transition"
-                />
-                <p className="text-[11px] text-slate-500">
-                  Buka aplikasi autentikator Anda, atau masukkan kode cadangan.
-                </p>
-              </div>
-            ) : null}
 
             <div className="text-center">
               <Link
-                href="/lupa-password"
-                className="text-xs font-semibold text-slate-400 transition hover:text-sky-300"
+                href="/forgot-password"
+                className="inline-flex min-h-11 items-center text-body-md font-semibold text-secondary"
               >
-                Lupa Password?
+                Forgot password?
               </Link>
             </div>
           </form>
         </div>
 
-        {/* Server Endpoint Active Info */}
-        <div className="mt-4 text-center">
-          <p className="text-[11px] text-slate-400 truncate max-w-xs">
-            Endpoint:{" "}
-            <span className="font-mono text-sky-300">{serverUrl}</span>
+        {serverUrl ? (
+          <p className="truncate text-center text-body-sm text-on-surface-variant">
+            Server: <span className="font-mono">{serverUrl}</span>
           </p>
-        </div>
+        ) : null}
       </div>
 
-      {/* Footer Info */}
-      <footer className="text-center text-[11px] text-slate-500 space-y-0.5">
+      <footer className="space-y-0.5 text-center font-mono text-code-sm text-on-surface-variant">
         {licenseStatus?.license ? (
-          <p>Berlisensi untuk {licenseStatus.license.holder}</p>
+          <p>Licensed to {licenseStatus.license.holder}</p>
         ) : null}
-        <p>CONTOH operasional Native Mobile v0.1 • 100% Offline-First</p>
+        <p>Kemal Office Studio v0.1.0</p>
       </footer>
 
-      {/* Server Config Modal */}
-      {isServerModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-sm rounded-3xl border border-white/15 bg-slate-900 p-6 shadow-2xl">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-base font-bold text-white flex items-center gap-2">
-                <span>⚙️</span> Pengaturan Server API
-              </h2>
-              <button
-                type="button"
-                onClick={() => setIsServerModalOpen(false)}
-                className="size-8 rounded-full bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center text-sm"
-              >
-                ✕
-              </button>
-            </div>
+      {isServerModalOpen ? (
+        <Modal
+          title="API server"
+          titleId="server-dialog-title"
+          onClose={() => setIsServerModalOpen(false)}
+        >
+          <p className="mb-4 text-body-md text-on-surface-variant">
+            The backend server address used for sign-in and data sync.
+          </p>
 
-            <p className="text-xs text-slate-300 mb-4 leading-relaxed">
-              Tentukan alamat server backend CONTOH yang dituju untuk
-              autentikasi dan sinkronisasi data.
-            </p>
+          <label htmlFor="serverUrlInput" className="app-label mb-1.5">
+            Server origin URL
+          </label>
+          <input
+            id="serverUrlInput"
+            type="text"
+            inputMode="url"
+            value={customServerUrl}
+            onChange={(e) => setCustomServerUrl(e.target.value)}
+            placeholder="https://your-server.co.id"
+            className="app-input mb-3 font-mono text-code-md"
+          />
 
-            <div className="mb-4">
-              <label
-                htmlFor="serverUrlInput"
-                className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5"
-              >
-                URL Server Origin
-              </label>
-              <input
-                id="serverUrlInput"
-                type="text"
-                value={customServerUrl}
-                onChange={(e) => setCustomServerUrl(e.target.value)}
-                placeholder=""
-                className="w-full min-h-11 rounded-xl border border-white/15 bg-slate-950 px-3 text-xs font-mono text-white placeholder-slate-600 focus:border-sky-400 focus:outline-none"
-              />
-            </div>
+          <button
+            type="button"
+            onClick={() => setCustomServerUrl("http://127.0.0.1:3000")}
+            className="mb-4 w-full rounded-md border border-outline-variant px-3 py-2 text-left text-body-sm hover:bg-surface-container-low"
+          >
+            <span className="font-semibold text-on-surface">
+              USB reverse / local PC
+            </span>
+            <span className="block font-mono text-code-sm text-on-surface-variant">
+              http://127.0.0.1:3000
+            </span>
+          </button>
 
-            {/* Quick presets */}
-            <div className="mb-5 flex flex-col gap-2">
-              <span className="text-[11px] font-semibold text-slate-400">
-                Pilihan Cepat:
-              </span>
-              <div className="flex flex-col gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => setCustomServerUrl("")}
-                  className="w-full text-left px-3 py-2 rounded-xl border border-sky-500/20 bg-sky-500/5 hover:bg-sky-500/10 text-xs text-sky-200 transition"
-                >
-                  <span className="font-bold text-sky-400">
-                    ☁️ Cloud Vercel:
-                  </span>
-                  <div className="font-mono text-[10px] text-slate-300">
-                    https://server-anda.contoh.id
-                  </div>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCustomServerUrl("http://127.0.0.1:3000")}
-                  className="w-full text-left px-3 py-2 rounded-xl border border-emerald-500/20 bg-emerald-500/5 hover:bg-emerald-500/10 text-xs text-emerald-200 transition"
-                >
-                  <span className="font-bold text-emerald-400">
-                    💻 USB Reverse / Lokal PC:
-                  </span>
-                  <div className="font-mono text-[10px] text-slate-300">
-                    http://127.0.0.1:3000
-                  </div>
-                </button>
-              </div>
-            </div>
+          {serverSaveMessage ? (
+            <output className="block mb-4 rounded-md border border-surface-container bg-surface-container-low p-2.5 text-center text-body-md text-on-surface">
+              {serverSaveMessage}
+            </output>
+          ) : null}
 
-            {serverSaveMessage && (
-              <div className="mb-4 p-2.5 rounded-xl bg-slate-800 border border-white/10 text-xs text-center text-sky-300 font-medium">
-                {serverSaveMessage}
-              </div>
-            )}
-
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setIsServerModalOpen(false)}
-                className="flex-1 min-h-10 rounded-xl border border-white/10 bg-slate-800 text-xs font-bold text-slate-300 hover:bg-slate-700 transition"
-              >
-                Batal
-              </button>
-              <button
-                type="button"
-                disabled={isSavingServer || !customServerUrl.trim()}
-                onClick={() => handleSaveServerUrl(customServerUrl)}
-                className="flex-1 min-h-10 rounded-xl bg-sky-500 font-bold text-xs text-slate-950 hover:bg-sky-400 disabled:opacity-50 transition"
-              >
-                {isSavingServer ? "Menyimpan..." : "Simpan & Terapkan"}
-              </button>
-            </div>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setIsServerModalOpen(false)}
+              className="app-btn app-btn-secondary flex-1"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={isSavingServer || !customServerUrl.trim()}
+              onClick={() => handleSaveServerUrl(customServerUrl)}
+              className="app-btn app-btn-primary flex-1"
+            >
+              {isSavingServer ? "Saving..." : "Save and apply"}
+            </button>
           </div>
-        </div>
-      )}
+        </Modal>
+      ) : null}
     </div>
   );
 }

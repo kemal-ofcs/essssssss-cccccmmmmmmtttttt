@@ -40,8 +40,8 @@ async function createFixture(): Promise<Fixture> {
       INSERT INTO master_operator (
         kode_operator, nama_operator, username, password_hash, role, role_id, status
       ) VALUES
-        ('SPD_TEST', 'Superadmin Test', 'super-test', 'unused', 'Operator', ?, 'Aktif'),
-        ('ADM_TEST', 'Admin Test', 'admin-test', 'unused', 'Admin', ?, 'Aktif');
+        ('SPD_TEST', 'Superadmin Test', 'super-test', 'unused', 'Operator', ?, 'Active'),
+        ('ADM_TEST', 'Admin Test', 'admin-test', 'unused', 'Admin', ?, 'Active');
     `,
     args: [Number(superRole.id), Number(adminRole.id)],
   });
@@ -164,7 +164,7 @@ describe("Web RBAC trusted boundary", () => {
 
       const active = await createSessionRecord(client, admin, "test", now);
       await client.execute({
-        sql: "UPDATE master_operator SET status = 'Nonaktif' WHERE id = ?;",
+        sql: "UPDATE master_operator SET status = 'Inactive' WHERE id = ?;",
         args: [admin.id],
       });
       expect(await readSessionRecord(client, active.token, now)).toBeNull();
@@ -185,9 +185,9 @@ describe("Web RBAC trusted boundary", () => {
           noHp: "+6281200000001",
           password: "",
           roleId: admin.roleId,
-          status: "Aktif",
+          status: "Active",
         }),
-      ).rejects.toThrow("Superadmin aktif terakhir");
+      ).rejects.toThrow("The last active Superadmin");
     } finally {
       client.close();
     }

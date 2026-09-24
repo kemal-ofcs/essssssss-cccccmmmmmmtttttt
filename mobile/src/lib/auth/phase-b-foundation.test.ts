@@ -34,7 +34,7 @@ describe("Phase B web security foundation", () => {
     };
 
     expect(() => resolveServerDatabaseConfig(publicOnlyEnvironment)).toThrow(
-      "TURSO_DATABASE_URL wajib tersedia",
+      "TURSO_DATABASE_URL is required",
     );
   });
 
@@ -52,7 +52,7 @@ describe("Phase B web security foundation", () => {
         NODE_ENV: "production",
         TURSO_DATABASE_URL: "libsql://secure.example.invalid",
       }),
-    ).toThrow("TURSO_AUTH_TOKEN wajib tersedia");
+    ).toThrow("TURSO_AUTH_TOKEN is required");
   });
 
   test("server database sendiri di jaringan privat boleh tanpa token", () => {
@@ -77,7 +77,7 @@ describe("Phase B web security foundation", () => {
         TURSO_DATABASE_URL: "https://db.kantor-anda.invalid",
         APP_DATABASE_PROVIDER: "self_hosted",
       }),
-    ).toThrow("TURSO_AUTH_TOKEN wajib tersedia");
+    ).toThrow("TURSO_AUTH_TOKEN is required");
   });
 
   test("HTTP polos ke alamat publik ditolak sampai diizinkan eksplisit", () => {
@@ -89,7 +89,7 @@ describe("Phase B web security foundation", () => {
     };
 
     expect(() => resolveServerDatabaseConfig(insecureEnvironment)).toThrow(
-      "TURSO_DATABASE_URL tidak dapat dipakai",
+      "TURSO_DATABASE_URL cannot be used",
     );
     expect(
       resolveServerDatabaseConfig({
@@ -110,6 +110,6 @@ describe("Phase B web security foundation", () => {
         APP_DATABASE_PROVIDER: "self-hostedd",
         APP_ALLOW_INSECURE_DATABASE: "1",
       }),
-    ).toThrow("TURSO_DATABASE_URL tidak dapat dipakai");
+    ).toThrow("TURSO_DATABASE_URL cannot be used");
   });
 });

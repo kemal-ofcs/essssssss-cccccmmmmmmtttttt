@@ -32,7 +32,7 @@ function normalizeEntry(value: JsonRecord): ResetHistoryEntry {
     kodeOperator: text(value.kodeOperator ?? value.kode_operator),
     identifierUsed: text(value.identifierUsed ?? value.identifier_used),
     maskedEmail: text(value.maskedEmail ?? value.masked_email),
-    status: isResetHistoryStatus(status) ? status : "Dibatalkan",
+    status: isResetHistoryStatus(status) ? status : "Cancelled",
     livenessScore:
       value.livenessScore == null && value.liveness_score == null
         ? null
@@ -66,7 +66,7 @@ function normalizeEntry(value: JsonRecord): ResetHistoryEntry {
  */
 export async function getPasswordResetHistory(filter: ResetHistoryFilter = {}) {
   const payload = {
-    status: filter.status ?? "SEMUA",
+    status: filter.status ?? "ALL",
     search: filter.search ?? "",
     limit: filter.limit,
   };

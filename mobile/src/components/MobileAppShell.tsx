@@ -7,6 +7,7 @@ import { type AppArea, canAccessArea } from "@/lib/auth/access";
 import { useAuth } from "@/lib/context/AuthContext";
 import { AutoSyncRunner } from "./AutoSyncRunner";
 import { LicenseHolderLabel, LicenseNotice } from "./license/LicenseNotice";
+import { SyncIndicator } from "./SyncIndicator";
 
 interface NavItem {
   readonly area: AppArea;
@@ -15,9 +16,9 @@ interface NavItem {
 }
 
 const NAV_ITEMS: readonly NavItem[] = [
-  { area: "items", href: "/items", label: "Item" },
-  { area: "activity", href: "/activity", label: "Aktivitas" },
-  { area: "settings", href: "/settings", label: "Atur" },
+  { area: "items", href: "/items", label: "Items" },
+  { area: "activity", href: "/activity", label: "Activity" },
+  { area: "settings", href: "/settings", label: "Settings" },
 ];
 
 interface MobileAppShellProps {
@@ -38,29 +39,35 @@ export function MobileAppShell({ children, title }: MobileAppShellProps) {
   const visible = NAV_ITEMS.filter((item) => canAccessArea(user, item.area));
 
   return (
-    <div className="flex min-h-dvh flex-col bg-slate-950 text-slate-100">
+    <div className="flex min-h-dvh flex-col bg-background text-on-surface">
       <AutoSyncRunner />
-      <header className="sticky top-0 z-30 border-b border-white/10 bg-slate-950/95 px-4 py-3 backdrop-blur">
-        <p className="text-sm font-black text-white">
-          {title ?? "App Template"}
-        </p>
+      <header className="sticky top-0 z-30 border-b border-surface-container bg-surface-container-lowest px-4 py-2 shadow-[0_1px_8px_rgb(0_0_0/0.04)]">
+        <div className="flex items-center justify-between gap-2">
+          <p className="truncate text-headline-md font-bold text-on-surface">
+            {title ?? "App Template"}
+          </p>
+          <SyncIndicator />
+        </div>
         {user ? (
-          <p className="mt-0.5 truncate text-[11px] text-slate-400">
-            {user.nama_operator} — {user.role}
+          <p className="mt-0.5 truncate text-body-sm text-on-surface-variant">
+            {user.nama_operator} · {user.role}
           </p>
         ) : null}
-        <LicenseHolderLabel className="mt-0.5 block truncate text-[10px] text-slate-500" />
+        <LicenseHolderLabel className="mt-0.5 block truncate text-body-sm text-on-surface-variant" />
       </header>
       <LicenseNotice />
 
       <main
         id="main-content"
-        className="flex min-h-0 flex-1 touch-pan-y flex-col gap-4 overflow-y-auto overscroll-contain px-4 py-4 pb-24"
+        className="flex min-h-0 flex-1 touch-pan-y flex-col gap-3 overflow-y-auto overscroll-contain px-4 py-3 pb-24"
       >
         {children}
       </main>
 
-      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-slate-950/95 backdrop-blur">
+      <nav
+        aria-label="Main"
+        className="mobile-safe-bottom fixed inset-x-0 bottom-0 z-40 border-t border-surface-container bg-surface-container-lowest"
+      >
         <div className="mx-auto flex max-w-lg items-stretch">
           {visible.map((item) => {
             const active =
@@ -72,13 +79,14 @@ export function MobileAppShell({ children, title }: MobileAppShellProps) {
                 key={item.href}
                 href={item.href}
                 aria-current={active ? "page" : undefined}
-                className={`flex min-h-14 flex-1 flex-col items-center justify-center gap-0.5 text-[11px] font-bold transition ${
-                  active ? "text-sky-300" : "text-slate-500"
+                className={`flex min-h-14 flex-1 flex-col items-center justify-center gap-1 text-body-sm font-semibold transition-colors ${
+                  active ? "text-secondary" : "text-on-surface-variant"
                 }`}
               >
                 <span
+                  aria-hidden="true"
                   className={`h-1 w-6 rounded-full ${
-                    active ? "bg-sky-400" : "bg-transparent"
+                    active ? "bg-secondary" : "bg-transparent"
                   }`}
                 />
                 {item.label}

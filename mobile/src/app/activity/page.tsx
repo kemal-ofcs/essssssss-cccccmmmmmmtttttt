@@ -176,7 +176,7 @@ export default function ActivityPage() {
             ) : rows.length === 0 ? (
               <tr>
                 <td className="px-4 py-6 text-slate-500" colSpan={5}>
-                  Belum ada aktivitas.
+                  None yet aktivitas.
                 </td>
               </tr>
             ) : (

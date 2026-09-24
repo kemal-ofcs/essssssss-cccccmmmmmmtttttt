@@ -4,15 +4,18 @@ import { useEffect, useRef, useState } from "react";
 import {
   type DataFolderInfo,
   type DeviceExportReport,
+  type ExportReport,
+  exportDatabase,
   exportDatabaseToDevice,
   getDataFolder,
   type ImportReport,
   importDatabaseFile,
 } from "@/lib/gateways/database-portability";
+import { isMobileRuntime } from "@/lib/runtime/app-runtime";
 import type { DatabaseProvider } from "@/lib/validations/database-endpoint";
 
 /** Kata yang harus diketik ulang sebelum pemulihan dijalankan. */
-const RESTORE_CONFIRMATION = "PULIHKAN";
+const RESTORE_CONFIRMATION = "RESTORE";
 
 function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -21,7 +24,22 @@ function formatSize(bytes: number): string {
 }
 
 /**
- * Layar Cadangan Database.
+ * Android SELALU memakai dialog "Simpan ke…" (SAF, aturan 28), sehingga bentuk
+ * laporannya berbeda: `savedToDevice` alih-alih `publicPath`.
+ */
+type ExportResult =
+  | { kind: "desktop"; report: ExportReport }
+  | { kind: "device"; report: DeviceExportReport };
+
+const panelNote =
+  "rounded-md border p-3 text-body-md border-tertiary-fixed-dim bg-tertiary-fixed text-on-tertiary-fixed";
+const panelDanger =
+  "rounded-md border p-3 text-body-md font-semibold border-error/30 bg-error-container text-on-error-container";
+const panelSuccess =
+  "rounded-md border p-3 text-body-md border-success/30 bg-success-container text-on-success-container";
+
+/**
+ * Layar Cadangan Database, dipakai Desktop dan Mobile.
  *
  * Tanpa cloud tidak ada cadangan otomatis di mana pun, jadi inilah satu-satunya
  * cara customer memindahkan datanya sendiri: ganti laptop, pulihkan setelah
@@ -29,9 +47,8 @@ function formatSize(bytes: number): string {
  *
  * Dua hal yang sengaja tampil menonjol: peringatan bahwa berkas tanpa frasa
  * sandi memuat hash password dan seluruh data operasional, dan konfirmasi
- * ketik-ulang
- * sebelum memulihkan — memulihkan berarti MENIMPA seluruh data, bukan
- * menggabungkannya.
+ * ketik-ulang sebelum memulihkan — memulihkan berarti MENIMPA seluruh data,
+ * bukan menggabungkannya.
  */
 export function DatabaseBackupCard({
   provider,
@@ -42,10 +59,7 @@ export function DatabaseBackupCard({
   const [restorePassphrase, setRestorePassphrase] = useState("");
   const [confirmation, setConfirmation] = useState("");
   const [busy, setBusy] = useState<"export" | "restore" | null>(null);
-  // Android SELALU memakai jalur SAF, jadi bentuk laporannya `DeviceExportReport`
-  // (dengan `savedToDevice`), bukan `ExportReport` yang membawa `publicPath` --
-  // kolom itu tidak lagi punya arti di sini.
-  const [exported, setExported] = useState<DeviceExportReport | null>(null);
+  const [exported, setExported] = useState<ExportResult | null>(null);
   const [restored, setRestored] = useState<ImportReport | null>(null);
   const [folder, setFolder] = useState<DataFolderInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -62,12 +76,12 @@ export function DatabaseBackupCard({
 
   if (!isLocalMode) {
     return (
-      <section className="app-panel rounded-3xl p-5 sm:p-7">
-        <h2 className="text-base font-black text-white">Cadangan database</h2>
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
-          Perangkat ini memakai database di server, sehingga data induknya tidak
-          berada di sini. Pencadangannya dilakukan dari penyedia database Anda.
-          Menu ini aktif pada Mode Database Lokal.
+      <section className="app-panel p-4 sm:p-5">
+        <h2 className="text-headline-md text-on-surface">Database backup</h2>
+        <p className="mt-1 max-w-2xl text-body-md text-on-surface-variant">
+          This device uses a server database, so the master data is not stored
+          here. Back it up from your database provider. This menu is available
+          in Local Database Mode.
         </p>
       </section>
     );
@@ -78,16 +92,19 @@ export function DatabaseBackupCard({
     setError(null);
     setExported(null);
     try {
-      // Dialog "Simpan ke…" milik Android, bukan penulisan langsung ke folder
-      // Unduhan: sejak Android 10 penulisan itu ditolak, dan berkasnya berakhir
-      // di folder privat yang tidak akan pernah ditemukan penggunanya.
-      const hasil = await exportDatabaseToDevice(passphrase);
-      setExported(hasil);
-      if (hasil.savedToDevice) setPassphrase("");
+      if (isMobileRuntime()) {
+        const report = await exportDatabaseToDevice(passphrase);
+        setExported({ kind: "device", report });
+        if (report.savedToDevice) setPassphrase("");
+      } else {
+        setExported({
+          kind: "desktop",
+          report: await exportDatabase(passphrase),
+        });
+        setPassphrase("");
+      }
     } catch (caught) {
-      setError(
-        caught instanceof Error ? caught.message : "Ekspor tidak berhasil.",
-      );
+      setError(caught instanceof Error ? caught.message : "Export failed.");
     } finally {
       setBusy(null);
     }
@@ -96,7 +113,7 @@ export function DatabaseBackupCard({
   const handleRestore = async () => {
     const file = fileRef.current?.files?.[0];
     if (!file) {
-      setError("Pilih berkas cadangan terlebih dahulu.");
+      setError("Choose a backup file first.");
       return;
     }
     setBusy("restore");
@@ -109,49 +126,45 @@ export function DatabaseBackupCard({
       setConfirmation("");
       if (fileRef.current) fileRef.current.value = "";
     } catch (caught) {
-      setError(
-        caught instanceof Error ? caught.message : "Pemulihan tidak berhasil.",
-      );
+      setError(caught instanceof Error ? caught.message : "Restore failed.");
     } finally {
       setBusy(null);
     }
   };
 
   return (
-    <section className="app-panel rounded-3xl p-5 sm:p-7">
-      <h2 className="text-base font-black text-white">Cadangan database</h2>
-      <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-400">
-        Seluruh data perusahaan tersimpan di perangkat ini. Buat cadangan secara
-        berkala — tidak ada salinan lain di tempat mana pun.
+    <section className="app-panel p-4 sm:p-5">
+      <h2 className="text-headline-md text-on-surface">Database backup</h2>
+      <p className="mt-1 max-w-2xl text-body-md text-on-surface-variant">
+        All company data is stored on this device. Back it up regularly: there
+        is no other copy anywhere.
       </p>
 
       {folder ? (
-        <p className="mt-4 break-all rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2 font-mono text-[11px] text-slate-400">
+        <p className="mt-3 break-all rounded-md border border-surface-container bg-surface-container-low px-3 py-2 font-mono text-code-sm text-on-surface-variant">
           {folder.hubPath}
         </p>
       ) : null}
 
-      {/* ── Ekspor ─────────────────────────────────────────────────────── */}
-      <div className="mt-6 space-y-3 border-t border-white/10 pt-5">
-        <h3 className="text-xs font-black text-slate-200">Buat cadangan</h3>
-        <label className="block space-y-1.5 text-xs font-bold text-slate-300">
-          Frasa sandi (disarankan)
+      <div className="mt-4 space-y-3 border-t border-surface-container pt-4">
+        <h3 className="text-headline-md text-on-surface">Create a backup</h3>
+        <label className="app-label grid gap-1.5">
+          Passphrase (recommended)
           <input
             type="password"
             value={passphrase}
             onChange={(event) => setPassphrase(event.target.value)}
-            placeholder="Kosongkan untuk berkas tanpa enkripsi"
+            placeholder="Leave empty for an unencrypted file"
             autoComplete="new-password"
-            className="min-h-11 w-full rounded-xl border border-white/10 bg-slate-950 px-3 font-mono text-xs text-white outline-none focus:border-cyan-400"
+            className="app-input font-mono font-normal"
           />
         </label>
 
         {passphrase.trim().length === 0 ? (
-          <p className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-[11px] font-bold leading-4 text-amber-200">
-            Tanpa frasa sandi, berkasnya dapat dibuka siapa pun yang memilikinya
-            — termasuk hash password, rahasia verifikasi dua langkah, dan
-            seluruh data operasional. Isi frasa sandi kecuali Anda memang sedang
-            menyiapkannya untuk diagnosa.
+          <p className={panelNote}>
+            Without a passphrase, anyone who has the file can open it, including
+            password hashes, two-step verification secrets, and all operational
+            data. Set a passphrase unless you are preparing it for diagnostics.
           </p>
         ) : null}
 
@@ -159,72 +172,83 @@ export function DatabaseBackupCard({
           type="button"
           onClick={handleExport}
           disabled={busy !== null}
-          className="inline-flex min-h-11 items-center rounded-xl bg-cyan-400 px-5 text-xs font-black text-slate-950 transition hover:bg-cyan-300 disabled:opacity-50"
+          className="app-btn app-btn-primary"
         >
-          {busy === "export" ? "Menyiapkan..." : "Buat & simpan cadangan"}
+          {busy === "export"
+            ? "Preparing..."
+            : isMobileRuntime()
+              ? "Create and save backup"
+              : "Create backup file"}
         </button>
 
         {exported ? (
-          <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-[11px] leading-5 text-emerald-200">
-            <p className="font-black">
-              {exported.fileName} · {formatSize(exported.sizeBytes)} ·{" "}
-              {exported.encrypted ? "terenkripsi" : "TANPA enkripsi"}
+          <div className={panelSuccess}>
+            <p className="font-semibold">
+              {exported.report.fileName} ·{" "}
+              {formatSize(exported.report.sizeBytes)} ·{" "}
+              {exported.report.encrypted ? "encrypted" : "NOT encrypted"}
             </p>
-            {exported.savedToDevice ? (
-              <p className="mt-1 leading-4">
-                Tersimpan ke lokasi yang Anda pilih.
+            {exported.kind === "device" ? (
+              <p className="mt-1">
+                {exported.report.savedToDevice
+                  ? "Saved to the location you chose."
+                  : "The backup file was created, but you closed the location picker, so there is no copy in your storage yet. Press the button above again to choose where to save it."}
+              </p>
+            ) : exported.report.publicPath ? (
+              <p className="mt-1 break-all font-mono text-code-sm">
+                Saved to: {exported.report.publicPath}
               </p>
             ) : (
-              <p className="mt-1 leading-4">
-                Berkas cadangan sudah dibuat, tetapi Anda menutup pemilih lokasi
-                sehingga belum ada salinan di penyimpanan Anda. Tekan tombol di
-                atas lagi untuk memilih tujuannya.
+              <p className="mt-1">
+                The file was created, but this device does not allow writing to
+                the Downloads folder, so you cannot open it from a file manager
+                yet. Copy it manually from the location below.
               </p>
             )}
-            <p className="mt-1 break-all font-mono opacity-60">
-              {exported.path}
+            <p className="mt-1 break-all font-mono text-code-sm opacity-80">
+              {exported.report.path}
             </p>
           </div>
         ) : null}
       </div>
 
-      {/* ── Pulihkan ───────────────────────────────────────────────────── */}
-      <div className="mt-6 space-y-3 border-t border-white/10 pt-5">
-        <h3 className="text-xs font-black text-slate-200">
-          Pulihkan dari cadangan
+      <div className="mt-4 space-y-3 border-t border-surface-container pt-4">
+        <h3 className="text-headline-md text-on-surface">
+          Restore from a backup
         </h3>
-        <p className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-[11px] font-bold leading-4 text-rose-200">
-          Pemulihan MENIMPA seluruh data di perangkat ini — data operasional,
-          operator, dan hak aksesnya — bukan menggabungkannya. Database yang
-          sekarang disimpan berdampingan lebih dulu, sehingga salah pilih berkas
-          masih bisa dibatalkan secara manual.
+        <p className={panelDanger}>
+          Restoring REPLACES all data on this device (operational data,
+          operators, and their permissions) instead of merging it. The current
+          database is kept alongside first, so picking the wrong file can still
+          be undone manually.
         </p>
 
         <input
           ref={fileRef}
           type="file"
+          aria-label="Choose a backup file"
           accept=".db,.appbak"
-          className="block w-full text-[11px] text-slate-300 file:mr-3 file:min-h-9 file:rounded-lg file:border-0 file:bg-white/10 file:px-3 file:text-[11px] file:font-bold file:text-slate-200"
+          className="block w-full text-body-sm text-on-surface-variant file:mr-3 file:min-h-9 file:rounded-md file:border file:border-outline-variant file:bg-surface-container-lowest file:px-3 file:text-body-sm file:font-semibold file:text-on-surface"
         />
 
-        <label className="block space-y-1.5 text-xs font-bold text-slate-300">
-          Frasa sandi berkas (bila terenkripsi)
+        <label className="app-label grid gap-1.5">
+          File passphrase (if encrypted)
           <input
             type="password"
             value={restorePassphrase}
             onChange={(event) => setRestorePassphrase(event.target.value)}
             autoComplete="off"
-            className="min-h-11 w-full rounded-xl border border-white/10 bg-slate-950 px-3 font-mono text-xs text-white outline-none focus:border-cyan-400"
+            className="app-input font-mono font-normal"
           />
         </label>
 
-        <label className="block space-y-1.5 text-xs font-bold text-slate-300">
-          Ketik {RESTORE_CONFIRMATION} untuk mengonfirmasi
+        <label className="app-label grid gap-1.5">
+          Type {RESTORE_CONFIRMATION} to confirm
           <input
             type="text"
             value={confirmation}
             onChange={(event) => setConfirmation(event.target.value)}
-            className="min-h-11 w-full rounded-xl border border-white/10 bg-slate-950 px-3 font-mono text-xs text-white outline-none focus:border-rose-400"
+            className="app-input font-mono font-normal"
           />
         </label>
 
@@ -234,24 +258,23 @@ export function DatabaseBackupCard({
           disabled={
             busy !== null || confirmation.trim() !== RESTORE_CONFIRMATION
           }
-          className="inline-flex min-h-11 items-center rounded-xl bg-rose-500 px-5 text-xs font-black text-white transition hover:bg-rose-400 disabled:opacity-40"
+          className="app-btn app-btn-danger"
         >
-          {busy === "restore" ? "Memulihkan..." : "Pulihkan database"}
+          {busy === "restore" ? "Restoring..." : "Restore database"}
         </button>
 
         {restored ? (
-          <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-[11px] leading-5 text-emerald-200">
-            <p className="font-black">
-              Dipulihkan dari {restored.restoredFrom} · skema v
-              {restored.schemaVersion} · {restored.tableCount} tabel
+          <div className={panelSuccess}>
+            <p className="font-semibold">
+              Restored from {restored.restoredFrom} · schema v
+              {restored.schemaVersion} · {restored.tableCount} tables
             </p>
             <p className="mt-1">
-              Tutup dan buka kembali aplikasi agar seluruh layar membaca data
-              yang baru.
+              Close and reopen the app so every screen reads the new data.
             </p>
             {restored.previousBackup ? (
-              <p className="mt-1 break-all font-mono opacity-80">
-                Database lama: {restored.previousBackup}
+              <p className="mt-1 break-all font-mono text-code-sm opacity-80">
+                Previous database: {restored.previousBackup}
               </p>
             ) : null}
           </div>
@@ -259,7 +282,7 @@ export function DatabaseBackupCard({
       </div>
 
       {error ? (
-        <p className="mt-4 rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-[11px] font-bold leading-4 text-rose-200">
+        <p role="alert" className={`mt-4 ${panelDanger}`}>
           {error}
         </p>
       ) : null}

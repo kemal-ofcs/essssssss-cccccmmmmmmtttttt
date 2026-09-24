@@ -71,7 +71,7 @@ export async function readSessionRecord(
       JOIN master_operator m ON m.id = s.operator_id
       JOIN app_role r ON r.id = m.role_id
       WHERE s.token_hash = ? AND s.revoked_at IS NULL AND s.expires_at > ?
-        AND m.status = 'Aktif' AND r.status = 'Aktif'
+        AND m.status = 'Active' AND r.status = 'Active'
       LIMIT 1;
     `,
     args: [await hashSessionToken(token), nowIso],

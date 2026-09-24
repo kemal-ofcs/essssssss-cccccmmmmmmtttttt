@@ -67,9 +67,9 @@ fn parse_offline_hours_value(configured: Option<&str>, debug_build: bool) -> Res
     let raw = configured.unwrap_or(if debug_build { "720" } else { "" });
     let hours = raw
         .parse::<u64>()
-        .map_err(|_| "APP_OFFLINE_AUTH_MAX_AGE_HOURS harus berupa angka.")?;
+        .map_err(|_| "APP_OFFLINE_AUTH_MAX_AGE_HOURS must be a number.")?;
     if !(1..=720).contains(&hours) {
-        return Err("Masa login offline harus berada pada rentang 1-720 jam.".into());
+        return Err("The offline sign-in period must be between 1 and 720 hours.".into());
     }
     Ok(hours)
 }
@@ -80,7 +80,7 @@ fn parse_offline_hours() -> Result<u64, String> {
 
 fn parse_server_url(raw_url: &str) -> Result<Url, CommandError> {
     let mut parsed = Url::parse(raw_url.trim())
-        .map_err(|_| CommandError::new("SERVER_URL_INVALID", "Format URL Server tidak valid."))?;
+        .map_err(|_| CommandError::new("SERVER_URL_INVALID", "Invalid server URL format."))?;
     if !matches!(parsed.scheme(), "http" | "https")
         || parsed.host_str().is_none()
         || !parsed.username().is_empty()
@@ -91,7 +91,7 @@ fn parse_server_url(raw_url: &str) -> Result<Url, CommandError> {
     {
         return Err(CommandError::new(
             "SERVER_URL_INVALID",
-            "URL Server harus berupa origin HTTP(S) tanpa kredensial, path, query, atau fragment.",
+            "The server URL must be an HTTP(S) origin without credentials, path, query, or fragment.",
         ));
     }
     if parsed.scheme() != "https"
@@ -103,7 +103,7 @@ fn parse_server_url(raw_url: &str) -> Result<Url, CommandError> {
     {
         return Err(CommandError::new(
             "SERVER_URL_INVALID",
-            "URL Server wajib memakai HTTPS; HTTP hanya diizinkan untuk localhost saat debug.",
+            "The server URL must use HTTPS; HTTP is only allowed for localhost in debug builds.",
         ));
     }
     parsed.set_path("");
@@ -116,9 +116,9 @@ impl MobileState {
         let data_dir = app
             .path()
             .app_local_data_dir()
-            .map_err(|_| "Folder data lokal aplikasi tidak tersedia.")?;
+            .map_err(|_| "The app's local data folder is not available.")?;
         std::fs::create_dir_all(&data_dir)
-            .map_err(|_| "Folder data lokal aplikasi tidak dapat dibuat.")?;
+            .map_err(|_| "The app's local data folder could not be created.")?;
         storage::initialize(&data_dir)?;
 
         let mut root_store = rustls::RootCertStore::empty();
@@ -127,7 +127,7 @@ impl MobileState {
             rustls::crypto::ring::default_provider(),
         ))
         .with_safe_default_protocol_versions()
-        .map_err(|_| "Versi protokol TLS tidak valid.")?
+        .map_err(|_| "Invalid TLS protocol version.")?
         .with_root_certificates(root_store)
         .with_no_client_auth();
 
@@ -137,7 +137,7 @@ impl MobileState {
             .timeout(std::time::Duration::from_secs(MOBILE_HTTP_TIMEOUT_SECONDS))
             .user_agent("operasional-CONTOH-Mobile/0.1")
             .build()
-            .map_err(|_| "HTTP client Mobile tidak dapat dibuat.")?;
+            .map_err(|_| "The mobile HTTP client could not be created.")?;
 
         let temp_state = Self {
             server_origin: std::sync::RwLock::new(DEFAULT_FALLBACK_URL.into()),
@@ -261,7 +261,7 @@ impl MobileState {
         } else {
             Err(CommandError::new(
                 "TURSO_NOT_CONFIGURED",
-                "Database belum dikonfigurasi. Pilih Turso Cloud atau Server Database Sendiri, lalu isi alamatnya di Pengaturan.",
+                "The database is not configured. Choose Turso Cloud or Your Own Database Server, then enter its address in Settings.",
             ))
         }
     }
@@ -336,7 +336,7 @@ impl MobileState {
         if config.auth_token.trim().is_empty() && config.requires_auth_token() {
             return Err(CommandError::new(
                 "TURSO_TOKEN_REQUIRED",
-                "Auth Token wajib diisi saat URL database berubah.",
+                "An Auth Token is required when the database URL changes.",
             ));
         }
 

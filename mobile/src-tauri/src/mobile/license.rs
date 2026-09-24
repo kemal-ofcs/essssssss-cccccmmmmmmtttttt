@@ -172,22 +172,22 @@ fn string_field<'a>(object: &'a serde_json::Map<String, Value>, key: &str) -> Op
 fn validate_payload(value: &Value) -> Result<(String, LicensePayload), String> {
     let object = value
         .as_object()
-        .ok_or_else(|| "Isi lisensi harus berupa objek JSON.".to_owned())?;
+        .ok_or_else(|| "The license contents must be a JSON object.".to_owned())?;
     if let Some(unknown) = object
         .keys()
         .find(|key| !LICENSE_KEYS.contains(&key.as_str()))
     {
-        return Err(format!("Kolom lisensi tidak dikenal: {unknown}."));
+        return Err(format!("Unknown license field: {unknown}."));
     }
     if object.get("v").and_then(Value::as_i64) != Some(1) {
-        return Err("Versi lisensi tidak didukung.".into());
+        return Err("Unsupported license version.".into());
     }
     let product = string_field(object, "produk")
         .filter(|value| is_product_code(value))
-        .ok_or_else(|| "Kode produk tidak sah.".to_owned())?;
+        .ok_or_else(|| "Invalid product code.".to_owned())?;
     let id = string_field(object, "id")
         .filter(|value| is_license_id(value))
-        .ok_or_else(|| "ID lisensi tidak sah.".to_owned())?;
+        .ok_or_else(|| "Invalid license ID.".to_owned())?;
     let holder = string_field(object, "pemegang")
         .filter(|value| {
             !value.is_empty()
@@ -197,30 +197,30 @@ fn validate_payload(value: &Value) -> Result<(String, LicensePayload), String> {
                     .chars()
                     .any(|character| matches!(character, '\u{0}'..='\u{1f}' | '\u{7f}'))
         })
-        .ok_or_else(|| "Nama pemegang lisensi tidak sah.".to_owned())?;
+        .ok_or_else(|| "Invalid license holder name.".to_owned())?;
     let kind = string_field(object, "jenis")
         .filter(|value| LICENSE_KINDS.contains(value))
-        .ok_or_else(|| "Jenis lisensi tidak dikenal.".to_owned())?;
+        .ok_or_else(|| "Unknown license type.".to_owned())?;
     let issued = string_field(object, "terbit")
         .filter(|value| is_calendar_date(value))
-        .ok_or_else(|| "Tanggal terbit tidak sah.".to_owned())?;
+        .ok_or_else(|| "Invalid issue date.".to_owned())?;
     let updates_until = string_field(object, "pembaruan_sampai")
         .filter(|value| is_calendar_date(value))
-        .ok_or_else(|| "Tanggal pembaruan_sampai tidak sah.".to_owned())?;
+        .ok_or_else(|| "Invalid pembaruan_sampai (updates until) date.".to_owned())?;
     if updates_until < issued {
-        return Err("pembaruan_sampai tidak boleh sebelum tanggal terbit.".into());
+        return Err("pembaruan_sampai (updates until) cannot be before the issue date.".into());
     }
     let valid_until = if kind == "beli_putus" {
         if object.get("berlaku_sampai") != Some(&Value::Null) {
-            return Err("Lisensi beli_putus tidak punya berlaku_sampai.".into());
+            return Err("A beli_putus (perpetual) license has no berlaku_sampai (valid until).".into());
         }
         None
     } else {
         let until = string_field(object, "berlaku_sampai")
             .filter(|value| is_calendar_date(value))
-            .ok_or_else(|| "Lisensi sewa wajib punya berlaku_sampai.".to_owned())?;
+            .ok_or_else(|| "A sewa (rental) license must have berlaku_sampai (valid until).".to_owned())?;
         if until < issued {
-            return Err("berlaku_sampai tidak boleh sebelum tanggal terbit.".into());
+            return Err("berlaku_sampai (valid until) cannot be before the issue date.".into());
         }
         Some(until.to_owned())
     };
@@ -229,23 +229,23 @@ fn validate_payload(value: &Value) -> Result<(String, LicensePayload), String> {
         .and_then(Value::as_array)
         .filter(|devices| devices.len() <= MAX_DEVICES)
         .ok_or_else(|| {
-            format!("Daftar perangkat harus berupa array berisi maksimal {MAX_DEVICES} kode.")
+            format!("The device list must be an array of at most {MAX_DEVICES} codes.")
         })?;
     let mut codes: Vec<String> = Vec::with_capacity(devices.len());
     for device in devices {
         let code = device
             .as_str()
             .filter(|code| is_device_code(code))
-            .ok_or_else(|| format!("Kode perangkat tidak sah: {device}."))?;
+            .ok_or_else(|| format!("Invalid device code: {device}."))?;
         if codes.iter().any(|seen| seen == code) {
-            return Err(format!("Kode perangkat ganda: {code}."));
+            return Err(format!("Duplicate device code: {code}."));
         }
         codes.push(code.to_owned());
     }
     let lock_mobile = object
         .get("kunci_mobile")
         .and_then(Value::as_bool)
-        .ok_or_else(|| "kunci_mobile harus true atau false.".to_owned())?;
+        .ok_or_else(|| "kunci_mobile must be true or false.".to_owned())?;
     Ok((
         product.to_owned(),
         LicensePayload {
@@ -287,32 +287,32 @@ pub fn parse_license_for(
     expected_product: &str,
 ) -> Result<LicensePayload, String> {
     if text.len() > MAX_LICENSE_TEXT * 4 {
-        return Err("Teks lisensi terlalu panjang.".into());
+        return Err("The license text is too long.".into());
     }
     let text = compact_license_text(text);
     if text.len() > MAX_LICENSE_TEXT {
-        return Err("Teks lisensi terlalu panjang.".into());
+        return Err("The license text is too long.".into());
     }
     let parts = text.split('.').collect::<Vec<_>>();
     if parts.len() != 3 || parts[0] != LICENSE_PREFIX {
-        return Err("Teks bukan lisensi LIS1.".into());
+        return Err("This text is not a LIS1 license.".into());
     }
     let signature = BASE64_URL_SAFE_NO_PAD
         .decode(parts[2])
-        .map_err(|_| "Tanda tangan lisensi rusak.".to_owned())?;
+        .map_err(|_| "The license signature is corrupt.".to_owned())?;
     let signing_input = format!("{}.{}", parts[0], parts[1]);
     UnparsedPublicKey::new(&ED25519, public_key)
         .verify(signing_input.as_bytes(), &signature)
-        .map_err(|_| "Tanda tangan lisensi tidak cocok.".to_owned())?;
+        .map_err(|_| "The license signature does not match.".to_owned())?;
     let payload = BASE64_URL_SAFE_NO_PAD
         .decode(parts[1])
-        .map_err(|_| "Isi lisensi rusak.".to_owned())?;
+        .map_err(|_| "The license contents are corrupt.".to_owned())?;
     let value: Value =
-        serde_json::from_slice(&payload).map_err(|_| "Isi lisensi rusak.".to_owned())?;
+        serde_json::from_slice(&payload).map_err(|_| "The license contents are corrupt.".to_owned())?;
     let (product, license) = validate_payload(&value)?;
     if product != expected_product {
         return Err(format!(
-            "Lisensi ini diterbitkan untuk produk lain ({product})."
+            "This license was issued for another product ({product})."
         ));
     }
     Ok(license)
@@ -341,7 +341,7 @@ pub fn evaluate(
     let Some(text) = text.map(str::trim).filter(|text| !text.is_empty()) else {
         return blocked(
             LicenseState::Missing,
-            format!("Aplikasi ini belum memiliki lisensi. Kirim kode perangkat di bawah kepada {LICENSE_ISSUER} untuk mendapatkannya."),
+            format!("This app has no license yet. Send the device code below to {LICENSE_ISSUER} to get one."),
             None,
         );
     };
@@ -349,7 +349,7 @@ pub fn evaluate(
         return blocked(
             LicenseState::Invalid,
             format!(
-                "Build aplikasi ini belum diberi public key lisensi. Hubungi {LICENSE_ISSUER}."
+                "This app build has no license public key yet. Contact {LICENSE_ISSUER}."
             ),
             None,
         );
@@ -359,7 +359,7 @@ pub fn evaluate(
         Err(reason) => {
             return blocked(
                 LicenseState::Invalid,
-                format!("Lisensi tidak sah: {reason}"),
+                format!("Invalid license: {reason}"),
                 None,
             )
         }
@@ -368,7 +368,7 @@ pub fn evaluate(
         && !license.devices.iter().any(|code| code == device_code)
     {
         let message = format!(
-            "Perangkat ini ({device_code}) tidak terdaftar di lisensi {}. Kirim kode perangkat ini kepada {LICENSE_ISSUER} untuk ditambahkan.",
+            "This device ({device_code}) is not registered in license {}. Send this device code to {LICENSE_ISSUER} to have it added.",
             license.holder
         );
         return blocked(LicenseState::DeviceNotListed, message, Some(license));
@@ -399,13 +399,13 @@ pub fn evaluate(
 
 fn expired_message(until: &str) -> String {
     format!(
-        "Masa berlaku lisensi berakhir pada {until}. Aplikasi berjalan dalam mode baca-saja: data tetap bisa dilihat, diekspor, dan disinkronkan. Aktifkan lisensi baru untuk kembali mengubah data."
+        "The license expired on {until}. The app runs in read-only mode: data can still be viewed, exported, and synced. Activate a new license to change data again."
     )
 }
 
 fn version_message(updates_until: &str, build_date: &str) -> String {
     format!(
-        "Versi aplikasi ini (build {build_date}) lebih baru dari masa pembaruan lisensi (sampai {updates_until}). Aplikasi berjalan dalam mode baca-saja. Perpanjang paket pembaruan, atau pasang kembali versi yang dirilis sebelum tanggal itu."
+        "This app version (build {build_date}) is newer than the license update period (until {updates_until}). The app runs in read-only mode. Renew the update plan, or reinstall a version released before that date."
     )
 }
 
@@ -446,7 +446,7 @@ fn read_only_error(grant: &LicenseGrant) -> CommandError {
             version_message(&grant.updates_until, BUILD_DATE)
         }
         (_, Some(until)) => expired_message(until),
-        _ => "Lisensi berada dalam mode baca-saja.".to_owned(),
+        _ => "The license is in read-only mode.".to_owned(),
     };
     CommandError::new("LICENSE_READ_ONLY", message)
 }
@@ -593,7 +593,7 @@ pub async fn resolve(state: &MobileState) -> Result<(Evaluation, String), Comman
         return Ok((local, code));
     }
     if let Err(error) = refresh_from_cloud(state).await {
-        eprintln!("[license] Lisensi cloud tidak terbaca: {}", error.code);
+        eprintln!("[license] The cloud license could not be read: {}", error.code);
         return Ok((local, code));
     }
     Ok((
@@ -655,7 +655,7 @@ pub async fn gate_login(state: &MobileState) -> Result<LicenseGrant, CommandErro
         code,
         evaluation
             .message
-            .unwrap_or_else(|| "Lisensi tidak sah.".into()),
+            .unwrap_or_else(|| "Invalid license.".into()),
     ))
 }
 
@@ -670,7 +670,7 @@ pub fn check_installable(text: &str, device_code: &str) -> Result<LicensePayload
             "LICENSE_REJECTED",
             evaluation
                 .message
-                .unwrap_or_else(|| "Lisensi tidak sah.".into()),
+                .unwrap_or_else(|| "Invalid license.".into()),
         )),
     }
 }
@@ -730,11 +730,11 @@ pub async fn install(state: &MobileState, text: &str) -> Result<LicenseStatus, C
     {
         return Err(CommandError::new(
             "LICENSE_REPLACE_FORBIDDEN",
-            "Lisensi yang masih aktif hanya bisa diganti oleh Superadmin setelah login.",
+            "An active license can only be replaced by the Superadmin after signing in.",
         ));
     }
 
-    // Pemasangan baru memasang lisensi SEBELUM database diatur. Belum ada
+    // Pemasangan baru memasang lisensi SEBELUM database diatur. None yet
     // tujuan sync, jadi lisensi cukup disimpan lokal; bootstrap Superadmin atau
     // "gabung ke database yang sudah ada" yang kemudian membawanya ke cloud.
     if state.turso_config().is_none() {
@@ -901,20 +901,20 @@ fn parse_date(value: &str) -> Result<i64, String> {
             }
         });
     if !shaped {
-        return Err("Tanggal harus berformat YYYY-MM-DD.".into());
+        return Err("The date must use the YYYY-MM-DD format.".into());
     }
     let year: i64 = value[0..4]
         .parse()
-        .map_err(|_| "Tahun tidak valid.".to_owned())?;
+        .map_err(|_| "Invalid year.".to_owned())?;
     let month: i64 = value[5..7]
         .parse()
-        .map_err(|_| "Bulan tidak valid.".to_owned())?;
+        .map_err(|_| "Invalid month.".to_owned())?;
     let day: i64 = value[8..10]
         .parse()
-        .map_err(|_| "Hari tidak valid.".to_owned())?;
+        .map_err(|_| "Invalid day.".to_owned())?;
     let ordinal = days_from_civil(year, month, day);
     if !(1..=12).contains(&month) || civil_from_days(ordinal) != (year, month, day) {
-        return Err("Tanggal kalender tidak valid.".into());
+        return Err("Invalid calendar date.".into());
     }
     Ok(ordinal)
 }
@@ -1041,11 +1041,11 @@ mod tests {
         let other = Ed25519KeyPair::from_seed_unchecked(&[2_u8; 32]).unwrap();
         assert_eq!(
             parse_license(VECTOR_V1, other.public_key().as_ref()),
-            Err("Tanda tangan lisensi tidak cocok.".into())
+            Err("The license signature does not match.".into())
         );
         assert_eq!(
             parse_license(&VECTOR_V1.replacen("LIS1", "LIS2", 1), &public_key()),
-            Err("Teks bukan lisensi LIS1.".into())
+            Err("This text is not a LIS1 license.".into())
         );
     }
 
@@ -1054,60 +1054,60 @@ mod tests {
         let reject = |changes: Value| parse_license(&with(changes), &public_key()).unwrap_err();
         assert_eq!(
             reject(json!({ "maks_perangkat": 9 })),
-            "Kolom lisensi tidak dikenal: maks_perangkat."
+            "Unknown license field: maks_perangkat."
         );
-        assert_eq!(reject(json!({ "v": 2 })), "Versi lisensi tidak didukung.");
+        assert_eq!(reject(json!({ "v": 2 })), "Unsupported license version.");
         assert_eq!(
             reject(json!({ "produk": "Absensi" })),
-            "Kode produk tidak sah."
+            "Invalid product code."
         );
         assert_eq!(
             reject(json!({ "pemegang": " SPPG" })),
-            "Nama pemegang lisensi tidak sah."
+            "Invalid license holder name."
         );
         assert_eq!(
             reject(json!({ "pemegang": "A\u{7}" })),
-            "Nama pemegang lisensi tidak sah."
+            "Invalid license holder name."
         );
         assert_eq!(
             reject(json!({ "jenis": "gratis" })),
-            "Jenis lisensi tidak dikenal."
+            "Unknown license type."
         );
         assert_eq!(
             reject(json!({ "terbit": "2026-02-30" })),
-            "Tanggal terbit tidak sah."
+            "Invalid issue date."
         );
         assert_eq!(
             reject(json!({ "terbit": "2026-9-23" })),
-            "Tanggal terbit tidak sah."
+            "Invalid issue date."
         );
         assert_eq!(
             reject(json!({ "pembaruan_sampai": "2026-01-01" })),
-            "pembaruan_sampai tidak boleh sebelum tanggal terbit."
+            "pembaruan_sampai (updates until) cannot be before the issue date."
         );
         assert_eq!(
             reject(json!({ "berlaku_sampai": "2027-01-01" })),
-            "Lisensi beli_putus tidak punya berlaku_sampai."
+            "A beli_putus (perpetual) license has no berlaku_sampai (valid until)."
         );
         assert_eq!(
             reject(json!({ "jenis": "sewa" })),
-            "Lisensi sewa wajib punya berlaku_sampai."
+            "A sewa (rental) license must have berlaku_sampai (valid until)."
         );
         assert_eq!(
             reject(json!({ "perangkat": ["w-1a2b-3c4d-5e6f-7a8b"] })),
-            "Kode perangkat tidak sah: \"w-1a2b-3c4d-5e6f-7a8b\"."
+            "Invalid device code: \"w-1a2b-3c4d-5e6f-7a8b\"."
         );
         assert_eq!(
             reject(json!({ "perangkat": [DEVICE, DEVICE] })),
-            format!("Kode perangkat ganda: {DEVICE}.")
+            format!("Duplicate device code: {DEVICE}.")
         );
         assert_eq!(
             reject(json!({ "kunci_mobile": "ya" })),
-            "kunci_mobile harus true atau false."
+            "kunci_mobile must be true or false."
         );
         assert_eq!(
             reject(json!({ "produk": "produk-lain" })),
-            "Lisensi ini diterbitkan untuk produk lain (produk-lain)."
+            "This license was issued for another product (produk-lain)."
         );
 
         let mut missing = base_payload();

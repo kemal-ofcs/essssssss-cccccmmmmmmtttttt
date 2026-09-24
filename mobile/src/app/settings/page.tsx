@@ -16,7 +16,9 @@ import { MailSettingsCard } from "@/components/MailSettingsCard";
 import { MobileAppShell } from "@/components/MobileAppShell";
 import { PasswordRecoveryCard } from "@/components/PasswordRecoveryCard";
 import { TwoFactorCard } from "@/components/TwoFactorCard";
+import { FeedbackBanner } from "@/components/ui/FeedbackBanner";
 import { Icon } from "@/components/ui/Icon";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { canAccessArea, hasPermission } from "@/lib/auth/access";
 import { triggerHaptic } from "@/lib/client/haptics";
 import { useAuth } from "@/lib/context/AuthContext";
@@ -44,17 +46,19 @@ import {
 
 type Feedback = { type: "success" | "error"; message: string } | null;
 
+/**
+ * Pengaturan versi Mobile. Diturunkan dari halaman Web-Desktop (src/app tidak
+ * disalin skrip); bedanya hanya guard, kartu Riwayat Reset, dan haptic.
+ */
 export default function SettingsPage() {
-  const router = useRouter();
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
+  const router = useRouter();
   const canView = canAccessArea(user, "settings");
   const canManage = hasPermission(user, "settings.manage");
-  // Ref, bukan state: dua klik dalam satu tick sama-sama membaca state lama.
-  const isSubmittingRef = useRef(false);
-  // MENGAJUKAN reset password terbuka untuk semua akun tanpa sesi; yang
-  // di-RBAC adalah MEMBACA jejaknya, karena tiap baris menyimpan foto wajah.
   const canViewResetHistory = hasPermission(user, "password_reset.view");
   const isDesktop = isDesktopRuntime();
+  // Ref, bukan state: dua klik dalam satu tick sama-sama membaca state lama.
+  const isSubmittingRef = useRef(false);
 
   const [provider, setProvider] = useState<DatabaseProvider>("turso");
   const [allowInsecure, setAllowInsecure] = useState(false);
@@ -85,8 +89,7 @@ export default function SettingsPage() {
     setTokenSaved(config.authTokenSaved);
   }, []);
 
-  // Static export tidak punya rute /forbidden; `/` meneruskan ke halaman
-  // pertama yang boleh dibuka akun ini (`landingPath`).
+  // Mobile tidak punya halaman `/forbidden`: akun tanpa izin dikembalikan ke `/`.
   useEffect(() => {
     if (authLoading) return;
     if (!isAuthenticated) router.replace("/login");
@@ -107,7 +110,7 @@ export default function SettingsPage() {
     if (needsEndpoint && !endpoint.valid) {
       setFeedback({
         type: "error",
-        message: endpoint.issue?.message ?? "URL database tidak dapat dipakai.",
+        message: endpoint.issue?.message ?? "This database URL cannot be used.",
       });
       return;
     }
@@ -119,7 +122,7 @@ export default function SettingsPage() {
     ) {
       setFeedback({
         type: "error",
-        message: "Auth Token wajib diisi untuk alamat database ini.",
+        message: "An Auth Token is required for this database address.",
       });
       return;
     }
@@ -139,7 +142,7 @@ export default function SettingsPage() {
       setAuthToken("");
       setFeedback({
         type: "success",
-        message: `Konfigurasi ${providerInfo.label} tersimpan di vault terenkripsi.`,
+        message: `${providerInfo.label} connection saved in the encrypted vault.`,
       });
       setConnection(
         await testTursoConnection(databaseUrl.trim(), "", {
@@ -153,7 +156,7 @@ export default function SettingsPage() {
         message:
           error instanceof Error
             ? error.message
-            : "Konfigurasi database gagal disimpan.",
+            : "The database connection could not be saved.",
       });
     } finally {
       isSubmittingRef.current = false;
@@ -173,8 +176,8 @@ export default function SettingsPage() {
       setFeedback({
         type: status.connected ? "success" : "error",
         message: status.connected
-          ? `Koneksi berhasil. Latensi ${status.latency_ms ?? 0} ms.`
-          : `Koneksi gagal: ${status.error_message ?? "tidak dapat terhubung"}`,
+          ? `Connected. Latency ${status.latency_ms ?? 0} ms.`
+          : `Connection failed: ${status.error_message ?? "could not connect"}`,
       });
     } catch (error) {
       setFeedback({
@@ -182,7 +185,7 @@ export default function SettingsPage() {
         message:
           error instanceof Error
             ? error.message
-            : "Uji koneksi gagal dijalankan.",
+            : "The connection test could not be run.",
       });
     } finally {
       setTesting(false);
@@ -191,7 +194,7 @@ export default function SettingsPage() {
 
   const handleReset = async () => {
     if (isSubmittingRef.current) return;
-    if (!confirm("Hapus konfigurasi database dari perangkat ini?")) return;
+    if (!confirm("Remove the database connection from this device?")) return;
     isSubmittingRef.current = true;
     setBusy(true);
     try {
@@ -204,13 +207,12 @@ export default function SettingsPage() {
       setConnection(null);
       setFeedback({
         type: "success",
-        message: "Konfigurasi database berhasil direset.",
+        message: "Database connection reset.",
       });
     } catch (error) {
       setFeedback({
         type: "error",
-        message:
-          error instanceof Error ? error.message : "Reset konfigurasi gagal.",
+        message: error instanceof Error ? error.message : "The reset failed.",
       });
     } finally {
       isSubmittingRef.current = false;
@@ -226,9 +228,7 @@ export default function SettingsPage() {
       setFeedback({
         type: "error",
         message:
-          error instanceof Error
-            ? error.message
-            : "Sinkronisasi gagal dijalankan.",
+          error instanceof Error ? error.message : "Sync could not be run.",
       });
     } finally {
       setSyncing(false);
@@ -236,73 +236,65 @@ export default function SettingsPage() {
   };
 
   if (authLoading || !isAuthenticated || !canView)
-    return <div className="min-h-dvh bg-slate-950" />;
+    return <div className="min-h-dvh bg-background" />;
 
   return (
     <MobileAppShell>
-      <header>
-        <h1 className="text-xl font-black text-white">Pengaturan</h1>
-        <p className="mt-1 text-sm leading-6 text-slate-400">
-          Konfigurasi koneksi database dan status sinkronisasi perangkat ini.
-        </p>
-      </header>
+      <PageHeader
+        title="Settings"
+        description="Database connection, account security, and sync status for this device."
+      />
 
       {feedback ? (
-        <div
-          className={`rounded-2xl border p-4 text-xs leading-5 ${
-            feedback.type === "success"
-              ? "border-emerald-400/30 bg-emerald-950/40 text-emerald-100"
-              : "border-rose-500/30 bg-rose-950/50 text-rose-100"
-          }`}
+        <FeedbackBanner
+          tone={feedback.type}
+          onDismiss={() => setFeedback(null)}
         >
           {feedback.message}
-        </div>
+        </FeedbackBanner>
       ) : null}
 
       {!isDesktop ? (
-        <section className="rounded-3xl border border-white/10 bg-slate-900/60 p-5">
-          <h2 className="text-base font-black text-white">
-            Konfigurasi Database
-          </h2>
-          <p className="mt-2 text-sm leading-6 text-slate-400">
-            Pada build Web, database ditentukan lewat environment server (
-            <code className="text-slate-300">APP_DATABASE_PROVIDER</code>,{" "}
-            <code className="text-slate-300">TURSO_DATABASE_URL</code>,{" "}
-            <code className="text-slate-300">TURSO_AUTH_TOKEN</code>), bukan
-            lewat layar ini. Vault kredensial hanya ada di aplikasi Desktop dan
-            Mobile.
+        <section className="app-panel p-4 sm:p-5">
+          <h2 className="text-headline-md text-on-surface">Database</h2>
+          <p className="mt-1 text-body-md text-on-surface-variant">
+            In the Web build, the database is set through server environment
+            variables (
+            <code className="text-on-surface">APP_DATABASE_PROVIDER</code>,{" "}
+            <code className="text-on-surface">TURSO_DATABASE_URL</code>,{" "}
+            <code className="text-on-surface">TURSO_AUTH_TOKEN</code>), not on
+            this screen. The credential vault only exists in the Desktop and
+            Mobile apps.
           </p>
         </section>
       ) : null}
 
       {isDesktop && canManage ? (
-        <section className="rounded-3xl border border-white/10 bg-slate-900/60 p-5">
-          <h2 className="text-base font-black text-white">
-            Konfigurasi Database (LibSQL)
+        <section className="app-panel p-4 sm:p-5">
+          <h2 className="text-headline-md text-on-surface">
+            Database connection (LibSQL)
           </h2>
-          <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-400">
-            Aplikasi terhubung langsung ke database LibSQL lewat HTTP Pipeline —
-            baik Turso Cloud maupun server libSQL milik Anda sendiri di kantor,
-            rumah, atau VPS. Kredensial disimpan di vault terenkripsi
-            AES-256-GCM pada perangkat ini.
+          <p className="mt-1 max-w-2xl text-body-md text-on-surface-variant">
+            The app talks directly to a LibSQL database over the HTTP pipeline:
+            Turso Cloud or your own libSQL server at the office, at home, or on
+            a VPS. Credentials are stored in an AES-256-GCM encrypted vault on
+            this device.
           </p>
 
-          <form onSubmit={handleSave} className="mt-5 space-y-4">
+          <form onSubmit={handleSave} className="mt-4 space-y-4">
             <fieldset className="space-y-2">
-              <legend className="text-xs font-bold text-slate-300">
-                Jenis Database
-              </legend>
-              <div className="grid gap-3 sm:grid-cols-2">
+              <legend className="app-label mb-2">Database type</legend>
+              <div className="grid gap-2 sm:grid-cols-2">
                 {DATABASE_PROVIDER_OPTIONS.map((option) => (
                   <label
                     key={option.value}
-                    className={`grid min-w-0 cursor-pointer gap-1 rounded-xl border p-3 text-xs leading-4 transition ${
+                    className={`grid min-w-0 cursor-pointer gap-1 rounded-md border p-3 text-body-sm transition-colors ${
                       provider === option.value
-                        ? "border-sky-400/60 bg-sky-400/10 text-sky-100"
-                        : "border-white/10 bg-slate-950/60 text-slate-400 hover:border-white/25"
+                        ? "border-secondary bg-secondary-fixed text-on-secondary-fixed-variant"
+                        : "border-outline-variant bg-surface-container-lowest text-on-surface-variant hover:border-outline"
                     }`}
                   >
-                    <span className="flex items-center gap-2 font-black">
+                    <span className="flex items-center gap-2 text-body-md font-semibold">
                       <input
                         type="radio"
                         name="database-provider"
@@ -313,13 +305,11 @@ export default function SettingsPage() {
                           setAllowInsecure(false);
                           setConnection(null);
                         }}
-                        className="size-4 shrink-0 accent-sky-400"
+                        className="size-4 shrink-0 accent-secondary"
                       />
                       <span className="min-w-0 truncate">{option.label}</span>
                     </span>
-                    <span className="font-normal opacity-80">
-                      {option.description}
-                    </span>
+                    <span>{option.description}</span>
                   </label>
                 ))}
               </div>
@@ -327,10 +317,10 @@ export default function SettingsPage() {
 
             {providerNeedsEndpoint(provider) ? (
               <>
-                <label className="grid gap-1.5 text-xs font-bold text-slate-300">
+                <label className="app-label grid gap-1.5">
                   {provider === "turso"
-                    ? "URL Database Turso"
-                    : "Alamat Server Database Anda"}
+                    ? "Turso database URL"
+                    : "Your database server address"}
                   <input
                     type="text"
                     inputMode="url"
@@ -340,19 +330,19 @@ export default function SettingsPage() {
                       setConnection(null);
                     }}
                     placeholder={providerInfo.urlPlaceholder}
-                    className="min-h-11 rounded-xl border border-white/15 bg-slate-950 px-3 font-mono text-xs text-white outline-none focus:border-sky-400"
+                    className="app-input font-mono text-code-md font-normal"
                   />
                   {databaseUrl.trim().length > 0 && endpoint.issue ? (
-                    <span className="font-normal leading-5 text-amber-300">
+                    <span className="font-normal text-error">
                       {endpoint.issue.message}
                     </span>
                   ) : null}
                 </label>
 
-                <label className="grid gap-1.5 text-xs font-bold text-slate-300">
+                <label className="app-label grid gap-1.5">
                   {endpoint.tokenRequired
                     ? "Auth Token"
-                    : "Auth Token (opsional untuk server tanpa autentikasi)"}
+                    : "Auth Token (optional for servers without authentication)"}
                   <div className="relative">
                     <input
                       type={showToken ? "text" : "password"}
@@ -360,37 +350,38 @@ export default function SettingsPage() {
                       onChange={(event) => setAuthToken(event.target.value)}
                       placeholder={
                         tokenSaved
-                          ? "•••••••••••••••• (tersimpan di vault)"
+                          ? "•••••••••••••••• (saved in the vault)"
                           : providerInfo.tokenPlaceholder
                       }
                       autoComplete="off"
-                      className="min-h-11 w-full rounded-xl border border-white/15 bg-slate-950 px-3 pr-24 font-mono text-xs text-white outline-none focus:border-sky-400"
+                      className="app-input pr-20 font-mono text-code-md font-normal"
                     />
                     <button
                       type="button"
                       onClick={() => setShowToken((value) => !value)}
-                      className="absolute right-2 top-2 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-bold text-slate-300 hover:text-white"
+                      aria-pressed={showToken}
+                      className="absolute right-1 top-1/2 min-h-9 -translate-y-1/2 rounded-md px-3 text-body-sm font-semibold text-on-surface-variant hover:bg-surface-container-low"
                     >
-                      {showToken ? "Sembunyikan" : "Tampilkan"}
+                      {showToken ? "Hide" : "Show"}
                     </button>
                   </div>
-                  <span className="font-normal leading-5 text-slate-500">
-                    Token yang sudah tersimpan tidak pernah ditampilkan kembali.
-                    Biarkan kosong untuk mempertahankannya.
+                  <span className="font-normal text-on-surface-variant">
+                    A saved token is never shown again. Leave this empty to keep
+                    it.
                   </span>
                 </label>
               </>
             ) : (
-              <p className="rounded-2xl border border-sky-400/30 bg-sky-400/5 p-3 text-[11px] font-bold leading-4 text-sky-100">
-                Seluruh data disimpan pada berkas SQLite di perangkat ini. Tidak
-                ada alamat server maupun Auth Token yang perlu diisi, dan
-                aplikasi berjalan penuh tanpa internet.
+              <p className="rounded-md border border-secondary/20 bg-secondary-fixed p-3 text-body-md text-on-secondary-fixed-variant">
+                All data is stored in a SQLite file on this device. No server
+                address or Auth Token is needed, and the app runs fully without
+                internet.
               </p>
             )}
 
             {provider === "self_hosted" &&
             (endpoint.issue?.code === "INSECURE_PUBLIC" || allowInsecure) ? (
-              <label className="flex items-start gap-2 rounded-2xl border border-rose-500/30 bg-rose-500/10 p-4 text-[11px] font-bold leading-4 text-rose-200">
+              <label className="flex items-start gap-2 rounded-md border border-error/30 bg-error-container p-3 text-body-md font-semibold text-on-error-container">
                 <input
                   type="checkbox"
                   checked={allowInsecure}
@@ -398,55 +389,56 @@ export default function SettingsPage() {
                     setAllowInsecure(event.target.checked);
                     setConnection(null);
                   }}
-                  className="mt-0.5 size-4 shrink-0 accent-rose-400"
+                  className="mt-0.5 size-4 shrink-0 accent-error"
                 />
                 <span>
-                  Izinkan koneksi tanpa enkripsi ke alamat publik. Auth Token
-                  dan seluruh data akan dikirim sebagai teks biasa dan dapat
-                  dibaca siapa pun di jalur jaringan. Jalur yang aman adalah
-                  memasang HTTPS di server atau memakai alamat LAN/VPN.
+                  Allow an unencrypted connection to a public address. The Auth
+                  Token and all data will be sent as plain text that anyone on
+                  the network path can read. The safe options are HTTPS on the
+                  server or a LAN/VPN address.
                 </span>
               </label>
             ) : null}
 
             {connection ? (
               <div
-                className={`rounded-2xl border p-4 text-xs font-semibold ${
+                role={connection.connected ? "status" : "alert"}
+                className={`rounded-md border p-3 text-body-md font-semibold ${
                   connection.connected
-                    ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-300"
-                    : "border-rose-500/20 bg-rose-500/10 text-rose-300"
+                    ? "border-success/30 bg-success-container text-on-success-container"
+                    : "border-error/30 bg-error-container text-on-error-container"
                 }`}
               >
                 {connection.connected
-                  ? `Terhubung ke ${providerInfo.label} (latensi ${connection.latency_ms ?? 0} ms)`
-                  : `Gagal terhubung: ${connection.error_message ?? "periksa URL dan token"}`}
+                  ? `Connected to ${providerInfo.label} (latency ${connection.latency_ms ?? 0} ms)`
+                  : `Connection failed: ${connection.error_message ?? "check the URL and token"}`}
               </div>
             ) : null}
 
-            <div className="flex flex-wrap items-center gap-3 pt-1">
+            <div className="flex flex-wrap items-center gap-2 pt-1">
               <button
                 type="submit"
                 disabled={busy || testing}
-                className="min-h-11 rounded-xl bg-sky-400 px-5 text-xs font-black text-slate-950 disabled:opacity-50"
+                className="app-btn app-btn-primary"
               >
-                {busy ? "Menyimpan..." : "Simpan Konfigurasi"}
+                {busy ? "Saving..." : "Save connection"}
               </button>
               <button
                 type="button"
                 onClick={() => void handleTest()}
                 disabled={busy || testing}
-                className="min-h-11 rounded-xl border border-sky-400/40 bg-sky-400/10 px-4 text-xs font-bold text-sky-200 disabled:opacity-50"
+                className="app-btn app-btn-secondary"
               >
-                {testing ? "Menguji..." : "Uji Koneksi"}
+                {testing ? "Testing..." : "Test connection"}
               </button>
               {databaseUrl ? (
                 <button
                   type="button"
                   onClick={() => void handleReset()}
                   disabled={busy || testing}
-                  className="min-h-11 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 text-xs font-bold text-rose-300 disabled:opacity-50"
+                  className="app-btn app-btn-secondary text-error"
                 >
-                  Reset Konfigurasi
+                  Reset connection
                 </button>
               ) : null}
             </div>
@@ -454,38 +446,77 @@ export default function SettingsPage() {
         </section>
       ) : null}
 
+      {/* Keamanan akun sendiri: tidak dijaga izin apa pun, karena setiap
+          operator berhak mengamankan akunnya — termasuk role paling terbatas. */}
+      <LicenseCard />
+      <TwoFactorCard />
+      <PasswordRecoveryCard />
+      <DatabaseBackupCard provider={provider} />
+
+      {canViewResetHistory ? (
+        <section className="app-panel flex items-center justify-between gap-3 p-4">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="grid size-10 shrink-0 place-items-center rounded-md bg-surface-container-low text-on-surface-variant">
+              <Icon name="lock" className="size-5" />
+            </span>
+            <div className="min-w-0">
+              <h2 className="text-headline-md text-on-surface">
+                Password resets
+              </h2>
+              <p className="text-body-sm text-on-surface-variant">
+                Who requested it, the face photo, and the verification result
+              </p>
+            </div>
+          </div>
+          <Link
+            href="/password-reset-history"
+            onClick={() => triggerHaptic("light")}
+            className="app-btn app-btn-secondary shrink-0"
+          >
+            Open
+          </Link>
+        </section>
+      ) : null}
+
+      {/* Identitas perusahaan dibaca siapa pun yang punya sesi — nilainya
+          muncul di kop dokumen — tetapi hanya pemegang settings.manage yang
+          boleh menyuntingnya, dan itulah gerbang di sini. */}
+      {canManage ? <CompanyProfileCard /> : null}
+
+      {canManage ? <MailSettingsCard /> : null}
+
       {isDesktop ? (
-        <section className="rounded-3xl border border-white/10 bg-slate-900/60 p-5">
+        <section className="app-panel p-4 sm:p-5">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <h2 className="text-base font-black text-white">Sinkronisasi</h2>
-              <p className="mt-1 text-sm leading-6 text-slate-400">
-                Antrean lokal dikirim ke cloud, lalu perubahan cloud ditarik ke
-                perangkat.
+              <h2 className="text-headline-md text-on-surface">Sync</h2>
+              <p className="mt-1 text-body-md text-on-surface-variant">
+                The local queue is sent to the cloud, then cloud changes are
+                pulled to this device.
               </p>
             </div>
             <button
               type="button"
               onClick={() => void handleSyncNow()}
               disabled={syncing}
-              className="min-h-10 rounded-xl border border-white/15 px-4 text-xs font-bold text-slate-300 hover:border-sky-400/40 hover:text-sky-200 disabled:opacity-50"
+              className="app-btn app-btn-secondary"
             >
-              {syncing ? "Menyinkronkan..." : "Sinkronkan Sekarang"}
+              {syncing ? "Syncing..." : "Sync now"}
             </button>
           </div>
           {sync ? (
-            <dl className="mt-4 grid gap-3 border-t border-white/10 pt-4 sm:grid-cols-4">
+            <dl className="mt-4 grid grid-cols-2 gap-3 border-t border-surface-container pt-4 sm:grid-cols-4">
               {[
-                { label: "Menunggu", value: sync.pending },
-                { label: "Terkirim", value: sync.synced },
-                { label: "Gagal", value: sync.failed },
-                { label: "Konflik", value: sync.conflict },
+                { label: "Pending", value: sync.pending },
+                { label: "Sent", value: sync.synced },
+                { label: "Failed", value: sync.failed },
+                { label: "Conflicts", value: sync.conflict },
               ].map((entry) => (
                 <div key={entry.label}>
-                  <dt className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                  <dt className="font-mono text-label-caps uppercase text-on-surface-variant">
                     {entry.label}
                   </dt>
-                  <dd className="font-mono text-lg text-white">
+                  <dd className="font-mono text-headline-lg tabular-nums text-on-surface">
                     {String(entry.value)}
                   </dd>
                 </div>
@@ -493,55 +524,13 @@ export default function SettingsPage() {
             </dl>
           ) : null}
           {sync?.pushError ? (
-            <p className="mt-3 rounded-xl border border-amber-400/30 bg-amber-950/40 p-3 text-xs leading-5 text-amber-100">
-              Push terakhir gagal: {sync.pushError}. Data cloud tetap ditarik
-              dan antrean lokal akan dicoba ulang otomatis.
+            <p className="mt-3 rounded-md border border-tertiary-fixed-dim bg-tertiary-fixed p-3 text-body-md text-on-tertiary-fixed">
+              The last push failed: {sync.pushError}. Cloud data is still
+              pulled, and the local queue is retried automatically.
             </p>
           ) : null}
         </section>
       ) : null}
-
-      {/* Keamanan akun sendiri: tidak dijaga izin apa pun, karena setiap
-          operator berhak mengamankan akunnya. */}
-      <LicenseCard />
-      <TwoFactorCard />
-      <PasswordRecoveryCard />
-      <DatabaseBackupCard provider={provider} />
-
-      {canViewResetHistory ? (
-        <div className="rounded-3xl border border-violet-500/20 bg-gradient-to-br from-violet-950/30 via-slate-900/80 to-slate-900/90 p-4 backdrop-blur-md">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2.5">
-              <div className="grid size-9 place-items-center rounded-xl bg-violet-500/20 text-violet-300">
-                <Icon name="lock" className="size-5" />
-              </div>
-              <div>
-                <h3 className="text-sm font-bold text-white">
-                  Riwayat Reset Password
-                </h3>
-                <p className="text-[11px] text-slate-400">
-                  Siapa yang mengajukan, foto wajah &amp; hasil verifikasi
-                </p>
-              </div>
-            </div>
-            <Link
-              href="/riwayat-reset-password"
-              onClick={() => triggerHaptic("light")}
-              className="rounded-xl bg-violet-500 px-3.5 py-1.5 text-xs font-black text-white shadow-md transition hover:bg-violet-400 active:scale-95 whitespace-nowrap"
-            >
-              Lihat &rarr;
-            </Link>
-          </div>
-        </div>
-      ) : null}
-
-      {/* Email sistem: satu-satunya jalur pengiriman link Lupa Password. */}
-      {/* Identitas perusahaan dibaca siapa pun yang punya sesi — nilainya
-          muncul di kop dokumen — tetapi hanya pemegang settings.manage yang
-          boleh menyuntingnya, dan itulah gerbang di sini. */}
-      {canManage ? <CompanyProfileCard /> : null}
-
-      {canManage ? <MailSettingsCard /> : null}
     </MobileAppShell>
   );
 }

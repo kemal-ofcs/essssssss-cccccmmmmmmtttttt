@@ -33,7 +33,7 @@ fn require_session(state: &MobileState) -> Result<OperatorUser, CommandError> {
     let session = session.as_ref().ok_or_else(|| {
         CommandError::new(
             "DESKTOP_SESSION_MISSING",
-            "Session Desktop tidak tersedia. Silakan login kembali.",
+            "The desktop session is not available. Sign in again.",
         )
     })?;
     Ok(session.operator.clone())
@@ -51,7 +51,7 @@ pub(crate) fn require_permission(
     let session = session.as_mut().ok_or_else(|| {
         CommandError::new(
             "DESKTOP_SESSION_MISSING",
-            "Session Desktop tidak tersedia. Silakan login kembali.",
+            "The desktop session is not available. Sign in again.",
         )
     })?;
     if !session.operator.is_superadmin
@@ -63,7 +63,7 @@ pub(crate) fn require_permission(
     {
         return Err(CommandError::new(
             "DESKTOP_ACCESS_DENIED",
-            "Akses ditolak untuk tindakan ini.",
+            "Access denied for this action.",
         ));
     }
     // Gerbang izin TUNGGAL: mode baca-saja lisensi ditegakkan di sini, jadi
@@ -85,7 +85,7 @@ fn ensure_login_not_locked(state: &MobileState, identifier: &str) -> Result<(), 
         return Err(CommandError::new(
             "LOGIN_RATE_LIMITED",
             format!(
-                "Terlalu banyak percobaan login. Coba kembali dalam {} menit {} detik.",
+                "Too many sign-in attempts. Try again in {} minutes {} seconds.",
                 seconds / 60,
                 seconds % 60
             ),
@@ -99,7 +99,7 @@ fn reject_login(state: &MobileState, identifier: &str) -> Result<(), CommandErro
         return Err(CommandError::new(
             "LOGIN_RATE_LIMITED",
             format!(
-                "Terlalu banyak percobaan login. Coba kembali dalam {} menit {} detik.",
+                "Too many sign-in attempts. Try again in {} minutes {} seconds.",
                 seconds / 60,
                 seconds % 60
             ),
@@ -196,7 +196,7 @@ pub async fn desktop_bootstrap_superadmin(
     {
         return Err(CommandError::new(
             "TURSO_BOOTSTRAP_CLOSED",
-            "Bootstrap hanya tersedia sebelum sesi pengguna aktif.",
+            "Bootstrap is only available before a user session is active.",
         ));
     }
     // Lisensi diverifikasi SEBELUM Superadmin dibuat: lisensi yang ditolak
@@ -249,7 +249,7 @@ fn ensure_bootstrap_window_open(state: &MobileState) -> Result<(), CommandError>
     {
         return Err(CommandError::new(
             "TURSO_BOOTSTRAP_CLOSED",
-            "Pemeriksaan database provisioning hanya tersedia sebelum sesi pengguna aktif.",
+            "The provisioning database check is only available before a user session is active.",
         ));
     }
     Ok(())
@@ -303,7 +303,7 @@ fn resolve_bootstrap_turso_config(
         return stored.ok_or_else(|| {
             CommandError::new(
                 "TURSO_NOT_CONFIGURED",
-                "Alamat database wajib diisi untuk memeriksa database.",
+                "Enter the database address to check the database.",
             )
         });
     }
@@ -338,7 +338,7 @@ fn resolve_bootstrap_turso_config(
     if config.auth_token.trim().is_empty() && config.requires_auth_token() {
         return Err(CommandError::new(
             "TURSO_TOKEN_REQUIRED",
-            "Auth Token wajib diisi untuk memeriksa database ini.",
+            "An Auth Token is required to check this database.",
         ));
     }
     Ok(config)
@@ -396,13 +396,13 @@ pub async fn desktop_link_bootstrap_database(
     if !check.superadmin_exists {
         return Err(CommandError::new(
             "TURSO_SUPERADMIN_MISSING",
-            "Database ini belum memiliki Superadmin aktif. Lanjutkan provisioning untuk membuat akun pertama.",
+            "This database has no active Superadmin yet. Continue provisioning to create the first account.",
         ));
     }
     // SEBELUM pull: pull menimpa setting lokal dengan isi database, termasuk
     // lisensi yang dipasang di layar aktivasi sebelum provisioning.
     if let Err(error) = license::publish_local_if_cloud_missing(&state, &client).await {
-        eprintln!("[link-database] Lisensi lokal gagal dibawa ke database: {}", error.code);
+        eprintln!("[link-database] The local license could not be carried to the database: {}", error.code);
     }
     state.set_database_config(&config)?;
     let _ = sync::pull_snapshot(&state).await;
@@ -429,7 +429,7 @@ fn assert_offline_login_allowed(operator: &OperatorUser) -> Result<(), CommandEr
     if operator.totp_enabled {
         return Err(CommandError::new(
             "TOTP_REQUIRED_ONLINE",
-            "Akun ini memakai verifikasi dua langkah, sehingga kodenya tidak dapat diperiksa saat perangkat sedang offline. Sambungkan perangkat ke database sekali untuk masuk.",
+            "This account uses two-step verification, so its code cannot be checked while the device is offline. Connect the device to the database once to sign in.",
         ));
     }
     Ok(())
@@ -446,7 +446,7 @@ pub async fn desktop_login(
     if identifier.len() < 3 || identifier.len() > 64 || password.len() > 256 {
         return Err(CommandError::new(
             "LOGIN_REJECTED",
-            "Username atau password tidak sesuai.",
+            "Wrong username or password.",
         ));
     }
     ensure_login_not_locked(&state, &identifier)?;
@@ -485,12 +485,12 @@ pub async fn desktop_login(
                     Ok(credential) => (
                         true,
                         Some(credential.offline_valid_until),
-                        "Login online database cloud berhasil. Akses offline perangkat berhasil diperbarui.".into(),
+                        "Signed in online to the cloud database. Offline access on this device was updated.".into(),
                     ),
                     Err(_) => (
                         false,
                         None,
-                        "Login online berhasil, tetapi penyimpanan offline belum dapat diperbarui.".into(),
+                        "Signed in online, but offline storage could not be updated yet.".into(),
                     ),
                 };
 
@@ -501,10 +501,10 @@ pub async fn desktop_login(
                 {
                     match sync::synchronize(&state).await {
                         Ok(_) => {
-                            message.push_str(" Data operasional lokal berhasil disinkronkan.");
+                            message.push_str(" Local operational data was synced.");
                         }
                         Err(err) => {
-                            eprintln!("[desktop_login] Sinkronisasi data cloud gagal: {:?}", err);
+                            eprintln!("[desktop_login] Cloud data sync failed: {:?}", err);
                         }
                     }
                 }
@@ -604,7 +604,7 @@ pub async fn desktop_login(
                     return Err(CommandError::new(
                         "TURSO_UNREACHABLE",
                         format!(
-                            "Database cloud ({}) tidak dapat dihubungi, sehingga login pertama pada perangkat ini belum bisa dilakukan. Penyebab: {} Periksa kembali URL dan Auth Token database pada layar konfigurasi database.",
+                            "The cloud database ({}) cannot be reached, so the first sign-in on this device cannot happen yet. Cause: {} Check the database URL and Auth Token on the database settings screen.",
                             state.server_origin(),
                             reason,
                         ),
@@ -642,7 +642,7 @@ pub async fn desktop_login(
     });
     Ok(MobileLoginResult {
         sukses: true,
-        pesan: "Database cloud tidak terjangkau. Login memakai snapshot offline tervalidasi."
+        pesan: "The cloud database is unreachable. Signed in with a validated offline snapshot."
             .into(),
         operator: credential.operator,
         mode: SessionMode::Offline,
@@ -773,7 +773,7 @@ pub async fn desktop_list_password_reset_history(
     state
         .get_turso_client()?
         .list_password_reset_history(
-            status.as_deref().unwrap_or("SEMUA"),
+            status.as_deref().unwrap_or("ALL"),
             search.as_deref().unwrap_or(""),
             limit.unwrap_or(100),
         )
@@ -1003,7 +1003,7 @@ pub async fn desktop_get_master_operators(
     }
     Err(CommandError::new(
         "DATABASE_NOT_CONFIGURED",
-        "Database belum dikonfigurasi. Buka Pengaturan untuk menghubungkannya.",
+        "The database is not configured. Open Settings to connect it.",
     ))
 }
 
@@ -1018,7 +1018,7 @@ pub async fn desktop_create_operator(
     }
     Err(CommandError::new(
         "DATABASE_NOT_CONFIGURED",
-        "Database belum dikonfigurasi. Buka Pengaturan untuk menghubungkannya.",
+        "The database is not configured. Open Settings to connect it.",
     ))
 }
 
@@ -1034,7 +1034,7 @@ pub async fn desktop_update_operator(
     }
     Err(CommandError::new(
         "DATABASE_NOT_CONFIGURED",
-        "Database belum dikonfigurasi. Buka Pengaturan untuk menghubungkannya.",
+        "The database is not configured. Open Settings to connect it.",
     ))
 }
 
@@ -1049,7 +1049,7 @@ pub async fn desktop_delete_operator(
     }
     Err(CommandError::new(
         "DATABASE_NOT_CONFIGURED",
-        "Database belum dikonfigurasi. Buka Pengaturan untuk menghubungkannya.",
+        "The database is not configured. Open Settings to connect it.",
     ))
 }
 
@@ -1061,7 +1061,7 @@ pub async fn desktop_get_roles(state: State<'_, MobileState>) -> Result<Value, C
     }
     Err(CommandError::new(
         "DATABASE_NOT_CONFIGURED",
-        "Database belum dikonfigurasi. Buka Pengaturan untuk menghubungkannya.",
+        "The database is not configured. Open Settings to connect it.",
     ))
 }
 
@@ -1079,7 +1079,7 @@ pub async fn desktop_create_role(
     }
     Err(CommandError::new(
         "DATABASE_NOT_CONFIGURED",
-        "Database belum dikonfigurasi. Buka Pengaturan untuk menghubungkannya.",
+        "The database is not configured. Open Settings to connect it.",
     ))
 }
 
@@ -1095,7 +1095,7 @@ pub async fn desktop_update_role(
     }
     Err(CommandError::new(
         "DATABASE_NOT_CONFIGURED",
-        "Database belum dikonfigurasi. Buka Pengaturan untuk menghubungkannya.",
+        "The database is not configured. Open Settings to connect it.",
     ))
 }
 
@@ -1111,7 +1111,7 @@ pub async fn desktop_set_role_permissions(
     }
     Err(CommandError::new(
         "DATABASE_NOT_CONFIGURED",
-        "Database belum dikonfigurasi. Buka Pengaturan untuk menghubungkannya.",
+        "The database is not configured. Open Settings to connect it.",
     ))
 }
 
@@ -1126,7 +1126,7 @@ pub async fn desktop_delete_role(
     }
     Err(CommandError::new(
         "DATABASE_NOT_CONFIGURED",
-        "Database belum dikonfigurasi. Buka Pengaturan untuk menghubungkannya.",
+        "The database is not configured. Open Settings to connect it.",
     ))
 }
 
@@ -1148,7 +1148,7 @@ pub async fn desktop_sync_now(
         if error.code == "DESKTOP_ACCESS_DENIED" {
             CommandError::new(
                 "DESKTOP_ACCESS_DENIED",
-                "Role akun ini tidak memiliki permission 'sync.view', sehingga sinkronisasi otomatis tidak dapat berjalan. Tambahkan permission tersebut pada role di menu Master Operator.",
+                "This account's role does not have the 'sync.view' permission, so automatic sync cannot run. Add that permission to the role on the Operators page.",
             )
         } else {
             error
@@ -1161,7 +1161,7 @@ pub async fn desktop_sync_now(
     if state.turso_config().is_none() {
         return Err(CommandError::new(
             "DATABASE_NOT_CONFIGURED",
-            "Database belum dikonfigurasi. Buka Pengaturan untuk menghubungkannya.",
+            "The database is not configured. Open Settings to connect it.",
         ));
     }
     let result = sync::synchronize(&state).await;
@@ -1285,7 +1285,7 @@ pub fn desktop_import_database_bytes(
 ) -> Result<portability::ImportReport, CommandError> {
     let operator = require_permission(&state, "database_backup.restore")?;
     let payload = BASE64_STANDARD.decode(base64_data.trim()).map_err(|_| {
-        CommandError::new("BACKUP_CORRUPT", "Isi berkas cadangan tidak dapat dibaca.")
+        CommandError::new("BACKUP_CORRUPT", "The backup file contents could not be read.")
     })?;
     let report = portability::import_database_bytes(
         &state,
@@ -1338,7 +1338,7 @@ pub fn desktop_get_turso_url(
     if !operator.is_superadmin {
         return Err(CommandError::new(
             "DESKTOP_ACCESS_DENIED",
-            "Informasi konfigurasi database cloud hanya dapat diakses Superadmin.",
+            "Cloud database settings can only be viewed by the Superadmin.",
         ));
     }
     Ok(state.turso_config().map(|c| c.database_url))
@@ -1358,7 +1358,7 @@ pub fn desktop_get_database_config(
     if !operator.is_superadmin {
         return Err(CommandError::new(
             "DESKTOP_ACCESS_DENIED",
-            "Informasi konfigurasi database hanya dapat diakses Superadmin.",
+            "Database settings can only be viewed by the Superadmin.",
         ));
     }
     Ok(state
@@ -1380,7 +1380,7 @@ pub async fn desktop_save_turso_config(
     if !operator.is_superadmin {
         return Err(CommandError::new(
             "DESKTOP_ACCESS_DENIED",
-            "Hanya Superadmin yang berhak mengubah konfigurasi database cloud.",
+            "Only the Superadmin can change the cloud database settings.",
         ));
     }
     // Provider yang tidak dikirim mewarisi pilihan tersimpan supaya klien lama
@@ -1419,7 +1419,7 @@ pub async fn desktop_test_turso_connection(
     if !operator.is_superadmin {
         return Err(CommandError::new(
             "DESKTOP_ACCESS_DENIED",
-            "Tes koneksi database cloud hanya dapat dilakukan oleh Superadmin.",
+            "Only the Superadmin can test the cloud database connection.",
         ));
     }
 
@@ -1459,7 +1459,7 @@ pub async fn desktop_test_turso_connection(
     } else {
         return Err(CommandError::new(
             "TURSO_NOT_CONFIGURED",
-            "Database Cloud Turso belum dikonfigurasi.",
+            "The Turso cloud database is not configured.",
         ));
     };
 
@@ -1497,7 +1497,7 @@ pub fn desktop_clear_turso_config(state: State<'_, MobileState>) -> Result<(), C
     if !operator.is_superadmin {
         return Err(CommandError::new(
             "DESKTOP_ACCESS_DENIED",
-            "Hanya Superadmin yang berhak mereset konfigurasi database cloud.",
+            "Only the Superadmin can reset the cloud database settings.",
         ));
     }
     secrets::clear_turso_config(&state)?;
@@ -1559,13 +1559,13 @@ fn commit_with_outbox(
 ///
 /// Baris ini TIDAK di-seed saat provisioning, melainkan dibuat saat pertama
 /// kali dibaca. Alasannya: menyeednya di `ensure_schema` berarti setiap
-/// perangkat baru mendorong baris "Nama Perusahaan" ke cloud lewat outbox, dan
+/// perangkat baru mendorong baris "Company Name" ke cloud lewat outbox, dan
 /// perangkat yang kebetulan sinkron belakangan akan menimpa identitas asli yang
 /// sudah diisi orang lain.
 fn default_company_profile(now: &str) -> Value {
     json!({
         "id": "default_company",
-        "company_name": "Nama Perusahaan",
+        "company_name": "Company Name",
         "branch_name": Value::Null,
         "logo_url": Value::Null,
         "signature_url": Value::Null,
@@ -1842,11 +1842,11 @@ pub async fn desktop_save_item(
         .and_then(Value::as_str)
         .unwrap_or_default()
         .to_owned();
-    // Nilai asing ditolak, tidak pernah dinormalkan menjadi "Aktif" — aturan
+    // Nilai asing ditolak, tidak pernah dinormalkan menjadi "Active" — aturan
     // yang sama dieja `saveItem` di `src/lib/server/example-domain.ts`.
     let status = match item.get("status_aktif").and_then(Value::as_str) {
-        None | Some("Aktif") => "Aktif",
-        Some("Nonaktif") => "Nonaktif",
+        None | Some("Active") => "Active",
+        Some("Inactive") => "Inactive",
         Some(_) => {
             return Err(CommandError::new(
                 "ITEM_INVALID",

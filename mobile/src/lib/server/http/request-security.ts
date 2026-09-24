@@ -9,7 +9,7 @@ export function isSameOriginMutation(request: Request) {
 
 export function assertSameOriginMutation(request: Request) {
   if (!isSameOriginMutation(request)) {
-    throw new AuthorizationError("Origin tidak diizinkan.", 403);
+    throw new AuthorizationError("Origin not allowed.", 403);
   }
 }
 

@@ -48,11 +48,11 @@ function constantTimeEqual(left: Uint8Array, right: Uint8Array) {
 }
 
 export function validatePasswordStrength(password: string) {
-  if (password.length < 12) return "Password minimal 12 karakter.";
+  if (password.length < 12) return "The password needs at least 12 characters.";
   if (!/[a-z]/.test(password) || !/[A-Z]/.test(password)) {
-    return "Password harus memiliki huruf kecil dan huruf besar.";
+    return "The password must have lowercase and uppercase letters.";
   }
-  if (!/\d/.test(password)) return "Password harus memiliki angka.";
+  if (!/\d/.test(password)) return "The password must have a number.";
   return null;
 }
 

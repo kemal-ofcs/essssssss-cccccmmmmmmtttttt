@@ -1,6 +1,7 @@
 import type { ReactNode, SVGProps } from "react";
 
 export type IconName =
+  | "add"
   | "alert"
   | "arrow-left"
   | "arrow-right"
@@ -12,9 +13,10 @@ export type IconName =
   | "database"
   | "document"
   | "download"
+  | "eye"
+  | "eye-off"
   | "history"
   | "home"
-  | "id-card"
   | "logout"
   | "lock"
   | "palette"
@@ -37,6 +39,7 @@ export type IconName =
   | "x";
 
 const paths: Record<IconName, ReactNode> = {
+  add: <path d="M12 5v14M5 12h14" />,
   alert: (
     <>
       <circle cx="12" cy="12" r="10" />
@@ -105,11 +108,15 @@ const paths: Record<IconName, ReactNode> = {
       <line x1="12" x2="12" y1="15" y2="3" />
     </>
   ),
-  "id-card": (
+  eye: (
     <>
-      <rect x="2" y="5" width="20" height="14" rx="2" />
-      <circle cx="8" cy="12" r="2" />
-      <path d="M14 9h4M14 12h2" />
+      <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
+      <circle cx="12" cy="12" r="3" />
+    </>
+  ),
+  "eye-off": (
+    <>
+      <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61M2 2l20 20" />
     </>
   ),
   home: (

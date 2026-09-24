@@ -1,12 +1,25 @@
 import type { Metadata, Viewport } from "next";
+import { JetBrains_Mono, Plus_Jakarta_Sans } from "next/font/google";
 import type { ReactNode } from "react";
 import { AuthProvider } from "@/lib/context/AuthContext";
 import "./globals.css";
 
+// Diunduh sekali saat build lalu dibundel ke APK: tidak ada request ke Google
+// saat aplikasi berjalan (aturan 15).
+const plusJakarta = Plus_Jakarta_Sans({
+  subsets: ["latin"],
+  variable: "--font-plus-jakarta",
+  display: "swap",
+});
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  variable: "--font-jetbrains-mono",
+  display: "swap",
+});
+
 export const metadata: Metadata = {
-  title: "CONTOH operasional Mobile",
-  description:
-    "Aplikasi Mobile operasional & Operasional CONTOH (Android & iOS)",
+  title: "App Template",
+  description: "Offline-first operations app for Android.",
 };
 
 export const viewport: Viewport = {
@@ -15,13 +28,16 @@ export const viewport: Viewport = {
   maximumScale: 1,
   userScalable: false,
   viewportFit: "cover",
-  themeColor: "#030712",
+  themeColor: "#f8f9ff",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="id">
-      <body className="bg-slate-950 text-slate-100 antialiased min-h-dvh">
+    <html
+      lang="en"
+      className={`${plusJakarta.variable} ${jetbrainsMono.variable}`}
+    >
+      <body className="min-h-dvh">
         <AuthProvider>{children}</AuthProvider>
       </body>
     </html>

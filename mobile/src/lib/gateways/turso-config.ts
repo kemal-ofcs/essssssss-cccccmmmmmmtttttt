@@ -98,7 +98,7 @@ export async function saveTursoConfig(
 ): Promise<string> {
   if (!isDesktopRuntime()) {
     throw new Error(
-      "Penyimpanan konfigurasi database hanya didukung pada aplikasi desktop/mobile.",
+      "Saving database settings is only supported in the desktop/mobile app.",
     );
   }
   return invokeDesktop<string>("desktop_save_turso_config", {
@@ -118,7 +118,7 @@ export async function testTursoConnection(
       connected: false,
       url: databaseUrl ?? "",
       error_message:
-        "Pengujian koneksi hanya tersedia pada runtime desktop/mobile.",
+        "Connection testing is only available in the desktop/mobile runtime.",
     };
   }
   return invokeDesktop<TursoConnectionStatus>("desktop_test_turso_connection", {

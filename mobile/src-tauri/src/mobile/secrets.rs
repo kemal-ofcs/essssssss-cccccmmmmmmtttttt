@@ -182,7 +182,7 @@ pub fn load_offline(
             || {
                 CommandError::new(
         "OFFLINE_NOT_PROVISIONED",
-        "Perangkat mobile ini wajib login online minimal satu kali sebelum dapat digunakan offline.",
+        "This mobile device must sign in online at least once before it can be used offline.",
       )
             },
         )?;
@@ -190,7 +190,7 @@ pub fn load_offline(
     if !snapshot_path.is_file() || !salt_path.is_file() {
         return Err(CommandError::new(
             "OFFLINE_NOT_PROVISIONED",
-            "Data login offline perangkat belum tersedia atau tidak lengkap.",
+            "The device's offline sign-in data is missing or incomplete.",
         ));
     }
 
@@ -203,7 +203,7 @@ pub fn load_offline(
     if payload.len() < 12 + 16 {
         return Err(CommandError::new(
             "OFFLINE_SNAPSHOT_INVALID",
-            "Snapshot keamanan offline rusak atau tidak lengkap.",
+            "The offline security snapshot is corrupt or incomplete.",
         ));
     }
     let (nonce_bytes, ciphertext) = payload.split_at(12);
@@ -212,7 +212,7 @@ pub fn load_offline(
     let mut key = derive_key(password, &salt_path).map_err(|_| {
         CommandError::new(
             "OFFLINE_CREDENTIAL_INVALID",
-            "Username/kode operator atau password offline tidak sesuai.",
+            "Wrong offline username/operator code or password.",
         )
     })?;
 
@@ -221,7 +221,7 @@ pub fn load_offline(
     let decrypted = Zeroizing::new(cipher.decrypt(nonce, ciphertext).map_err(|_| {
         CommandError::new(
             "OFFLINE_CREDENTIAL_INVALID",
-            "Username/kode operator atau password offline tidak sesuai.",
+            "Wrong offline username/operator code or password.",
         )
     })?);
 
@@ -250,13 +250,13 @@ pub fn load_offline(
     {
         return Err(CommandError::new(
             "OFFLINE_SNAPSHOT_INVALID",
-            "Snapshot keamanan offline tidak cocok dengan server deployment ini.",
+            "The offline security snapshot does not match this server deployment.",
         ));
     }
     if storage::now_epoch_seconds() > credential.offline_valid_until {
         return Err(CommandError::new(
             "OFFLINE_SNAPSHOT_EXPIRED",
-            "Masa login offline berakhir. Sambungkan internet dan login kembali.",
+            "The offline sign-in period has ended. Connect to the internet and sign in again.",
         ));
     }
     if valid_v1 {
@@ -357,14 +357,14 @@ pub fn load_turso_config(state: &MobileState) -> Result<Option<TursoConfig>, Com
     if salt.len() < 16 {
         return Err(CommandError::new(
             "TURSO_VAULT_INVALID",
-            "Vault konfigurasi Turso rusak atau tidak lengkap.",
+            "The Turso settings vault is corrupt or incomplete.",
         ));
     }
     let payload = fs::read(&vault_path).map_err(|_| CommandError::internal())?;
     if payload.len() < 12 + 16 {
         return Err(CommandError::new(
             "TURSO_VAULT_INVALID",
-            "Vault konfigurasi Turso rusak atau tidak lengkap.",
+            "The Turso settings vault is corrupt or incomplete.",
         ));
     }
 
@@ -378,7 +378,7 @@ pub fn load_turso_config(state: &MobileState) -> Result<Option<TursoConfig>, Com
     if encrypted_payload.len() < 12 + 16 {
         return Err(CommandError::new(
             "TURSO_VAULT_INVALID",
-            "Vault konfigurasi Turso rusak atau tidak lengkap.",
+            "The Turso settings vault is corrupt or incomplete.",
         ));
     }
     let (nonce_bytes, ciphertext) = encrypted_payload.split_at(12);
@@ -404,7 +404,7 @@ pub fn load_turso_config(state: &MobileState) -> Result<Option<TursoConfig>, Com
             .map_err(|_| {
                 CommandError::new(
                     "TURSO_VAULT_DEVICE_MISMATCH",
-                    "Vault database cloud tidak cocok dengan instalasi perangkat ini.",
+                    "The cloud database vault does not match this device's installation.",
                 )
             })?
     } else {

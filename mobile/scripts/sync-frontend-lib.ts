@@ -17,11 +17,28 @@ const filesToCopy = [
   "lib/db.ts",
   "lib/db-schema.ts",
   "lib/db-migrations.ts",
-  // UI lisensi yang tidak bergantung pada `Modal` — kontrak Modal kedua
-  // workspace berbeda, jadi `LicenseNotice.tsx` ditulis terpisah di masing-masing.
+  // Komponen yang identik di Web/Desktop dan Mobile. Perbedaan platform
+  // (dialog simpan Android, haptic) ditangani di dalam komponen lewat
+  // `isMobileRuntime()`, bukan dengan menulis dua salinan. Kerangka layar
+  // (`AppShell` / `MobileAppShell`) dan halaman `src/app/**` tetap terpisah.
+  "components/ui/FeedbackBanner.tsx",
+  "components/ui/Icon.tsx",
+  "components/ui/Modal.tsx",
+  "components/ui/PageHeader.tsx",
+  "components/ui/StatusBadge.tsx",
+  "components/AutoSyncRunner.tsx",
+  "components/BootstrapPanel.tsx",
+  "components/CompanyProfileCard.tsx",
+  "components/DatabaseBackupCard.tsx",
+  "components/LivenessCapture.tsx",
+  "components/MailSettingsCard.tsx",
+  "components/PasswordRecoveryCard.tsx",
+  "components/SyncIndicator.tsx",
+  "components/TwoFactorCard.tsx",
   "components/license/LicenseActivationPanel.tsx",
   "components/license/LicenseBootstrapField.tsx",
   "components/license/LicenseCard.tsx",
+  "components/license/LicenseNotice.tsx",
 ];
 
 for (const file of filesToCopy) {

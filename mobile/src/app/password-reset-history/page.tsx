@@ -3,153 +3,99 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { MobileAppShell } from "@/components/MobileAppShell";
+import { FeedbackBanner } from "@/components/ui/FeedbackBanner";
 import { Icon } from "@/components/ui/Icon";
+import { Modal } from "@/components/ui/Modal";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { StatusBadge } from "@/components/ui/StatusBadge";
 import { canAccessArea, hasPermission } from "@/lib/auth/access";
-import { triggerHaptic } from "@/lib/client/haptics";
 import { useAuth } from "@/lib/context/AuthContext";
 import {
   approvePasswordReset,
   deletePasswordResetHistory,
   getPasswordResetHistory,
   getPasswordResetPhoto,
+  purgePasswordResetHistory,
   type ResetApprovalResult,
 } from "@/lib/gateways/password-reset-history";
 import {
+  RESET_DELIVERY_AWAITING_APPROVAL,
   RESET_HISTORY_STATUS_HINT,
+  RESET_HISTORY_STATUS_TONE,
   RESET_HISTORY_STATUSES,
   type ResetHistoryEntry,
   type ResetHistoryStatus,
 } from "@/lib/operators/password-reset-history";
+import { formatDateTime } from "@/lib/utils/format";
 
-type StatusFilter = ResetHistoryStatus | "SEMUA";
+type StatusFilter = ResetHistoryStatus | "ALL";
 
-const STATUS_STYLE: Record<ResetHistoryStatus, string> = {
-  "Menunggu Verifikasi": "border-amber-300/30 bg-amber-300/10 text-amber-200",
-  Terkirim: "border-sky-400/30 bg-sky-400/10 text-sky-200",
-  Terpakai: "border-emerald-400/30 bg-emerald-400/10 text-emerald-200",
-  Kedaluwarsa: "border-slate-700 bg-slate-900/80 text-slate-300",
-  Dibatalkan: "border-rose-400/30 bg-rose-400/10 text-rose-200",
-};
-
-const FILTERS: StatusFilter[] = ["SEMUA", ...RESET_HISTORY_STATUSES];
+const PURGE_DAYS = 90;
 
 /**
- * Stempel waktu ditulis SQLite dalam UTC ("2026-08-29 10:15:00"). `new Date()`
- * memperlakukan bentuk itu sebagai waktu lokal, jadi penanda `Z` ditambahkan
- * dulu sebelum diformat ke zona pengguna.
+ * Riwayat pengajuan "Lupa Password".
+ *
+ * Mengajukan reset terbuka untuk semua akun tanpa login — halaman ini adalah
+ * sisi lainnya: siapa saja yang pernah mengajukan, kapan, dari identitas apa,
+ * lolos verifikasi wajah atau tidak, dan foto wajah pemohonnya. Karena isinya
+ * data pribadi, aksesnya diatur dua izin terpisah: `password_reset.view` untuk
+ * melihat dan `password_reset.delete` untuk menghapus.
+ *
+ * Versi Mobile, diturunkan dari halaman Web-Desktop (src/app tidak disalin
+ * skrip); bedanya hanya guard dan kerangka layar.
  */
-function formatTimestamp(value: string) {
-  if (!value) return "—";
-  const normalized = value.includes("T")
-    ? value
-    : `${value.replace(" ", "T")}Z`;
-  const parsed = new Date(normalized);
-  if (Number.isNaN(parsed.getTime())) return value;
-  return parsed.toLocaleString("id-ID", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-function formatScore(score: number | null) {
-  return score == null ? "Tidak dinilai" : `${Math.round(score * 100)}%`;
-}
-
-export default function RiwayatResetPasswordMobilePage() {
+export default function PasswordResetHistoryPage() {
   const router = useRouter();
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
 
-  const canView = canAccessArea(user, "password_reset");
-  const canDelete = hasPermission(user, "password_reset.delete");
-  const canApprove = hasPermission(user, "password_reset.approve");
   const [entries, setEntries] = useState<ResetHistoryEntry[]>([]);
-  const [status, setStatus] = useState<StatusFilter>("SEMUA");
+  const [status, setStatus] = useState<StatusFilter>("ALL");
+  const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<{
-    tone: "success" | "error";
-    text: string;
+  const [feedback, setFeedback] = useState<{
+    tone: "success" | "error" | "warning";
+    message: string;
   } | null>(null);
   const [photo, setPhoto] = useState<{
     entry: ResetHistoryEntry;
     src: string;
   } | null>(null);
-  const [confirmDelete, setConfirmDelete] = useState<ResetHistoryEntry | null>(
+  const [deleteTarget, setDeleteTarget] = useState<ResetHistoryEntry | null>(
     null,
   );
+  const [purgeOpen, setPurgeOpen] = useState(false);
+
+  const canView = canAccessArea(user, "password_reset");
+  const canDelete = hasPermission(user, "password_reset.delete");
+  const canApprove = hasPermission(user, "password_reset.approve");
   const [approval, setApproval] = useState<ResetApprovalResult | null>(null);
-  // Ref, bukan state `busy`: dua ketukan dalam satu tick sama-sama membaca
-  // state lama. Menyetujui dua kali menerbitkan dua kode untuk satu permintaan.
+  // Ref, bukan state `busy`: dua klik dalam satu tick sama-sama membaca state
+  // lama. Menyetujui dua kali menerbitkan dua kode untuk satu permintaan.
   const isSubmittingRef = useRef(false);
 
-  // Static export tidak punya rute /forbidden; `/` meneruskan ke `landingPath`.
-  useEffect(() => {
-    if (authLoading) return;
-    if (!isAuthenticated) router.replace("/login");
-    else if (!canView) router.replace("/");
-  }, [authLoading, isAuthenticated, canView, router]);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      setEntries(await getPasswordResetHistory({ status }));
-    } catch (error) {
-      setMessage({
-        tone: "error",
-        text:
-          error instanceof Error
-            ? error.message
-            : "Riwayat tidak dapat dimuat.",
-      });
-    } finally {
-      setLoading(false);
-    }
-  }, [status]);
-
-  useEffect(() => {
-    if (authLoading || !isAuthenticated || !canView) return;
-    void load();
-  }, [authLoading, isAuthenticated, canView, load]);
-
-  const openPhoto = async (entry: ResetHistoryEntry) => {
-    setBusy(true);
-    triggerHaptic("light");
-    try {
-      const result = await getPasswordResetPhoto(entry.id);
-      setPhoto({ entry, src: `data:${result.mime};base64,${result.base64}` });
-    } catch (error) {
-      setMessage({
-        tone: "error",
-        text:
-          error instanceof Error ? error.message : "Foto tidak dapat dibuka.",
-      });
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const runDelete = async () => {
-    if (!confirmDelete || isSubmittingRef.current) return;
+  /**
+   * Setujui permintaan, lalu tampilkan kodenya.
+   *
+   * Kode ini tidak disimpan dalam bentuk asli di mana pun — database hanya
+   * memegang hash-nya — sehingga layar ini satu-satunya kesempatan membacanya.
+   * Karena itu ia ditampilkan sebagai dialog yang harus ditutup peninjau
+   * sendiri, bukan notifikasi yang hilang otomatis.
+   */
+  const approve = async (entry: ResetHistoryEntry) => {
+    if (isSubmittingRef.current) return;
     isSubmittingRef.current = true;
     setBusy(true);
     try {
-      await deletePasswordResetHistory(confirmDelete.id);
-      setMessage({
-        tone: "success",
-        text: `Riwayat ${confirmDelete.operatorName} dihapus.`,
-      });
-      setConfirmDelete(null);
+      setApproval(await approvePasswordReset(entry.id));
       await load();
-    } catch (error) {
-      setMessage({
+    } catch (caught) {
+      setFeedback({
         tone: "error",
-        text:
-          error instanceof Error
-            ? error.message
-            : "Riwayat tidak dapat dihapus.",
+        message:
+          caught instanceof Error
+            ? caught.message
+            : "The request could not be approved.",
       });
     } finally {
       isSubmittingRef.current = false;
@@ -157,27 +103,103 @@ export default function RiwayatResetPasswordMobilePage() {
     }
   };
 
-  /**
-   * Setujui permintaan, lalu tampilkan kodenya.
-   *
-   * Kode ini tidak disimpan dalam bentuk asli di mana pun — database hanya
-   * memegang hash-nya — sehingga layar ini satu-satunya kesempatan membacanya.
-   */
-  const approve = async (entry: ResetHistoryEntry) => {
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      setEntries(await getPasswordResetHistory({ status, search }));
+    } catch (error) {
+      setFeedback({
+        tone: "error",
+        message:
+          error instanceof Error
+            ? error.message
+            : "History could not be loaded.",
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, [status, search]);
+
+  // Mobile tidak punya halaman `/forbidden`: akun tanpa izin dikembalikan ke `/`.
+  useEffect(() => {
+    if (authLoading) return;
+    if (!isAuthenticated) router.replace("/login");
+    else if (!canView) router.replace("/");
+  }, [authLoading, isAuthenticated, canView, router]);
+
+  useEffect(() => {
+    if (!isAuthenticated || !canView) return;
+    void load();
+  }, [isAuthenticated, canView, load]);
+
+  const openPhoto = async (entry: ResetHistoryEntry) => {
+    setBusy(true);
+    setFeedback(null);
+    try {
+      const result = await getPasswordResetPhoto(entry.id);
+      setPhoto({
+        entry,
+        src: `data:${result.mime};base64,${result.base64}`,
+      });
+    } catch (error) {
+      setFeedback({
+        tone: "error",
+        message:
+          error instanceof Error
+            ? error.message
+            : "The photo could not be opened.",
+      });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget || isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
+    setBusy(true);
+    try {
+      await deletePasswordResetHistory(deleteTarget.id);
+      setDeleteTarget(null);
+      setFeedback({
+        tone: "success",
+        message: `Request history of ${deleteTarget.operatorName} deleted.`,
+      });
+      await load();
+    } catch (error) {
+      setFeedback({
+        tone: "error",
+        message:
+          error instanceof Error
+            ? error.message
+            : "History could not be deleted.",
+      });
+    } finally {
+      isSubmittingRef.current = false;
+      setBusy(false);
+    }
+  };
+
+  const confirmPurge = async () => {
     if (isSubmittingRef.current) return;
     isSubmittingRef.current = true;
     setBusy(true);
-    triggerHaptic("light");
     try {
-      setApproval(await approvePasswordReset(entry.id));
+      const result = await purgePasswordResetHistory(PURGE_DAYS);
+      setPurgeOpen(false);
+      setFeedback({
+        tone: result.deleted > 0 ? "success" : "warning",
+        message:
+          result.deleted > 0
+            ? `${result.deleted} old requests cleared.`
+            : `No finished requests are older than ${PURGE_DAYS} days.`,
+      });
       await load();
     } catch (error) {
-      setMessage({
+      setFeedback({
         tone: "error",
-        text:
-          error instanceof Error
-            ? error.message
-            : "Permintaan tidak dapat disetujui.",
+        message:
+          error instanceof Error ? error.message : "Clearing history failed.",
       });
     } finally {
       isSubmittingRef.current = false;
@@ -186,313 +208,421 @@ export default function RiwayatResetPasswordMobilePage() {
   };
 
   if (authLoading || !isAuthenticated || !canView)
-    return <div className="min-h-dvh bg-slate-950" />;
+    return <div className="min-h-dvh bg-background" />;
+
+  const withPhoto = entries.filter((entry) => entry.hasPhoto).length;
 
   return (
-    <MobileAppShell>
-      <div className="flex flex-col gap-4 text-slate-100">
-        <div className="flex items-center gap-3">
+    <MobileAppShell title="Password resets">
+      <PageHeader
+        title="Password resets"
+        description="Every Forgot password request is recorded here with the requester's face verification photo, liveness result, and link delivery status."
+        actions={
+          <StatusBadge tone={canDelete ? "warning" : "info"}>
+            <Icon name={canDelete ? "tools" : "lock"} className="size-3" />
+            {canDelete ? "Can delete history" : "Read only"}
+          </StatusBadge>
+        }
+      />
+
+      {feedback ? (
+        <FeedbackBanner
+          tone={feedback.tone}
+          onDismiss={() => setFeedback(null)}
+        >
+          {feedback.message}
+        </FeedbackBanner>
+      ) : null}
+
+      <dl className="grid gap-3 sm:grid-cols-3">
+        <SummaryTile
+          label="Requests shown"
+          value={String(entries.length)}
+          hint="Matching the current filter"
+        />
+        <SummaryTile
+          label="With photo"
+          value={String(withPhoto)}
+          hint="Face evidence available"
+        />
+        <SummaryTile
+          label="Password changed"
+          value={String(
+            entries.filter((entry) => entry.status === "Used").length,
+          )}
+          hint="Status Used"
+        />
+      </dl>
+
+      <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex flex-1 flex-col gap-2 sm:flex-row">
+          <label className="flex-1">
+            <span className="sr-only">Search accounts</span>
+            <input
+              type="search"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search name, username, operator code, or typed identity"
+              className="app-input w-full"
+            />
+          </label>
+          <label>
+            <span className="sr-only">Filter by status</span>
+            <select
+              value={status}
+              onChange={(event) =>
+                setStatus(event.target.value as StatusFilter)
+              }
+              className="app-input"
+            >
+              <option value="ALL">All statuses</option>
+              {RESET_HISTORY_STATUSES.map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        {canDelete ? (
           <button
             type="button"
-            onClick={() => {
-              triggerHaptic("light");
-              router.push("/settings");
-            }}
-            aria-label="Kembali ke Pengaturan"
-            className="grid size-9 place-items-center rounded-2xl bg-white/5 text-slate-300 transition hover:bg-white/10 active:scale-95"
+            onClick={() => setPurgeOpen(true)}
+            disabled={busy}
+            className="app-btn app-btn-secondary text-error"
           >
-            <svg
-              className="size-5"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <path d="m15 18-6-6 6-6" />
-            </svg>
+            Clear history older than {PURGE_DAYS} days
           </button>
-          <div className="min-w-0">
-            <h1 className="truncate text-base font-black text-white">
-              Riwayat Reset Password
-            </h1>
-            <p className="truncate text-[11px] text-slate-400">
-              {canView
-                ? `${entries.length} pengajuan ditampilkan`
-                : "Akses dibatasi"}
+        ) : null}
+      </div>
+
+      {loading ? (
+        <div className="app-panel grid min-h-60 place-items-center text-body-md text-on-surface-variant">
+          Loading password reset history...
+        </div>
+      ) : entries.length === 0 ? (
+        <div className="app-panel grid min-h-60 place-items-center p-6 text-center">
+          <div className="space-y-1">
+            <p className="text-headline-md text-on-surface">No requests yet</p>
+            <p className="mx-auto max-w-md text-body-md text-on-surface-variant">
+              History fills in as soon as an operator uses Forgot password on
+              the sign-in page.
             </p>
           </div>
         </div>
-
-        {!canView ? (
-          <div className="rounded-2xl border border-rose-400/25 bg-rose-400/10 p-4 text-xs font-semibold text-rose-200">
-            Akun Anda tidak memiliki izin &quot;Lihat Riwayat Reset
-            Password&quot;. Minta admin menambahkan izin tersebut pada Role
-            &amp; Akses.
-          </div>
-        ) : (
-          <>
-            {message ? (
-              <button
-                type="button"
-                onClick={() => setMessage(null)}
-                className={`rounded-2xl border p-3 text-left text-[11px] leading-4 ${
-                  message.tone === "success"
-                    ? "border-emerald-400/25 bg-emerald-400/10 text-emerald-200"
-                    : "border-rose-400/25 bg-rose-400/10 text-rose-200"
-                }`}
-              >
-                {message.text}
-              </button>
-            ) : null}
-
-            <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
-              {FILTERS.map((item) => (
-                <button
-                  key={item}
-                  type="button"
-                  onClick={() => {
-                    triggerHaptic("light");
-                    setStatus(item);
-                  }}
-                  className={`shrink-0 rounded-xl border px-3 py-1.5 text-[11px] font-black transition active:scale-95 ${
-                    status === item
-                      ? "border-violet-400/40 bg-violet-500/20 text-violet-200"
-                      : "border-white/10 bg-slate-900/70 text-slate-400"
-                  }`}
-                >
-                  {item === "SEMUA" ? "Semua" : item}
-                </button>
-              ))}
-            </div>
-
-            {loading ? (
-              <div className="grid min-h-40 place-items-center rounded-3xl border border-white/10 bg-slate-900/70 text-xs text-slate-400">
-                Memuat riwayat...
-              </div>
-            ) : entries.length === 0 ? (
-              <div className="rounded-3xl border border-white/10 bg-slate-900/70 p-5 text-center">
-                <p className="text-sm font-bold text-white">
-                  Belum ada pengajuan
-                </p>
-                <p className="mt-1 text-[11px] leading-4 text-slate-400">
-                  Riwayat terisi begitu ada operator yang memakai tombol Lupa
-                  Password di halaman login.
-                </p>
-              </div>
-            ) : (
-              <ul className="flex flex-col gap-3">
-                {entries.map((entry) => (
-                  <li
-                    key={entry.id}
-                    className="rounded-3xl border border-violet-500/20 bg-gradient-to-br from-violet-950/25 via-slate-900/80 to-slate-900/90 p-4 backdrop-blur-md"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-black text-white">
-                          {entry.operatorName}
-                        </p>
-                        <p className="truncate text-[11px] text-slate-400">
-                          {entry.kodeOperator} · @{entry.username}
-                        </p>
-                        <p className="truncate text-[11px] text-slate-500">
-                          {entry.maskedEmail}
-                        </p>
-                      </div>
-                      <span
-                        className={`shrink-0 rounded-md border px-2 py-0.5 text-[9px] font-black uppercase tracking-wider ${STATUS_STYLE[entry.status]}`}
-                      >
-                        {entry.status}
-                      </span>
-                    </div>
-
-                    <p className="mt-2 text-[11px] leading-4 text-slate-400">
-                      {RESET_HISTORY_STATUS_HINT[entry.status]}
-                    </p>
-
-                    <dl className="mt-3 grid grid-cols-2 gap-2 rounded-2xl border border-white/10 bg-slate-950/60 p-3 text-[11px]">
-                      <div className="min-w-0">
-                        <dt className="text-slate-500">Diajukan</dt>
-                        <dd className="truncate font-bold text-slate-200">
-                          {formatTimestamp(entry.requestedAt)}
-                        </dd>
-                      </div>
-                      <div className="min-w-0">
-                        <dt className="text-slate-500">Skor liveness</dt>
-                        <dd className="truncate font-bold text-slate-200">
-                          {formatScore(entry.livenessScore)}
-                        </dd>
-                      </div>
-                      <div className="min-w-0">
-                        <dt className="text-slate-500">Diketik</dt>
-                        <dd className="truncate font-bold text-slate-200">
-                          {entry.identifierUsed || "—"}
-                        </dd>
-                      </div>
-                      <div className="min-w-0">
-                        <dt className="text-slate-500">Pengiriman</dt>
-                        <dd className="truncate font-bold text-slate-200">
-                          {entry.deliveryStatus || "Belum dikirim"}
-                        </dd>
-                      </div>
-                    </dl>
-
-                    {entry.deliveryError ? (
-                      <p className="mt-2 rounded-2xl border border-rose-400/25 bg-rose-400/10 p-2.5 text-[11px] leading-4 text-rose-200">
-                        {entry.deliveryError}
-                      </p>
-                    ) : null}
-
-                    {canApprove &&
-                    entry.deliveryStatus === "Menunggu Persetujuan" &&
-                    entry.status === "Menunggu Verifikasi" ? (
-                      <button
-                        type="button"
-                        disabled={busy}
-                        onClick={() => void approve(entry)}
-                        className="mt-3 min-h-11 w-full rounded-xl bg-emerald-500 px-3 text-xs font-black text-slate-950 shadow-md transition hover:bg-emerald-400 active:scale-95 disabled:opacity-50"
-                      >
-                        Setujui pemulihan
-                      </button>
-                    ) : null}
-
-                    <div className="mt-3 flex gap-2">
-                      {entry.hasPhoto ? (
-                        <button
-                          type="button"
-                          disabled={busy}
-                          onClick={() => void openPhoto(entry)}
-                          className="flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-xl bg-violet-500 px-3 text-xs font-black text-white shadow-md transition hover:bg-violet-400 active:scale-95 disabled:opacity-50"
-                        >
-                          <Icon name="user" className="size-4" />
-                          Lihat Foto
-                        </button>
-                      ) : (
-                        <span className="flex min-h-11 flex-1 items-center justify-center rounded-xl border border-white/10 px-3 text-xs font-bold text-slate-500">
-                          Tanpa foto
-                        </span>
-                      )}
-                      {canDelete ? (
-                        <button
-                          type="button"
-                          disabled={busy}
-                          onClick={() => {
-                            triggerHaptic("warning");
-                            setConfirmDelete(entry);
-                          }}
-                          className="min-h-11 rounded-xl border border-rose-400/30 px-3 text-xs font-black text-rose-200 transition active:scale-95 disabled:opacity-50"
-                        >
-                          Hapus
-                        </button>
-                      ) : null}
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </>
-        )}
-      </div>
+      ) : (
+        <ul className="grid gap-3">
+          {entries.map((entry) => (
+            <HistoryCard
+              key={entry.id}
+              entry={entry}
+              busy={busy}
+              canDelete={canDelete}
+              canApprove={canApprove}
+              onOpenPhoto={() => void openPhoto(entry)}
+              onDelete={() => setDeleteTarget(entry)}
+              onApprove={() => void approve(entry)}
+            />
+          ))}
+        </ul>
+      )}
 
       {approval ? (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/80 p-4">
-          <div className="w-full max-w-sm rounded-3xl border border-emerald-400/30 bg-slate-900 p-5 shadow-2xl">
-            <h2 className="text-sm font-black text-white">Kode pemulihan</h2>
-            <p className="mt-2 text-xs leading-5 text-slate-400">
-              Serahkan kode ini kepada{" "}
-              <strong className="text-white">{approval.namaOperator}</strong>{" "}
-              secara langsung. Berlaku {approval.berlakuMenit} menit dan hanya
-              bisa dipakai sekali.
+        <Modal
+          title="Recovery code"
+          titleId="reset-approval-title"
+          onClose={() => setApproval(null)}
+        >
+          <div className="space-y-3 text-body-md">
+            <p className="text-on-surface">
+              Hand this code to <strong>{approval.namaOperator}</strong> in
+              person. It is valid for {approval.berlakuMenit} minutes and can be
+              used once.
             </p>
-            <p className="mt-3 select-all break-all rounded-2xl border border-emerald-400/30 bg-emerald-400/10 p-3 text-center font-mono text-sm font-black tracking-wider text-emerald-100">
+            <p className="select-all break-all rounded-md border border-outline-variant bg-surface-container-low p-3 text-center font-mono text-headline-md tracking-wider text-on-surface">
               {approval.token}
             </p>
-            <p className="mt-2 text-[11px] leading-4 text-amber-300">
-              Tidak tersimpan dan tidak dapat ditampilkan ulang.
+            <p className="rounded-md border border-tertiary-fixed-dim bg-tertiary-fixed p-3 text-on-tertiary-fixed">
+              This code is not stored and cannot be shown again. If this window
+              is closed before the code is handed over, the requester must
+              submit a new request.
             </p>
             <button
               type="button"
               onClick={() => setApproval(null)}
-              className="mt-4 min-h-11 w-full rounded-xl bg-white/10 text-xs font-black text-slate-200"
+              className="app-btn app-btn-primary w-full"
             >
-              Saya sudah menyerahkan kodenya
+              I have handed over the code
             </button>
           </div>
-        </div>
+        </Modal>
       ) : null}
 
       {photo ? (
-        <div className="fixed inset-0 z-[80] flex items-end justify-center bg-slate-950/90 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md space-y-3 rounded-3xl border border-white/15 bg-slate-900 p-4">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="truncate text-sm font-black text-white">
-                  {photo.entry.operatorName}
-                </p>
-                <p className="truncate text-[11px] text-slate-400">
-                  {formatTimestamp(photo.entry.requestedAt)}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setPhoto(null)}
-                aria-label="Tutup foto"
-                className="grid size-9 shrink-0 place-items-center rounded-xl bg-white/5 text-slate-300 active:scale-95"
-              >
-                ✕
-              </button>
-            </div>
-            {/* Foto tersimpan base64 di database cloud dan ditampilkan lewat
-                data URI — tidak ada permintaan jaringan keluar, sesuai batasan
-                CSP aplikasi Tauri. */}
+        <Modal
+          title={`Verification photo: ${photo.entry.operatorName}`}
+          titleId="reset-photo-title"
+          onClose={() => setPhoto(null)}
+        >
+          <div className="space-y-3">
+            {/* Foto bukti disimpan sebagai base64 di database cloud, jadi
+                ditampilkan lewat data URI — tidak ada permintaan jaringan
+                keluar, sesuai batasan CSP Desktop. */}
             {/** biome-ignore lint/performance/noImgElement: sumbernya data URI dari database, bukan aset yang bisa dioptimalkan next/image */}
             <img
               src={photo.src}
-              alt={`Wajah pemohon reset password ${photo.entry.operatorName}`}
-              className="w-full rounded-2xl border border-white/10"
+              alt={`Face of the password reset requester ${photo.entry.operatorName}`}
+              className="w-full rounded-md border border-surface-container"
             />
-            <p className="text-[10px] leading-4 text-slate-500">
-              Verifikasi liveness menahan foto cetak dan layar diam, bukan
-              rekaman video orang lain. Periksa juga kewajaran waktu dan
-              identitas yang diketik.
+            <dl className="grid gap-2 rounded-md border border-surface-container bg-surface-container-low p-3 sm:grid-cols-2">
+              <DetailRow
+                label="Requested"
+                value={formatDateTime(photo.entry.requestedAt)}
+              />
+              <DetailRow
+                label="Liveness score"
+                value={formatScore(photo.entry.livenessScore)}
+              />
+              <DetailRow
+                label="Challenges"
+                value={
+                  photo.entry.livenessChallenges.join(", ") || "Not recorded"
+                }
+              />
+              <DetailRow label="Status" value={photo.entry.status} />
+            </dl>
+            <p className="text-body-sm text-on-surface-variant">
+              This photo is not legal proof of identity. Liveness verification
+              stops printed photos and still screens, not a video recording of
+              someone else, so also check that the timing and typed identity
+              make sense.
             </p>
           </div>
-        </div>
+        </Modal>
       ) : null}
 
-      {confirmDelete ? (
-        <div className="fixed inset-0 z-[80] flex items-end justify-center bg-slate-950/90 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md space-y-3 rounded-3xl border border-white/15 bg-slate-900 p-4">
-            <p className="text-sm font-black text-white">Hapus riwayat ini?</p>
-            <p className="text-[11px] leading-4 text-slate-400">
-              Riwayat pengajuan {confirmDelete.operatorName} beserta foto
-              verifikasinya dihapus permanen.
-              {confirmDelete.status === "Terkirim"
-                ? " Pengajuan ini masih hidup — link resetnya ikut mati dan pemiliknya perlu mengajukan ulang."
-                : ""}
+      {deleteTarget ? (
+        <Modal
+          title="Delete this request?"
+          titleId="reset-delete-title"
+          onClose={() => setDeleteTarget(null)}
+        >
+          <div className="space-y-4">
+            <p className="text-body-md text-on-surface">
+              The request history of{" "}
+              <strong>{deleteTarget.operatorName}</strong> and its verification
+              photo will be deleted permanently.
             </p>
-            <div className="flex gap-2">
+            {deleteTarget.status === "Sent" ? (
+              <p className="rounded-md border border-tertiary-fixed-dim bg-tertiary-fixed p-3 text-body-md text-on-tertiary-fixed">
+                This request is still live: its reset link has not been used.
+                Deleting it also disables that link, and the owner will need to
+                request Forgot password again.
+              </p>
+            ) : null}
+            <div className="flex flex-wrap justify-end gap-2">
               <button
                 type="button"
-                onClick={() => setConfirmDelete(null)}
-                className="min-h-11 flex-1 rounded-xl border border-white/15 px-3 text-xs font-bold text-slate-300 active:scale-95"
+                onClick={() => setDeleteTarget(null)}
+                className="app-btn app-btn-secondary"
               >
-                Batal
+                Cancel
               </button>
               <button
                 type="button"
+                onClick={() => void confirmDelete()}
                 disabled={busy}
-                onClick={() => void runDelete()}
-                className="min-h-11 flex-1 rounded-xl bg-rose-500 px-3 text-xs font-black text-white active:scale-95 disabled:opacity-50"
+                className="app-btn app-btn-danger"
               >
-                {busy ? "Menghapus..." : "Hapus"}
+                {busy ? "Deleting..." : "Delete permanently"}
               </button>
             </div>
           </div>
-        </div>
+        </Modal>
+      ) : null}
+
+      {purgeOpen ? (
+        <Modal
+          title="Clear old history?"
+          titleId="reset-purge-title"
+          onClose={() => setPurgeOpen(false)}
+        >
+          <div className="space-y-4">
+            <p className="text-body-md text-on-surface">
+              All requests with status Used, Expired, or Cancelled that are
+              older than {PURGE_DAYS} days will be deleted with their photos.
+              Requests still in progress are kept.
+            </p>
+            <div className="flex flex-wrap justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setPurgeOpen(false)}
+                className="app-btn app-btn-secondary"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void confirmPurge()}
+                disabled={busy}
+                className="app-btn app-btn-danger"
+              >
+                {busy ? "Clearing..." : "Clear now"}
+              </button>
+            </div>
+          </div>
+        </Modal>
       ) : null}
     </MobileAppShell>
   );
+}
+
+function SummaryTile({
+  label,
+  value,
+  hint,
+}: {
+  label: string;
+  value: string;
+  hint: string;
+}) {
+  return (
+    <div className="app-panel p-3">
+      <dt className="font-mono text-label-caps uppercase text-on-surface-variant">
+        {label}
+      </dt>
+      <dd className="mt-1 font-mono text-headline-xl tabular-nums text-on-surface">
+        {value}
+      </dd>
+      <dd className="text-body-sm text-on-surface-variant">{hint}</dd>
+    </div>
+  );
+}
+
+function HistoryCard({
+  entry,
+  busy,
+  canDelete,
+  canApprove,
+  onOpenPhoto,
+  onDelete,
+  onApprove,
+}: {
+  entry: ResetHistoryEntry;
+  busy: boolean;
+  canDelete: boolean;
+  canApprove: boolean;
+  onOpenPhoto: () => void;
+  onDelete: () => void;
+  onApprove: () => void;
+}) {
+  // Hanya permintaan yang benar-benar menunggu peninjauan manusia yang boleh
+  // disetujui. Menampilkan tombolnya pada baris lain akan mengundang klik yang
+  // pasti ditolak backend.
+  const awaitingApproval =
+    entry.deliveryStatus === RESET_DELIVERY_AWAITING_APPROVAL &&
+    entry.status === "Pending Verification";
+  return (
+    <li className="app-panel p-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0 space-y-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-headline-md text-on-surface">
+              {entry.operatorName}
+            </p>
+            <StatusBadge tone={RESET_HISTORY_STATUS_TONE[entry.status]}>
+              {entry.status}
+            </StatusBadge>
+          </div>
+          <p className="text-body-sm text-on-surface-variant">
+            <span className="font-mono">{entry.kodeOperator}</span> · @
+            {entry.username} · {entry.maskedEmail}
+          </p>
+          <p className="text-body-md text-on-surface-variant">
+            {RESET_HISTORY_STATUS_HINT[entry.status]}
+          </p>
+        </div>
+        <div className="flex shrink-0 flex-wrap gap-2">
+          {entry.hasPhoto ? (
+            <button
+              type="button"
+              onClick={onOpenPhoto}
+              disabled={busy}
+              className="app-btn app-btn-secondary"
+            >
+              View photo
+            </button>
+          ) : (
+            <span className="inline-flex min-h-11 items-center px-2 text-body-md text-on-surface-variant">
+              No photo
+            </span>
+          )}
+          {canApprove && awaitingApproval ? (
+            <button
+              type="button"
+              onClick={onApprove}
+              disabled={busy}
+              className="app-btn app-btn-primary"
+            >
+              Approve
+            </button>
+          ) : null}
+          {canDelete ? (
+            <button
+              type="button"
+              onClick={onDelete}
+              disabled={busy}
+              className="app-btn app-btn-secondary text-error"
+            >
+              Delete
+            </button>
+          ) : null}
+        </div>
+      </div>
+
+      <dl className="mt-3 grid gap-2 border-t border-surface-container pt-3 sm:grid-cols-2 lg:grid-cols-4">
+        <DetailRow
+          label="Requested"
+          value={formatDateTime(entry.requestedAt)}
+        />
+        <DetailRow label="Typed" value={entry.identifierUsed || "-"} />
+        <DetailRow
+          label="Liveness score"
+          value={formatScore(entry.livenessScore)}
+        />
+        <DetailRow
+          label="Delivery"
+          value={entry.deliveryStatus || "Not sent yet"}
+        />
+      </dl>
+
+      {entry.deliveryError ? (
+        <p className="mt-2 rounded-md border border-error/30 bg-error-container p-2.5 text-body-md text-on-error-container">
+          {entry.deliveryError}
+        </p>
+      ) : null}
+      {entry.livenessReason && entry.status !== "Used" ? (
+        <p className="mt-2 text-body-sm text-on-surface-variant">
+          Verification note: {entry.livenessReason}
+        </p>
+      ) : null}
+    </li>
+  );
+}
+
+function DetailRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0">
+      <dt className="font-mono text-label-caps uppercase text-on-surface-variant">
+        {label}
+      </dt>
+      <dd className="truncate text-body-md font-semibold text-on-surface">
+        {value}
+      </dd>
+    </div>
+  );
+}
+
+function formatScore(score: number | null) {
+  return score == null ? "Not scored" : `${Math.round(score * 100)}%`;
 }

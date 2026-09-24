@@ -16,7 +16,7 @@ export interface OperatorRecord {
   roleKey: string;
   roleName: string;
   isSuperadmin: boolean;
-  status: "Aktif" | "Nonaktif";
+  status: "Active" | "Inactive";
 }
 
 export interface OperatorDraft {
@@ -27,5 +27,5 @@ export interface OperatorDraft {
   noHp: string;
   password?: string;
   roleId: number;
-  status: "Aktif" | "Nonaktif";
+  status: "Active" | "Inactive";
 }

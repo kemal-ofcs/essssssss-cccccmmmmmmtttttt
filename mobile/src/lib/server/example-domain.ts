@@ -23,7 +23,7 @@ export interface ItemRecord {
   harga: number;
   satuan: string | null;
   catatan: string | null;
-  status_aktif: "Aktif" | "Nonaktif";
+  status_aktif: "Active" | "Inactive";
   update_terakhir: string;
 }
 
@@ -74,7 +74,7 @@ export async function listItems(client: Client): Promise<ItemRecord[]> {
     harga: Number(row.harga),
     satuan: nullableText(row.satuan),
     catatan: nullableText(row.catatan),
-    status_aktif: row.status_aktif === "Nonaktif" ? "Nonaktif" : "Aktif",
+    status_aktif: row.status_aktif === "Inactive" ? "Inactive" : "Active",
     update_terakhir: String(row.update_terakhir),
   }));
 }
@@ -86,9 +86,9 @@ export async function saveItem(client: Client, item: Draft) {
   if ([...nama].length < 2) invalid("Nama item minimal dua karakter.");
   const harga = integer(item, "harga");
   if (harga < 0) invalid("Harga tidak boleh negatif.");
-  // Nilai asing ditolak, tidak pernah dinormalkan menjadi "Aktif".
-  const status = item.status_aktif ?? "Aktif";
-  if (status !== "Aktif" && status !== "Nonaktif") {
+  // Nilai asing ditolak, tidak pernah dinormalkan menjadi "Active".
+  const status = item.status_aktif ?? "Active";
+  if (status !== "Active" && status !== "Inactive") {
     invalid("Status item harus Aktif atau Nonaktif.");
   }
 

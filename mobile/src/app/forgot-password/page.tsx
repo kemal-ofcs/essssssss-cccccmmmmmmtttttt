@@ -20,7 +20,8 @@ import {
 import { useHydrated } from "@/lib/hooks/useHydrated";
 
 /**
- * Alur pemulihan password.
+ * Alur pemulihan password. Halaman ini identik di Web-Desktop dan Mobile
+ * (`src/app` tidak disalin skrip; salin berkas ini apa adanya).
  *
  * Jalur peninjauan: `cari` -> `konfirmasi` (apakah ini akun Anda?) ->
  * `ulangi` (ketik ulang identitas) -> `foto` (verifikasi wajah) ->
@@ -45,7 +46,7 @@ type Step =
   | "kode-pemulihan"
   | "pulih";
 
-export default function LupaPasswordPage() {
+export default function ForgotPasswordPage() {
   const isHydrated = useHydrated();
   const router = useRouter();
 
@@ -74,7 +75,7 @@ export default function LupaPasswordPage() {
     setError(
       cause instanceof Error
         ? cause.message
-        : "Permintaan tidak dapat diproses.",
+        : "The request could not be processed.",
     );
   }, []);
 
@@ -82,7 +83,7 @@ export default function LupaPasswordPage() {
     event.preventDefault();
     if (busy) return;
     if (recoveryPassword !== recoveryConfirm) {
-      setError("Konfirmasi password baru tidak sama.");
+      setError("The new password confirmation does not match.");
       return;
     }
     setBusy(true);
@@ -194,42 +195,44 @@ export default function LupaPasswordPage() {
 
   if (!isHydrated) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-slate-950 text-slate-100">
-        <div className="h-10 w-10 animate-spin rounded-full border-4 border-emerald-500 border-t-transparent" />
+      <main className="flex min-h-dvh items-center justify-center bg-background">
+        <output className="block text-body-md text-on-surface-variant">
+          Loading...
+        </output>
       </main>
     );
   }
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-slate-950 p-4 font-sans text-slate-100 sm:p-6">
-      <div className="pointer-events-none absolute -top-40 -left-40 h-96 w-96 rounded-full bg-emerald-600/15 blur-3xl" />
-      <div className="pointer-events-none absolute -right-40 -bottom-40 h-96 w-96 rounded-full bg-sky-600/15 blur-3xl" />
-
-      <section className="relative z-10 w-full max-w-lg space-y-5 rounded-3xl border border-white/10 bg-slate-900/70 p-6 shadow-2xl backdrop-blur sm:p-8">
+    <main className="flex min-h-dvh flex-col items-center justify-center bg-background p-4 sm:p-6">
+      <section className="app-panel w-full max-w-lg space-y-5 p-5 shadow-[0_8px_32px_rgb(11_28_48/0.08)] sm:p-6">
         <header className="space-y-1">
-          <p className="text-xs font-black uppercase tracking-[0.2em] text-emerald-400">
+          <p className="text-body-sm font-semibold text-on-surface-variant">
             App Template
           </p>
-          <h1 className="text-2xl font-black">Lupa Password</h1>
-          <p className="text-sm text-slate-400">
+          <h1 className="text-headline-xl text-on-surface">Forgot password</h1>
+          <p className="text-body-md text-on-surface-variant">
             {step === "terkirim"
-              ? "Permintaan berhasil diverifikasi."
-              : "Kami akan memverifikasi wajah Anda sebelum mengirim link pemulihan."}
+              ? "Your request has been verified."
+              : "We verify your face before sending a recovery link."}
           </p>
         </header>
 
         <StepIndicator step={step} />
 
         {error ? (
-          <p className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-sm text-rose-200">
+          <p
+            role="alert"
+            className="rounded-md border border-error/30 bg-error-container p-3 text-body-md text-on-error-container"
+          >
             {error}
           </p>
         ) : null}
 
         {step === "cari" ? (
           <form className="space-y-4" onSubmit={submitLookup}>
-            <label className="grid gap-1.5 text-xs font-bold text-slate-300">
-              Username atau email
+            <label className="app-label grid gap-1.5">
+              Username or email
               <input
                 required
                 minLength={3}
@@ -237,60 +240,62 @@ export default function LupaPasswordPage() {
                 autoComplete="username"
                 value={identifier}
                 onChange={(event) => setIdentifier(event.target.value)}
-                placeholder="operator01 atau operator@contoh.id"
-                className="min-h-11 rounded-xl border border-white/15 bg-slate-950 px-3 text-sm text-white"
+                placeholder="operator01 or operator@company.co.id"
+                className="app-input font-normal"
               />
             </label>
             <button
               type="submit"
               disabled={busy}
-              className="min-h-12 w-full rounded-2xl bg-emerald-500 text-sm font-black text-slate-950 disabled:opacity-50"
+              className="app-btn app-btn-primary w-full"
             >
-              {busy ? "Mencari akun..." : "Cari akun"}
+              {busy ? "Looking up account..." : "Find account"}
             </button>
+
+            {/* Jalur kedua, untuk akun yang tidak bisa menunggu peninjau —
+                terutama Superadmin, yang tidak punya siapa pun di atasnya. */}
             <button
               type="button"
               onClick={() => {
                 setError(null);
                 setStep("kode-pemulihan");
               }}
-              className="min-h-11 w-full rounded-2xl border border-amber-400/30 text-xs font-bold text-amber-200 transition active:scale-95"
+              className="app-btn app-btn-secondary w-full"
             >
-              Saya punya kode pemulihan cetak
+              I have a printed recovery code
             </button>
           </form>
         ) : null}
 
         {step === "kode-pemulihan" ? (
           <form className="space-y-4" onSubmit={submitRecovery}>
-            <p className="rounded-2xl border border-amber-400/25 bg-amber-400/10 p-3 text-[11px] leading-4 text-amber-100">
-              Masukkan salah satu kode yang dicetak saat aplikasi pertama kali
-              dipasang. Setiap kode hanya berlaku sekali, dan cara ini bekerja
-              tanpa internet.
+            <p className="rounded-md border border-tertiary-fixed-dim bg-tertiary-fixed p-3 text-body-md text-on-tertiary-fixed">
+              Enter one of the codes printed when the app was first installed.
+              Each code works once, and this works without internet.
             </p>
-            <label className="grid gap-1.5 text-xs font-bold text-slate-300">
-              Username atau email
+            <label className="app-label grid gap-1.5">
+              Username or operator code
               <input
                 required
                 autoComplete="username"
                 value={identifier}
                 onChange={(event) => setIdentifier(event.target.value)}
-                className="min-h-11 rounded-xl border border-white/15 bg-slate-950 px-3 text-sm text-white"
+                className="app-input font-normal"
               />
             </label>
-            <label className="grid gap-1.5 text-xs font-bold text-slate-300">
-              Kode pemulihan
+            <label className="app-label grid gap-1.5">
+              Recovery code
               <input
                 required
                 value={recoveryCode}
                 onChange={(event) => setRecoveryCode(event.target.value)}
                 placeholder="XXXX-XXXX"
                 autoComplete="off"
-                className="min-h-11 rounded-xl border border-white/15 bg-slate-950 px-3 font-mono text-sm uppercase tracking-wider text-white"
+                className="app-input font-mono font-normal uppercase tracking-wider"
               />
             </label>
-            <label className="grid gap-1.5 text-xs font-bold text-slate-300">
-              Password baru
+            <label className="app-label grid gap-1.5">
+              New password
               <input
                 required
                 type="password"
@@ -298,11 +303,11 @@ export default function LupaPasswordPage() {
                 autoComplete="new-password"
                 value={recoveryPassword}
                 onChange={(event) => setRecoveryPassword(event.target.value)}
-                className="min-h-11 rounded-xl border border-white/15 bg-slate-950 px-3 text-sm text-white"
+                className="app-input font-normal"
               />
             </label>
-            <label className="grid gap-1.5 text-xs font-bold text-slate-300">
-              Ulangi password baru
+            <label className="app-label grid gap-1.5">
+              Repeat new password
               <input
                 required
                 type="password"
@@ -310,15 +315,15 @@ export default function LupaPasswordPage() {
                 autoComplete="new-password"
                 value={recoveryConfirm}
                 onChange={(event) => setRecoveryConfirm(event.target.value)}
-                className="min-h-11 rounded-xl border border-white/15 bg-slate-950 px-3 text-sm text-white"
+                className="app-input font-normal"
               />
             </label>
             <button
               type="submit"
               disabled={busy}
-              className="min-h-12 w-full rounded-2xl bg-amber-400 text-sm font-black text-slate-950 disabled:opacity-50"
+              className="app-btn app-btn-primary w-full"
             >
-              {busy ? "Memulihkan..." : "Pulihkan akses"}
+              {busy ? "Recovering..." : "Recover access"}
             </button>
             <button
               type="button"
@@ -326,47 +331,49 @@ export default function LupaPasswordPage() {
                 setError(null);
                 setStep("cari");
               }}
-              className="min-h-10 w-full text-xs font-bold text-slate-400"
+              className="app-btn app-btn-secondary w-full"
             >
-              Kembali
+              Back
             </button>
           </form>
         ) : null}
 
         {step === "pulih" ? (
           <div className="space-y-4">
-            <p className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm leading-6 text-emerald-200">
-              Password berhasil diganti dan seluruh sesi lama dicabut. Silakan
-              masuk memakai password baru Anda.
-            </p>
-            <p className="text-[11px] leading-4 text-slate-400">
-              Sisa kode pemulihan: <strong>{sisaKode}</strong>. Terbitkan
-              kumpulan kode baru dari halaman Pengaturan bila sisanya menipis.
+            <output className="block rounded-md border border-success/30 bg-success-container p-3 text-body-md text-on-success-container">
+              Your password was changed and all old sessions were revoked. Sign
+              in with your new password.
+            </output>
+            <p className="text-body-md text-on-surface-variant">
+              Recovery codes left: <strong>{sisaKode}</strong>. Issue a new set
+              from Settings when you are running low.
             </p>
             <button
               type="button"
               onClick={() => router.replace("/login")}
-              className="min-h-12 w-full rounded-2xl bg-emerald-500 text-sm font-black text-slate-950"
+              className="app-btn app-btn-primary w-full"
             >
-              Ke halaman masuk
+              Go to sign in
             </button>
           </div>
         ) : null}
 
         {step === "konfirmasi" && account ? (
           <div className="space-y-4">
-            <div className="space-y-1 rounded-2xl border border-white/10 bg-slate-950/60 p-4 text-sm">
-              <p className="text-base font-black text-white">{account.name}</p>
-              <p className="text-slate-400">
+            <div className="space-y-1 rounded-md border border-surface-container bg-surface-container-low p-3 text-body-md">
+              <p className="text-headline-md text-on-surface">{account.name}</p>
+              <p className="font-mono text-code-md text-on-surface-variant">
                 {account.kodeOperator} · @{account.username}
               </p>
-              <p className="text-slate-400">Email: {account.maskedEmail}</p>
-              <p className="text-slate-400">
-                Nomor HP: {account.maskedPhone || "belum diisi"}
+              <p className="text-on-surface-variant">
+                Email: {account.maskedEmail}
+              </p>
+              <p className="text-on-surface-variant">
+                Phone: {account.maskedPhone || "not set"}
               </p>
             </div>
-            <p className="text-sm text-slate-300">
-              Apakah akun ini milik Anda?
+            <p className="text-body-md text-on-surface">
+              Is this your account?
             </p>
             <div className="flex flex-wrap gap-2">
               <button
@@ -375,16 +382,16 @@ export default function LupaPasswordPage() {
                   setConfirmation("");
                   setStep("ulangi");
                 }}
-                className="min-h-11 flex-1 rounded-xl bg-emerald-500 px-4 text-sm font-black text-slate-950"
+                className="app-btn app-btn-primary flex-1"
               >
-                Ya, akun saya
+                Yes, it is mine
               </button>
               <button
                 type="button"
                 onClick={restart}
-                className="min-h-11 rounded-xl border border-white/15 px-4 text-sm font-bold text-slate-300"
+                className="app-btn app-btn-secondary"
               >
-                Bukan, cari lagi
+                No, search again
               </button>
             </div>
           </div>
@@ -392,12 +399,12 @@ export default function LupaPasswordPage() {
 
         {step === "ulangi" && account ? (
           <form className="space-y-4" onSubmit={submitConfirmation}>
-            <p className="text-sm text-slate-300">
-              Untuk memastikan, ketik ulang username atau email akun{" "}
-              <strong className="text-white">{account.name}</strong>.
+            <p className="text-body-md text-on-surface">
+              To confirm, type the username or email of{" "}
+              <strong>{account.name}</strong> again.
             </p>
-            <label className="grid gap-1.5 text-xs font-bold text-slate-300">
-              Ulangi username atau email
+            <label className="app-label grid gap-1.5">
+              Username or email again
               <input
                 required
                 minLength={3}
@@ -405,23 +412,23 @@ export default function LupaPasswordPage() {
                 autoComplete="off"
                 value={confirmation}
                 onChange={(event) => setConfirmation(event.target.value)}
-                className="min-h-11 rounded-xl border border-white/15 bg-slate-950 px-3 text-sm text-white"
+                className="app-input font-normal"
               />
             </label>
             <div className="flex flex-wrap gap-2">
               <button
                 type="submit"
                 disabled={busy}
-                className="min-h-12 flex-1 rounded-2xl bg-emerald-500 text-sm font-black text-slate-950 disabled:opacity-50"
+                className="app-btn app-btn-primary flex-1"
               >
-                {busy ? "Memeriksa..." : "Lanjut ke verifikasi wajah"}
+                {busy ? "Checking..." : "Continue to face verification"}
               </button>
               <button
                 type="button"
                 onClick={restart}
-                className="min-h-12 rounded-2xl border border-white/15 px-4 text-sm font-bold text-slate-300"
+                className="app-btn app-btn-secondary"
               >
-                Ulangi
+                Start over
               </button>
             </div>
           </form>
@@ -429,10 +436,10 @@ export default function LupaPasswordPage() {
 
         {step === "foto" && challenge ? (
           <div className="space-y-4">
-            <p className="text-sm text-slate-300">
-              Ikuti {challenge.challenges.length} instruksi berikut. Rekaman ini
-              dipakai untuk memastikan pemohon adalah orang sungguhan, bukan
-              foto, dan disimpan sebagai bukti audit.
+            <p className="text-body-md text-on-surface">
+              Follow the {challenge.challenges.length} instructions below. The
+              recording confirms a real person is present, not a photo, and is
+              kept as audit evidence.
             </p>
             <LivenessCapture
               challenges={challenge.challenges}
@@ -446,48 +453,38 @@ export default function LupaPasswordPage() {
 
         {step === "terkirim" ? (
           <div className="space-y-4">
-            <p className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-200">
+            <output className="block rounded-md border border-success/30 bg-success-container p-3 text-body-md text-on-success-container">
               {deliveryMessage}
-            </p>
+            </output>
             {deliveryMode === "in_app" ? (
-              <p className="text-sm text-slate-300">
-                Tidak ada email yang dikirim: pemasangan ini memang tidak
-                memakai jalur email. Hubungi Superadmin agar meninjau foto Anda
-                di halaman Riwayat Reset Password, lalu minta kode pemulihan
-                yang ditampilkan di layarnya. Masukkan kode itu di bawah.
+              <p className="text-body-md text-on-surface">
+                No email was sent: this install does not use email delivery. Ask
+                the Superadmin to review your photo on the Password resets page,
+                then ask for the recovery code shown on their screen. Enter that
+                code on the next page.
               </p>
             ) : (
-              <p className="text-sm text-slate-300">
-                Buka email tersebut lalu klik tautannya untuk membuat password
-                baru. Bila email hanya memuat kode, masukkan kode itu di bawah.
+              <p className="text-body-md text-on-surface">
+                Open that email and click the link to create a new password. If
+                the email only contains a code, enter it on the next page.
               </p>
             )}
             <button
               type="button"
-              onClick={() => router.push("/lupa-password/reset")}
-              className="min-h-12 w-full rounded-2xl bg-emerald-500 text-sm font-black text-slate-950"
+              onClick={() => router.push("/forgot-password/reset")}
+              className="app-btn app-btn-primary w-full"
             >
-              Saya sudah punya kode reset
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setError(null);
-                setStep("kode-pemulihan");
-              }}
-              className="min-h-11 w-full rounded-2xl border border-amber-400/30 text-xs font-bold text-amber-200 transition active:scale-95"
-            >
-              Saya menerima kode pemulihan dari Superadmin
+              I have a reset code
             </button>
           </div>
         ) : null}
 
-        <footer className="border-t border-white/10 pt-4 text-center">
+        <footer className="border-t border-surface-container pt-4 text-center">
           <Link
             href="/login"
-            className="text-xs font-bold text-slate-400 hover:text-emerald-300"
+            className="inline-flex min-h-11 items-center text-body-md font-semibold text-secondary hover:underline"
           >
-            Kembali ke halaman login
+            Back to sign in
           </Link>
         </footer>
       </section>
@@ -496,28 +493,32 @@ export default function LupaPasswordPage() {
 }
 
 const STEP_LABELS: { key: Step; label: string }[] = [
-  { key: "cari", label: "Cari" },
-  { key: "konfirmasi", label: "Konfirmasi" },
-  { key: "ulangi", label: "Ulangi" },
-  { key: "foto", label: "Foto" },
-  { key: "terkirim", label: "Kirim" },
+  { key: "cari", label: "Find" },
+  { key: "konfirmasi", label: "Confirm" },
+  { key: "ulangi", label: "Repeat" },
+  { key: "foto", label: "Face" },
+  { key: "terkirim", label: "Send" },
 ];
 
 function StepIndicator({ step }: { step: Step }) {
   const activeIndex = STEP_LABELS.findIndex((item) => item.key === step);
   return (
-    <ol className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider">
+    <ol className="flex items-center gap-1.5">
       {STEP_LABELS.map((item, index) => (
         <li key={item.key} className="flex flex-1 flex-col gap-1">
           <span
+            aria-hidden="true"
             className={`h-1 rounded-full ${
-              index <= activeIndex ? "bg-emerald-400" : "bg-white/10"
+              index <= activeIndex ? "bg-secondary" : "bg-surface-container"
             }`}
           />
           <span
-            className={
-              index <= activeIndex ? "text-emerald-300" : "text-slate-600"
-            }
+            aria-current={index === activeIndex ? "step" : undefined}
+            className={`font-mono text-label-caps uppercase ${
+              index <= activeIndex
+                ? "text-secondary"
+                : "text-on-surface-variant"
+            }`}
           >
             {item.label}
           </span>

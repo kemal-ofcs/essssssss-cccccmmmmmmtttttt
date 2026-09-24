@@ -57,7 +57,7 @@ export function resolveServerDatabaseConfig(
   // aturan keamanan alamat.
   if (provider === "local_file") {
     throw new Error(
-      "APP_DATABASE_PROVIDER=local_file hanya berlaku untuk aplikasi Desktop/Mobile. Sisi Web memerlukan database remote (Turso atau libSQL self-hosted).",
+      "APP_DATABASE_PROVIDER=local_file only applies to the Desktop/Mobile app. The Web side needs a remote database (Turso or self-hosted libSQL).",
     );
   }
   const allowInsecure = isTruthyFlag(environment.APP_ALLOW_INSECURE_DATABASE);
@@ -70,7 +70,7 @@ export function resolveServerDatabaseConfig(
       const endpoint = reviewDatabaseEndpoint(url, provider, allowInsecure);
       if (!endpoint.valid) {
         throw new Error(
-          `TURSO_DATABASE_URL tidak dapat dipakai: ${endpoint.issue?.message ?? "alamat tidak valid."}`,
+          `TURSO_DATABASE_URL cannot be used: ${endpoint.issue?.message ?? "invalid address."}`,
         );
       }
       // Turso terkelola selalu wajib token. Server sendiri hanya wajib bila
@@ -78,7 +78,7 @@ export function resolveServerDatabaseConfig(
       // jaringan privat lazim berjalan tanpa autentikasi sama sekali.
       if (isProduction && endpoint.tokenRequired && !authToken) {
         throw new Error(
-          "TURSO_AUTH_TOKEN wajib tersedia untuk database remote production.",
+          "TURSO_AUTH_TOKEN is required for a production remote database.",
         );
       }
     }
@@ -93,7 +93,7 @@ export function resolveServerDatabaseConfig(
 
   if (isProduction) {
     throw new Error(
-      "TURSO_DATABASE_URL wajib tersedia pada environment server production.",
+      "TURSO_DATABASE_URL is required in the production server environment.",
     );
   }
 

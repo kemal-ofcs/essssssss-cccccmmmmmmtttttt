@@ -79,7 +79,7 @@ async fn simpan_ke_perangkat(
     let bytes = std::fs::read(source_path).map_err(|error| {
         CommandError::new(
             "BACKUP_READ_FAILED",
-            format!("Berkas cadangan tidak dapat dibaca: {error}"),
+            format!("The backup file could not be read: {error}"),
         )
     })?;
 
@@ -94,7 +94,7 @@ async fn simpan_ke_perangkat(
         .map_err(|error| {
             CommandError::new(
                 "BACKUP_SAVE_FAILED",
-                format!("Pemilih lokasi tidak dapat dibuka: {error}"),
+                format!("The location picker could not be opened: {error}"),
             )
         })?;
 
@@ -106,7 +106,7 @@ async fn simpan_ke_perangkat(
     api.write(&uri, &bytes).await.map_err(|error| {
         CommandError::new(
             "BACKUP_SAVE_FAILED",
-            format!("Berkas tidak dapat ditulis ke lokasi pilihan: {error}"),
+            format!("The file could not be written to the chosen location: {error}"),
         )
     })?;
     Ok(true)
@@ -120,6 +120,6 @@ async fn simpan_ke_perangkat(
 ) -> Result<bool, CommandError> {
     Err(CommandError::new(
         "BACKUP_SAVE_UNSUPPORTED",
-        "Dialog simpan berkas hanya tersedia pada build Android.",
+        "The save-file dialog is only available in the Android build.",
     ))
 }

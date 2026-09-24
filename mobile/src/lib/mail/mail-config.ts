@@ -61,9 +61,9 @@ export const MAIL_PROVIDER_LABEL: Record<MailProvider, string> = {
  */
 export const MAIL_PROVIDER_REQUIREMENT: Record<MailProvider, string> = {
   resend:
-    "Wajib punya domain sendiri yang diverifikasi lewat record DNS. Tanpa itu hanya bisa mengirim dari onboarding@resend.dev ke alamat pemilik akun Resend saja.",
+    "Requires your own domain verified through DNS records. Without it you can only send from onboarding@resend.dev to the Resend account owner's address.",
   brevo:
-    "Cukup verifikasi satu alamat email pengirim — termasuk Gmail — lewat tautan konfirmasi. TIDAK perlu punya domain sendiri. Paket gratisnya membatasi jumlah kiriman per hari. Pastikan pembatasan Authorised IPs di Brevo dimatikan, karena email dikirim langsung dari perangkat operator yang IP-nya berganti-ganti.",
+    "Verifying one sender address (Gmail works too) through a confirmation link is enough. You do NOT need your own domain. The free plan limits sends per day. Make sure Authorised IPs is turned off in Brevo, because emails are sent directly from operator devices whose IP keeps changing.",
 };
 
 /**
@@ -78,23 +78,23 @@ export function assertMailConfigDraft(
   requireApiKey: boolean,
 ) {
   if (!isMailProvider(draft.provider)) {
-    throw new Error("Penyedia email tidak dikenal.");
+    throw new Error("Unknown email provider.");
   }
   if (!draft.isActive) return;
   if (requireApiKey && !draft.apiKey.trim()) {
-    throw new Error("Kunci API penyedia email wajib diisi.");
+    throw new Error("The email provider API key is required.");
   }
   const sender = draft.senderEmail.trim().toLowerCase();
   if (!/^[^\s@]+@[^\s@.]+(?:\.[^\s@.]+)+$/.test(sender)) {
-    throw new Error("Email pengirim wajib diisi dengan format yang valid.");
+    throw new Error("Enter a valid sender email.");
   }
   if (draft.senderName.trim().length < 2) {
-    throw new Error("Nama pengirim minimal 2 karakter.");
+    throw new Error("The sender name needs at least 2 characters.");
   }
   const base = draft.resetBaseUrl.trim();
   if (base && !/^https?:\/\/[^\s]+$/.test(base)) {
     throw new Error(
-      "URL halaman reset harus diawali http:// atau https:// tanpa spasi.",
+      "The reset page URL must start with http:// or https:// and contain no spaces.",
     );
   }
 }
@@ -108,40 +108,40 @@ export function buildResetEmail(input: {
 }) {
   const { operatorName, resetLink, resetCode, expiresInMinutes } = input;
   const action = resetLink
-    ? `Buka tautan berikut untuk membuat password baru:\n${resetLink}`
-    : `Masukkan kode berikut pada halaman "Lupa Password" di aplikasi:\n${resetCode}`;
+    ? `Open this link to create a new password:\n${resetLink}`
+    : `Enter this code on the "Forgot password" page in the app:\n${resetCode}`;
   const text = [
-    `Halo ${operatorName},`,
+    `Hello ${operatorName},`,
     "",
-    "Kami menerima permintaan pemulihan password untuk akun App Template Anda.",
-    "Permintaan ini sudah melewati verifikasi wajah pada perangkat pemohon.",
+    "We received a password recovery request for your App Template account.",
+    "The request passed face verification on the requester's device.",
     "",
     action,
     "",
-    `Tautan/kode ini berlaku ${expiresInMinutes} menit dan hanya dapat dipakai satu kali.`,
-    "Jika Anda tidak merasa mengajukan permintaan ini, abaikan email ini dan segera",
-    "laporkan ke Admin — foto pemohon sudah tersimpan sebagai bukti.",
+    `This link or code is valid for ${expiresInMinutes} minutes and can be used once.`,
+    "If you did not make this request, ignore this email and report it to your",
+    "Admin right away. The requester's photo has been saved as evidence.",
     "",
     "App Template",
   ].join("\n");
 
   const safeName = escapeHtml(operatorName);
   const htmlAction = resetLink
-    ? `<p style="margin:24px 0"><a href="${escapeHtml(resetLink)}" style="background:#059669;color:#ffffff;padding:12px 20px;border-radius:12px;text-decoration:none;font-weight:700">Buat Password Baru</a></p>`
+    ? `<p style="margin:24px 0"><a href="${escapeHtml(resetLink)}" style="background:#0051d5;color:#ffffff;padding:12px 20px;border-radius:4px;text-decoration:none;font-weight:700">Create a new password</a></p>`
     : `<p style="margin:24px 0;font-size:24px;letter-spacing:4px;font-weight:800">${escapeHtml(resetCode)}</p>`;
   const html = [
     '<div style="font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:#0f172a;line-height:1.6">',
-    `<p>Halo <strong>${safeName}</strong>,</p>`,
-    "<p>Kami menerima permintaan pemulihan password untuk akun App Template Anda. Permintaan ini sudah melewati verifikasi wajah pada perangkat pemohon.</p>",
+    `<p>Hello <strong>${safeName}</strong>,</p>`,
+    "<p>We received a password recovery request for your App Template account. The request passed face verification on the requester's device.</p>",
     htmlAction,
-    `<p>Tautan/kode ini berlaku <strong>${expiresInMinutes} menit</strong> dan hanya dapat dipakai satu kali.</p>`,
-    "<p>Jika Anda tidak merasa mengajukan permintaan ini, abaikan email ini dan segera laporkan ke Admin — foto pemohon sudah tersimpan sebagai bukti.</p>",
+    `<p>This link or code is valid for <strong>${expiresInMinutes} minutes</strong> and can be used once.</p>`,
+    "<p>If you did not make this request, ignore this email and report it to your Admin right away. The requester's photo has been saved as evidence.</p>",
     "<p>App Template</p>",
     "</div>",
   ].join("");
 
   return {
-    subject: "Pemulihan Password App Template",
+    subject: "App Template password recovery",
     text,
     html,
   };
@@ -167,8 +167,8 @@ function escapeHtml(value: string) {
 export function describeMailFailure(detail: string): string {
   const lower = detail.toLowerCase();
 
-  if (lower.includes("permintaan ke") && lower.includes("gagal")) {
-    return "Aplikasi tidak berhasil menghubungi server penyedia email. Ini bukan soal kuota atau kunci API — periksa DNS, proxy, atau firewall jaringan Anda.";
+  if (lower.includes("request to") && lower.includes("failed")) {
+    return "The app could not reach the email provider's server. This is not about quota or the API key: check your network DNS, proxy, or firewall.";
   }
   // Brevo punya daftar "Authorised IPs". Bila fitur itu menyala, panggilan API
   // dari IP yang belum terdaftar ditolak 401 — bukan karena kuncinya salah.
@@ -182,27 +182,27 @@ export function describeMailFailure(detail: string): string {
     lower.includes("unrecognized ip") ||
     (lower.includes("ip address") && lower.includes("http 401"))
   ) {
-    return "Brevo menolak karena alamat IP perangkat ini belum terdaftar pada Authorised IPs — kunci API Anda sendiri sudah benar. Aplikasi mengirim email langsung dari perangkat operator, sehingga IP-nya berganti setiap pindah jaringan dan tidak mungkin didaftarkan satu per satu. Buka Brevo > Security > Authorised IPs, lalu MATIKAN pembatasan IP tersebut.";
+    return "Brevo rejected it because this device's IP address is not on the Authorised IPs list. Your API key itself is correct. The app sends email directly from operator devices, so the IP changes with every network and cannot be registered one by one. Open Brevo > Security > Authorised IPs and TURN OFF the IP restriction.";
   }
   if (lower.includes("http 401") && !lower.includes("sender")) {
-    return "Kunci API ditolak. Salin ulang kunci dari dasbor penyedia — pastikan tidak ada spasi ikut tersalin, dan kuncinya belum dicabut.";
+    return "The API key was rejected. Copy the key again from the provider dashboard, make sure no spaces were copied, and check that it has not been revoked.";
   }
   if (lower.includes("http 429")) {
-    return "Kuota pengiriman penyedia sedang penuh. Tunggu beberapa menit lalu coba lagi.";
+    return "The provider's sending quota is full. Wait a few minutes and try again.";
   }
   if (lower.includes("http 403")) {
     // Dua sebab paling umum pada Resend, dan keduanya butuh tindakan berbeda.
     if (lower.includes("verif")) {
-      return "Domain email pengirim belum diverifikasi di Resend. Buka Resend > Domains, tambahkan domain Anda, pasang record DNS-nya sampai berstatus Verified. Untuk uji cepat, isi email pengirim dengan onboarding@resend.dev.";
+      return "The sender email domain is not verified in Resend. Open Resend > Domains, add your domain, and set its DNS records until it shows Verified. For a quick test, use onboarding@resend.dev as the sender email.";
     }
     if (
       lower.includes("testing email") ||
       lower.includes("own email") ||
       lower.includes("sandbox")
     ) {
-      return "Akun Resend masih memakai domain uji, sehingga hanya bisa mengirim ke alamat email pemilik akun Resend itu sendiri. Verifikasi domain Anda untuk mengirim ke alamat lain.";
+      return "The Resend account still uses the test domain, so it can only send to the Resend account owner's own address. Verify your domain to send to other addresses.";
     }
-    return "Penyedia menolak kiriman ini. Dua sebab paling umum: domain email pengirim belum diverifikasi, atau kunci API dibatasi hanya untuk domain tertentu. Periksa keduanya di dasbor penyedia.";
+    return "The provider rejected this send. The two most common causes: the sender email domain is not verified, or the API key is limited to certain domains. Check both in the provider dashboard.";
   }
   if (
     lower.includes("http 422") ||
@@ -218,15 +218,18 @@ export function describeMailFailure(detail: string): string {
       lower.includes("unauthoriz") ||
       lower.includes("does not exist");
     if (menyebutPengirim && belumTerdaftar) {
-      return "Alamat email pengirim belum terdaftar di penyedia. Pada Brevo: buka Senders, Domains & Dedicated IPs > Senders, tambahkan alamat itu, lalu klik tautan konfirmasi yang dikirim ke alamat tersebut. Cara ini TIDAK memerlukan domain sendiri.";
+      return "The sender email is not registered with the provider. In Brevo: open Senders, Domains & Dedicated IPs > Senders, add the address, then click the confirmation link sent to it. This does NOT require your own domain.";
     }
     if (menyebutPengirim) {
-      return "Alamat email pengirim ditolak. Isi dengan satu alamat lengkap yang sudah diverifikasi di penyedia, mis. operasional.contoh@gmail.com.";
+      return "The sender email was rejected. Enter one complete address that is verified with the provider, for example operations.example@gmail.com.";
     }
-    return "Isi kiriman ditolak penyedia. Periksa kembali email pengirim dan nama pengirim.";
+    return "The provider rejected the message content. Check the sender email and sender name again.";
   }
-  if (lower.includes("nonaktif") || lower.includes("kosong")) {
-    return "Lengkapi kunci API dan email pengirim, lalu aktifkan sakelar pengiriman sebelum menguji.";
+  if (
+    lower.includes("settings are off") ||
+    lower.includes("api key is empty")
+  ) {
+    return "Fill in the API key and sender email, then turn on sending before testing.";
   }
   return "";
 }

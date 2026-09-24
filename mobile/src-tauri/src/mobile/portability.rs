@@ -141,7 +141,7 @@ fn derive_backup_key(passphrase: &str, salt: &[u8]) -> Result<[u8; 32], CommandE
         .map_err(|_| {
             CommandError::new(
                 "BACKUP_KEY_FAILED",
-                "Kunci enkripsi cadangan tidak dapat dibuat.",
+                "The backup encryption key could not be created.",
             )
         })?;
     Ok(key)
@@ -151,13 +151,13 @@ fn hub_path(state: &MobileState) -> Result<PathBuf, CommandError> {
     let config = state.turso_config().ok_or_else(|| {
         CommandError::new(
             "LOCAL_MODE_REQUIRED",
-            "Database belum dikonfigurasi pada perangkat ini.",
+            "No database is configured on this device.",
         )
     })?;
     if !config.provider.is_local_file() {
         return Err(CommandError::new(
             "LOCAL_MODE_REQUIRED",
-            "Ekspor dan pemulihan berkas hanya berlaku pada Mode Database Lokal. Pada mode cloud, data induknya berada di server — cadangkan dari sana.",
+            "File export and restore only apply in Local Database Mode. In cloud mode the master data is on the server: back it up there.",
         ));
     }
     config.local_file_path()
@@ -172,7 +172,7 @@ fn vacuum_into(source: &Path, destination: &Path) -> Result<(), CommandError> {
     let connection = Connection::open(source).map_err(|error| {
         CommandError::new(
             "LOCAL_DB_UNAVAILABLE",
-            format!("Database lokal tidak dapat dibuka: {error}"),
+            format!("The local database could not be opened: {error}"),
         )
     })?;
     connection
@@ -180,7 +180,7 @@ fn vacuum_into(source: &Path, destination: &Path) -> Result<(), CommandError> {
         .map_err(|error| {
             CommandError::new(
                 "BACKUP_FAILED",
-                format!("Salinan database tidak dapat dibuat: {error}"),
+                format!("The database copy could not be created: {error}"),
             )
         })?;
     Ok(())
@@ -205,7 +205,7 @@ fn encrypt_backup(plain: &[u8], passphrase: &str) -> Result<Vec<u8>, CommandErro
             },
         )
         .map_err(|_| {
-            CommandError::new("BACKUP_FAILED", "Berkas cadangan tidak dapat dienkripsi.")
+            CommandError::new("BACKUP_FAILED", "The backup file could not be encrypted.")
         })?;
 
     let mut payload = Vec::with_capacity(BACKUP_MAGIC.len() + SALT_LEN + NONCE_LEN + ciphertext.len());
@@ -221,7 +221,7 @@ fn decrypt_backup(payload: &[u8], passphrase: &str) -> Result<Vec<u8>, CommandEr
     if payload.len() <= header {
         return Err(CommandError::new(
             "BACKUP_CORRUPT",
-            "Berkas cadangan terenkripsi tidak lengkap.",
+            "The encrypted backup file is incomplete.",
         ));
     }
     let salt = &payload[BACKUP_MAGIC.len()..BACKUP_MAGIC.len() + SALT_LEN];
@@ -242,7 +242,7 @@ fn decrypt_backup(payload: &[u8], passphrase: &str) -> Result<Vec<u8>, CommandEr
         .map_err(|_| {
             CommandError::new(
                 "BACKUP_PASSPHRASE_INVALID",
-                "Frasa sandi cadangan tidak sesuai, atau berkasnya sudah rusak.",
+                "The backup passphrase is wrong, or the file is corrupt.",
             )
         })
 }
@@ -271,13 +271,13 @@ pub fn export_database(
     if !source.is_file() {
         return Err(CommandError::new(
             "LOCAL_DB_UNAVAILABLE",
-            "Berkas database lokal belum terbentuk pada perangkat ini.",
+            "The local database file does not exist on this device yet.",
         ));
     }
 
     let staging_dir = state.data_dir.join("backup-staging");
     fs::create_dir_all(&staging_dir).map_err(|_| {
-        CommandError::new("BACKUP_FAILED", "Folder sementara cadangan tidak dapat dibuat.")
+        CommandError::new("BACKUP_FAILED", "The temporary backup folder could not be created.")
     })?;
 
     let plain_path = staging_dir.join("hub-export.db");
@@ -290,19 +290,19 @@ pub fn export_database(
 
     let size_bytes = if let Some(passphrase) = passphrase {
         let plain = Zeroizing::new(fs::read(&plain_path).map_err(|_| {
-            CommandError::new("BACKUP_FAILED", "Salinan database tidak dapat dibaca.")
+            CommandError::new("BACKUP_FAILED", "The database copy could not be read.")
         })?);
         let payload = encrypt_backup(&plain, passphrase)?;
         let size = payload.len() as u64;
         fs::write(&output, payload).map_err(|_| {
-            CommandError::new("BACKUP_FAILED", "Berkas cadangan tidak dapat ditulis.")
+            CommandError::new("BACKUP_FAILED", "The backup file could not be written.")
         })?;
         // Salinan polos tidak boleh tertinggal di disk setelah dienkripsi.
         let _ = fs::remove_file(&plain_path);
         size
     } else {
         fs::rename(&plain_path, &output).map_err(|_| {
-            CommandError::new("BACKUP_FAILED", "Berkas cadangan tidak dapat disiapkan.")
+            CommandError::new("BACKUP_FAILED", "The backup file could not be prepared.")
         })?;
         fs::metadata(&output).map(|meta| meta.len()).unwrap_or(0)
     };
@@ -331,7 +331,7 @@ fn inspect_candidate(path: &Path) -> Result<(i64, i64), CommandError> {
     let connection = Connection::open(path).map_err(|_| {
         CommandError::new(
             "BACKUP_CORRUPT",
-            "Berkas ini bukan database SQLite yang dapat dibuka.",
+            "This file is not a SQLite database that can be opened.",
         )
     })?;
 
@@ -340,7 +340,7 @@ fn inspect_candidate(path: &Path) -> Result<(i64, i64), CommandError> {
         .map_err(|_| {
             CommandError::new(
                 "BACKUP_CORRUPT",
-                "Berkas ini bukan database SQLite yang valid.",
+                "This file is not a valid SQLite database.",
             )
         })?;
     if integrity != "ok" {
@@ -360,7 +360,7 @@ fn inspect_candidate(path: &Path) -> Result<(i64, i64), CommandError> {
     if table_count < 5 {
         return Err(CommandError::new(
             "BACKUP_NOT_RECOGNIZED",
-            "Berkas ini adalah database SQLite, tetapi bukan database aplikasi ini.",
+            "This file is a SQLite database, but not this app's database.",
         ));
     }
 
@@ -376,7 +376,7 @@ fn inspect_candidate(path: &Path) -> Result<(i64, i64), CommandError> {
         return Err(CommandError::new(
             "SCHEMA_VERSION_OUTDATED",
             format!(
-                "Berkas cadangan memakai skema versi {schema_version}, sedangkan aplikasi ini hanya mendukung versi {CLIENT_SCHEMA_VERSION}. Perbarui aplikasi lebih dulu agar kolom versi baru tidak hilang."
+                "The backup file uses schema version {schema_version}, but this app only supports version {CLIENT_SCHEMA_VERSION}. Update the app first so columns from the newer version are not lost."
             ),
         ));
     }
@@ -402,17 +402,17 @@ pub fn import_database(
     passphrase: Option<&str>,
 ) -> Result<ImportReport, CommandError> {
     let metadata = fs::metadata(source).map_err(|_| {
-        CommandError::new("BACKUP_NOT_FOUND", "Berkas cadangan tidak dapat dibaca.")
+        CommandError::new("BACKUP_NOT_FOUND", "The backup file could not be read.")
     })?;
     if metadata.len() > MAX_BACKUP_BYTES {
         return Err(CommandError::new(
             "BACKUP_TOO_LARGE",
-            "Ukuran berkas cadangan melebihi batas yang dapat diproses.",
+            "The backup file is larger than can be processed.",
         ));
     }
 
     let raw = fs::read(source).map_err(|_| {
-        CommandError::new("BACKUP_NOT_FOUND", "Berkas cadangan tidak dapat dibaca.")
+        CommandError::new("BACKUP_NOT_FOUND", "The backup file could not be read.")
     })?;
 
     import_payload(state, &raw, &source.to_string_lossy(), passphrase)
@@ -434,7 +434,7 @@ pub fn import_database_bytes(
     if payload.len() as u64 > MAX_BACKUP_BYTES {
         return Err(CommandError::new(
             "BACKUP_TOO_LARGE",
-            "Ukuran berkas cadangan melebihi batas yang dapat diproses.",
+            "The backup file is larger than can be processed.",
         ));
     }
     import_payload(state, payload, label, passphrase)
@@ -450,7 +450,7 @@ fn import_payload(
 
     let staging_dir = state.data_dir.join("backup-staging");
     fs::create_dir_all(&staging_dir).map_err(|_| {
-        CommandError::new("BACKUP_FAILED", "Folder sementara cadangan tidak dapat dibuat.")
+        CommandError::new("BACKUP_FAILED", "The temporary backup folder could not be created.")
     })?;
     let candidate = staging_dir.join("hub-import.db");
     let _ = fs::remove_file(&candidate);
@@ -462,16 +462,16 @@ fn import_payload(
             .ok_or_else(|| {
                 CommandError::new(
                     "BACKUP_PASSPHRASE_REQUIRED",
-                    "Berkas cadangan ini terenkripsi. Masukkan frasa sandi yang dipakai saat mengekspornya.",
+                    "This backup file is encrypted. Enter the passphrase used when exporting it.",
                 )
             })?;
         let plain = Zeroizing::new(decrypt_backup(raw, passphrase)?);
         fs::write(&candidate, plain.as_slice()).map_err(|_| {
-            CommandError::new("BACKUP_FAILED", "Berkas cadangan tidak dapat disiapkan.")
+            CommandError::new("BACKUP_FAILED", "The backup file could not be prepared.")
         })?;
     } else {
         fs::write(&candidate, raw).map_err(|_| {
-            CommandError::new("BACKUP_FAILED", "Berkas cadangan tidak dapat disiapkan.")
+            CommandError::new("BACKUP_FAILED", "The backup file could not be prepared.")
         })?;
     }
 
@@ -487,7 +487,7 @@ fn import_payload(
             Err(_) => {
                 return Err(CommandError::new(
                     "RESTORE_FAILED",
-                    "Database lama tidak dapat diamankan, sehingga pemulihan dibatalkan.",
+                    "The old database could not be secured, so the restore was cancelled.",
                 ))
             }
         }
@@ -510,7 +510,7 @@ fn import_payload(
         }
         return Err(CommandError::new(
             "RESTORE_FAILED",
-            format!("Database cadangan tidak dapat dipasang: {error}"),
+            format!("The backup database could not be installed: {error}"),
         ));
     }
 

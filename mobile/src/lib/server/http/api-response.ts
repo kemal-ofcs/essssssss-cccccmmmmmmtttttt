@@ -40,13 +40,14 @@ export function toApiErrorResponse(error: unknown) {
     return noStoreJson({ sukses: false, pesan: error.message }, error.status);
   }
 
-  const message = error instanceof Error ? error.message : "Operasi gagal.";
+  const message =
+    error instanceof Error ? error.message : "The operation failed.";
   if (message.toLowerCase().includes("fetch failed")) {
     return noStoreJson(
       {
         sukses: false,
         pesan:
-          "Database server sedang tidak dapat dijangkau. Periksa koneksi internet lalu coba sinkronkan kembali.",
+          "The database server cannot be reached right now. Check the internet connection, then sync again.",
       },
       503,
     );
@@ -55,23 +56,23 @@ export function toApiErrorResponse(error: unknown) {
     return noStoreJson(
       {
         sukses: false,
-        pesan: "Kode, username, ID, atau nama unik tersebut sudah digunakan.",
+        pesan: "That code, username, ID, or unique name is already in use.",
       },
       409,
     );
   }
   const isConflict =
-    message.includes("terakhir") ||
-    message.includes("masih dipakai") ||
-    message.includes("histori") ||
-    message.includes("tidak dapat dihapus");
+    message.includes("last active") ||
+    message.includes("still used") ||
+    message.includes("history") ||
+    message.includes("cannot be deleted");
   return noStoreJson({ sukses: false, pesan: message }, isConflict ? 409 : 400);
 }
 
 export function parsePositiveId(value: unknown, label: string) {
   const parsed = Number(value);
   if (!Number.isSafeInteger(parsed) || parsed < 1) {
-    throw new ApiRequestError(`${label} tidak valid.`, 400);
+    throw new ApiRequestError(`${label} is invalid.`, 400);
   }
   return parsed;
 }

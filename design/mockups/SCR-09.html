@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+
+<html lang="en"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0" name="viewport"/><meta content="web_dashboard" name="shell-type"/><link href="https://fonts.googleapis.com" rel="preconnect"/><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/><link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&amp;family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><style>@layer base{html,body{margin:0;padding:0;}body{overscroll-behavior:none;}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config = { darkMode: "class", theme: { extend: { "colors": { "surface-container-high": "#dce9ff", "inverse-surface": "#213145", "on-primary": "#ffffff", "surface-bright": "#f8f9ff", "on-tertiary-container": "#c76c00", "on-background": "#0b1c30", "primary": "#000000", "primary-fixed": "#dae2fd", "outline": "#76777d", "outline-variant": "#c6c6cd", "primary-container": "#131b2e", "primary-fixed-dim": "#bec6e0", "secondary-container": "#316bf3", "on-secondary-fixed": "#00174b", "on-secondary-fixed-variant": "#003ea8", "tertiary-fixed": "#ffdcc3", "background": "#f8f9ff", "on-surface-variant": "#45464d", "error": "#ba1a1a", "on-primary-container": "#7c839b", "on-tertiary": "#ffffff", "surface": "#f8f9ff", "inverse-on-surface": "#eaf1ff", "surface-container-lowest": "#ffffff", "on-secondary": "#ffffff", "surface-container": "#e5eeff", "on-secondary-container": "#fefcff", "on-error-container": "#93000a", "on-tertiary-fixed-variant": "#6e3900", "on-primary-fixed-variant": "#3f465c", "secondary": "#0051d5", "surface-container-low": "#eff4ff", "surface-container-highest": "#d3e4fe", "on-error": "#ffffff", "secondary-fixed": "#dbe1ff", "on-tertiary-fixed": "#2f1500", "surface-tint": "#565e74", "surface-dim": "#cbdbf5", "secondary-fixed-dim": "#b4c5ff", "tertiary-fixed-dim": "#ffb77d", "on-primary-fixed": "#131b2e", "on-surface": "#0b1c30", "tertiary": "#000000", "tertiary-container": "#2f1500", "inverse-primary": "#bec6e0", "error-container": "#ffdad6", "surface-variant": "#d3e4fe" }, "borderRadius": { "DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem" }, "spacing": { "space-sm": "0.25rem", "space-lg": "0.75rem", "space-xs": "0.125rem", "gutter-dense": "0.375rem", "space-md": "0.5rem", "gutter": "0.75rem", "margin": "1rem", "space-xl": "1rem" }, "fontFamily": { "headline-xl": [ "Plus Jakarta Sans" ], "code-lg": [ "JetBrains Mono" ], "label-caps": [ "JetBrains Mono" ], "body-md": [ "Plus Jakarta Sans" ], "headline-md": [ "Plus Jakarta Sans" ], "body-sm": [ "Plus Jakarta Sans" ], "code-sm": [ "JetBrains Mono" ], "headline-lg": [ "Plus Jakarta Sans" ], "code-md": [ "JetBrains Mono" ] }, "fontSize": { "headline-xl": [ "24px", { "lineHeight": "32px", "letterSpacing": "-0.02em", "fontWeight": "700" } ], "code-lg": [ "13px", { "lineHeight": "18px", "letterSpacing": "-0.01em", "fontWeight": "500" } ], "label-caps": [ "10px", { "lineHeight": "12px", "letterSpacing": "0.08em", "fontWeight": "600" } ], "body-md": [ "13px", { "lineHeight": "18px", "letterSpacing": "0em", "fontWeight": "400" } ], "headline-md": [ "15px", { "lineHeight": "20px", "letterSpacing": "-0.01em", "fontWeight": "600" } ], "body-sm": [ "12px", { "lineHeight": "16px", "letterSpacing": "0em", "fontWeight": "400" } ], "code-sm": [ "11px", { "lineHeight": "14px", "letterSpacing": "0.02em", "fontWeight": "500" } ], "headline-lg": [ "18px", { "lineHeight": "24px", "letterSpacing": "-0.015em", "fontWeight": "600" } ], "code-md": [ "12px", { "lineHeight": "16px", "letterSpacing": "0em", "fontWeight": "500" } ] } } } };</script></head><body class="bg-background font-body-md text-body-md text-on-surface antialiased min-h-screen"><header class="fixed top-0 left-0 right-0 min-h-14 bg-surface-container-lowest z-50 flex flex-wrap items-center justify-between px-gutter py-1 shadow-[0_1px_8px_rgba(0,0,0,0.04)] gap-space-sm"><div class="flex flex-wrap items-center gap-space-md min-w-0"><div class="flex items-center gap-space-sm pl-space-xs shrink-0"><span class="material-symbols-outlined text-secondary text-[20px]">precision_manufacturing</span><span class="font-headline-md text-headline-md tracking-tight text-on-surface font-bold">MaklonOS</span><span class="font-label-caps text-label-caps bg-surface-container px-space-xs py-0.5 rounded text-on-surface-variant uppercase">Core v2.4</span></div><div class="h-4 w-[1px] bg-surface-container hidden sm:block"></div><button class="flex items-center gap-space-md bg-surface-container-low hover:bg-surface-container px-space-md py-space-xs rounded text-on-surface-variant hover:text-on-surface transition-colors cursor-pointer text-left min-w-0" type="button"><span class="material-symbols-outlined text-[16px] shrink-0">search</span><span class="font-body-sm text-body-sm truncate">Cari Formulasi, Batch Lab, SPK...</span><span class="font-label-caps text-label-caps bg-surface-container-lowest px-space-xs rounded text-on-surface-variant shrink-0 hidden md:inline">CTRL+K</span></button></div><div class="flex flex-wrap items-center gap-space-md shrink-0"><div class="hidden md:flex items-center gap-space-xs bg-surface-container-lowest px-space-sm py-0.5 rounded"><span class="h-2 w-2 rounded-full bg-secondary animate-pulse"></span><span class="font-code-sm text-code-sm text-on-surface-variant">SQLite Sync: <span class="text-on-surface font-semibold">0 pending txns</span></span></div><div class="hidden sm:flex items-center gap-space-xs text-on-surface-variant font-code-sm text-code-sm"><span class="material-symbols-outlined text-[16px]">schedule</span><span>14:32:08 WIB</span></div><div class="h-4 w-[1px] bg-surface-container hidden sm:block"></div><div class="flex items-center gap-space-md"><div class="text-right"><div class="font-headline-md text-headline-md text-on-surface leading-none">Rian CS Head</div><div class="font-label-caps text-label-caps text-secondary uppercase">Lead Chemist</div></div><div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center"><span class="material-symbols-outlined text-on-primary text-[18px]">person</span></div><button class="p-space-xs text-error hover:bg-error-container hover:text-on-error-container rounded transition-colors" title="Force Logout" type="button"><span class="material-symbols-outlined text-[18px]">power_settings_new</span></button></div></div></header><aside class="fixed left-0 top-14 bottom-8 w-64 bg-surface-container-lowest z-40 flex flex-col justify-between overflow-y-auto"><div class="p-space-md"><div class="font-label-caps text-label-caps text-on-surface-variant px-space-sm mb-space-xs tracking-wider uppercase">Fase 1: Intake &amp; Client</div><nav class="flex flex-col gap-0.5" data-active-classes="bg-primary-container text-on-primary-container font-semibold rounded"><a class="flex items-center justify-between px-space-md py-space-sm text-on-surface-variant hover:bg-surface-container hover:text-on-surface font-body-sm text-body-sm transition-colors rounded" data-path="cs-crm-core" href="#"><span>CS/CRM Core</span><span class="font-code-sm text-code-sm bg-surface-container px-space-xs rounded">M1</span></a><a class="flex items-center justify-between px-space-md py-space-sm text-on-surface-variant hover:bg-surface-container hover:text-on-surface font-body-sm text-body-sm transition-colors rounded" data-path="lead-intake" href="#"><span>Lead Intake</span><span class="font-code-sm text-code-sm bg-surface-container px-space-xs rounded">M2</span></a><a class="flex items-center justify-between px-space-md py-space-sm text-on-surface-variant hover:bg-surface-container hover:text-on-surface font-body-sm text-body-sm transition-colors rounded" data-path="sample-tracker" href="#"><span>Sample Tracker</span><span class="font-code-sm text-code-sm bg-surface-container px-space-xs rounded">M3</span></a></nav><div class="my-space-md bg-surface-container h-[1px]"></div><div class="font-label-caps text-label-caps text-secondary px-space-sm mb-space-xs tracking-wider uppercase font-semibold">Fase 2: R&amp;D &amp; Commercial Gate</div><nav class="flex flex-col gap-0.5" data-active-classes="bg-primary-container text-on-primary-container font-semibold rounded"><a class="flex items-center justify-between px-space-md py-space-sm text-on-surface-variant hover:bg-surface-container hover:text-on-surface font-body-sm text-body-sm transition-colors rounded" data-path="rnd-lab-queue" href="#"><span>RnD Lab &amp; Queue (Fase 2)</span><span class="font-code-sm text-code-sm bg-secondary text-on-secondary px-space-xs rounded">ACTIVE</span></a><a aria-current="page" class="flex items-center justify-between px-space-md py-space-sm transition-colors bg-primary-container text-on-primary-container font-semibold rounded" data-path="hpp-pricing-engine" href="#"><span>HPP &amp; Pricing Engine</span><span class="font-code-sm text-code-sm bg-surface-container px-space-xs rounded">M5</span></a><a class="flex items-center justify-between px-space-md py-space-sm text-on-surface-variant hover:bg-surface-container hover:text-on-surface font-body-sm text-body-sm transition-colors rounded" data-path="client-approval-dp-gate" href="#"><span>Client Approval Gateway &amp; DP Gate</span><span class="font-code-sm text-code-sm bg-surface-container px-space-xs rounded">M6</span></a></nav><div class="my-space-md bg-surface-container h-[1px]"></div><div class="font-label-caps text-label-caps text-on-surface-variant px-space-sm mb-space-xs tracking-wider uppercase">System Logs &amp; Audit</div><nav class="flex flex-col gap-0.5" data-active-classes="bg-primary-container text-on-primary-container font-semibold rounded"><a class="flex items-center justify-between px-space-md py-space-sm text-on-surface-variant hover:bg-surface-container hover:text-on-surface font-body-sm text-body-sm transition-colors rounded" data-path="audit-log-security-sessions" href="#"><span>Audit Log &amp; Security Sessions</span><span class="font-code-sm text-code-sm text-on-surface-variant">SEC</span></a></nav></div><div class="p-space-md bg-surface-container-low"><div class="flex items-center justify-between text-on-surface-variant"><span class="font-label-caps text-label-caps uppercase">Terminal ID</span><span class="font-code-sm text-code-sm font-semibold text-on-surface">WS-SBY-048</span></div><div class="flex items-center justify-between text-on-surface-variant mt-0.5"><span class="font-label-caps text-label-caps uppercase">Engine Cache</span><span class="font-code-sm text-code-sm text-secondary font-semibold">WAL 64MB OK</span></div></div></aside><div class="pl-64"><main class="pt-14 pb-8 min-h-screen bg-background w-full px-space-lg"><div class="flex flex-col w-full gap-space-md">
+<!-- HARD FINANCIAL GATE BANNER -->
+<div class="w-full bg-error-container text-on-error-container rounded-lg p-space-md shadow-sm flex flex-wrap items-center justify-between gap-space-md"><div class="flex items-start sm:items-center gap-space-md min-w-0 flex-1"><div class="w-7 h-7 rounded bg-error text-on-error flex items-center justify-center shrink-0 mt-0.5 sm:mt-0"><span class="material-symbols-outlined text-[18px]">verified_user</span></div><div class="min-w-0"><div class="flex items-center gap-space-sm flex-wrap"><span class="font-label-caps text-label-caps bg-error text-on-error px-space-xs py-0.5 rounded uppercase shrink-0">GATE-FIN-09</span><span class="font-headline-md text-headline-md font-bold tracking-tight">HARD FINANCIAL GATE: Margin Threshold &lt; 35% Requires Director Authorization</span></div><p class="font-body-sm text-body-sm opacity-90 truncate mt-0.5">Real-time commodity index synced with Jakarta Chemical Exchange (JCE-Spot 14:10 WIB) • Verified SQLite local transaction locked</p></div></div><div class="flex items-center gap-space-sm shrink-0 flex-wrap"><span class="font-code-sm text-code-sm bg-surface-container-lowest text-on-error-container px-space-md py-1 rounded shadow-sm font-semibold flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-secondary animate-ping"></span>INDEX: REEF-USD @ 15,820</span><div class="font-label-caps text-label-caps bg-surface-container-lowest text-on-error-container px-space-sm py-1 rounded uppercase font-bold">AUTH LVL 4</div></div></div>
+<!-- CALCULATION WORKSPACE HEADER -->
+<div class="w-full bg-surface-container-lowest rounded-xl p-space-lg shadow-sm flex flex-col gap-space-md"><div class="flex flex-col lg:flex-row lg:items-center justify-between gap-space-md"><div class="flex items-start gap-space-md min-w-0 flex-1"><div class="w-12 h-12 rounded-xl bg-surface-container-high text-secondary flex items-center justify-center shrink-0"><span class="material-symbols-outlined text-[28px]">query_stats</span></div><div class="min-w-0 flex-1"><div class="flex items-center gap-space-sm flex-wrap"><span class="font-label-caps text-label-caps bg-surface-container text-on-surface-variant px-space-xs py-0.5 rounded">SKU-MK-2024-8890</span><span class="font-label-caps text-label-caps bg-surface-container-high text-secondary px-space-xs py-0.5 rounded uppercase font-semibold">FORMULA REV-04.2 APPROVED</span><span class="font-code-sm text-code-sm text-on-surface-variant">BPOM NA: <span class="text-on-surface font-semibold">NA18230198421</span></span></div><h1 class="font-headline-xl text-headline-xl text-on-surface font-bold tracking-tight truncate mt-0.5">AURA LUMINA SKIN - Intense Barrier Serum 30ml (Glass Dropper Bottle)</h1><p class="font-body-sm text-body-sm text-on-surface-variant">Category: Premium Facial Serum • Production Base: Emulsion-Gel Hydro-Matrix • Standard Yield: 98.4%</p></div></div><div class="flex items-center gap-space-sm shrink-0 flex-wrap"><button class="bg-surface-container-low hover:bg-surface-container text-on-surface px-space-md py-1.5 rounded font-body-sm text-body-sm font-semibold transition-colors flex items-center gap-1 shadow-sm cursor-pointer" type="button"><span class="material-symbols-outlined text-[16px]">history</span><span>Histori Versi</span></button><button class="bg-surface-container-low hover:bg-surface-container text-on-surface px-space-md py-1.5 rounded font-body-sm text-body-sm font-semibold transition-colors flex items-center gap-1 shadow-sm cursor-pointer" type="button"><span class="material-symbols-outlined text-[16px]">tune</span><span>BOM Config</span></button></div></div><div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-space-md pt-space-xs"><div class="sm:col-span-2 bg-surface-container-low p-space-md rounded-lg flex flex-col justify-between gap-space-xs"><div class="flex flex-wrap items-center justify-between gap-1 mb-space-xs"><span class="font-label-caps text-label-caps text-on-surface-variant uppercase">Target Production MOQ Tier (Units)</span><span class="font-code-sm text-code-sm text-secondary font-semibold">Volume Amortization Active</span></div><div class="grid grid-cols-2 sm:grid-cols-4 gap-space-xs"><button class="moq-btn py-1.5 px-space-sm text-center rounded font-code-sm text-code-sm bg-surface-container-lowest hover:bg-surface-container-high text-on-surface transition-all cursor-pointer" type="button">5,000 pcs</button><button class="moq-btn active-moq py-1.5 px-space-sm text-center rounded font-code-sm text-code-sm bg-primary text-on-primary font-bold shadow-sm ring-1 ring-primary transition-all cursor-pointer" type="button">10,000 pcs</button><button class="moq-btn py-1.5 px-space-sm text-center rounded font-code-sm text-code-sm bg-surface-container-lowest hover:bg-surface-container-high text-on-surface transition-all cursor-pointer" type="button">25,000 pcs</button><button class="moq-btn py-1.5 px-space-sm text-center rounded font-code-sm text-code-sm bg-surface-container-lowest hover:bg-surface-container-high text-on-surface transition-all cursor-pointer" type="button">50,000 pcs</button></div></div><div class="bg-surface-container-low p-space-md rounded-lg flex flex-col justify-between"><span class="font-label-caps text-label-caps text-on-surface-variant uppercase">Target Retail Price (HET)</span><div class="flex items-baseline justify-between mt-1"><span class="font-code-lg text-code-lg font-bold text-on-surface">Rp 119.000</span><span class="font-label-caps text-label-caps bg-surface-container-high text-on-surface-variant px-1 rounded uppercase">Consumer Base</span></div><span class="font-body-sm text-body-sm text-on-surface-variant">Recommended MSRP</span></div><div class="bg-primary text-on-primary p-space-md rounded-lg flex flex-col justify-between shadow-sm"><span class="font-label-caps text-label-caps opacity-75 uppercase">COGS / HPP Base Maklon</span><div class="flex items-baseline justify-between mt-1"><span class="font-headline-xl text-headline-xl font-bold tracking-tight text-on-primary">Rp 19.500</span><span class="font-label-caps text-label-caps bg-surface-container-lowest text-on-surface px-1.5 py-0.5 rounded font-bold uppercase">Locked</span></div><span class="font-code-sm text-code-sm opacity-80">Margin: 40.0% • Net Rp 32.500</span></div></div></div>
+<!-- TWO-COLUMN ANALYTICAL BREAKDOWN -->
+<div class="grid grid-cols-1 xl:grid-cols-12 gap-space-md w-full">
+<!-- LEFT COLUMN: BOM & COST BREAKDOWN (7 Cols) -->
+<div class="xl:col-span-7 flex flex-col gap-space-md">
+<!-- Section A: Raw Material Active Bulk -->
+<div class="bg-surface-container-lowest rounded-xl p-space-md shadow-sm flex flex-col gap-space-sm">
+<div class="flex items-center justify-between pb-space-xs">
+<div class="flex items-center gap-space-sm">
+<span class="w-6 h-6 rounded bg-surface-container-high text-secondary flex items-center justify-center font-code-sm text-code-sm font-bold">A</span>
+<div class="font-headline-md text-headline-md font-bold text-on-surface">Bulk Raw Materials Formulation (Active &amp; Base)</div>
+</div>
+<div class="flex items-center gap-space-sm">
+<span class="font-code-sm text-code-sm text-on-surface-variant">30ml per Vial</span>
+<span class="font-code-lg text-code-lg font-bold text-on-surface">Rp 8.420</span>
+</div>
+</div>
+<div class="overflow-x-auto"><table class="w-full text-left font-body-sm text-body-sm min-w-[560px]"><thead class="bg-surface-container-low text-on-surface-variant font-label-caps text-label-caps uppercase"><tr><th class="py-1 px-space-sm rounded-l">Component</th><th class="py-1 px-space-sm">INCI Standard</th><th class="py-1 px-space-sm text-right">Dosage (%)</th><th class="py-1 px-space-sm text-right">Yield 10k L</th><th class="py-1 px-space-sm text-right rounded-r">Cost/Unit</th></tr></thead><tbody class="divide-y divide-surface-container-low font-body-sm text-body-sm"><tr class="hover:bg-surface-container-low/50 transition-colors"><td class="py-1.5 px-space-sm font-semibold text-on-surface">Niacinamide PC Grade</td><td class="py-1.5 px-space-sm font-code-sm text-code-sm text-on-surface-variant">Niacinamide 99.8%</td><td class="py-1.5 px-space-sm text-right font-code-sm text-code-sm">5.00 %</td><td class="py-1.5 px-space-sm text-right font-code-sm text-code-sm">15.00 kg</td><td class="py-1.5 px-space-sm text-right font-code-sm text-code-sm font-semibold">Rp 2.150</td></tr><tr class="hover:bg-surface-container-low/50 transition-colors"><td class="py-1.5 px-space-sm font-semibold text-on-surface">Ceramide Complex III</td><td class="py-1.5 px-space-sm font-code-sm text-code-sm text-on-surface-variant">Ceramide NP/AP/EOP</td><td class="py-1.5 px-space-sm text-right font-code-sm text-code-sm">1.50 %</td><td class="py-1.5 px-space-sm text-right font-code-sm text-code-sm">4.50 kg</td><td class="py-1.5 px-space-sm text-right font-code-sm text-code-sm font-semibold">Rp 3.480</td></tr><tr class="hover:bg-surface-container-low/50 transition-colors"><td class="py-1.5 px-space-sm font-semibold text-on-surface">Triple Hyaluronic Acid</td><td class="py-1.5 px-space-sm font-code-sm text-code-sm text-on-surface-variant">Oligo/Macro Sodium HA</td><td class="py-1.5 px-space-sm text-right font-code-sm text-code-sm">2.00 %</td><td class="py-1.5 px-space-sm text-right font-code-sm text-code-sm">6.00 kg</td><td class="py-1.5 px-space-sm text-right font-code-sm text-code-sm font-semibold">Rp 1.490</td></tr><tr class="hover:bg-surface-container-low/50 transition-colors"><td class="py-1.5 px-space-sm font-semibold text-on-surface">Emulsion Base Hydro-Gel</td><td class="py-1.5 px-space-sm font-code-sm text-code-sm text-on-surface-variant">Aqua, Butylene Glycol, Preserv.</td><td class="py-1.5 px-space-sm text-right font-code-sm text-code-sm">91.50 %</td><td class="py-1.5 px-space-sm text-right font-code-sm text-code-sm">274.50 kg</td><td class="py-1.5 px-space-sm text-right font-code-sm text-code-sm font-semibold">Rp 1.300</td></tr></tbody></table></div>
+</div>
+<!-- Section B: Primary & Secondary Packaging -->
+<div class="bg-surface-container-lowest rounded-xl p-space-md shadow-sm flex flex-col gap-space-sm">
+<div class="flex items-center justify-between pb-space-xs">
+<div class="flex items-center gap-space-sm">
+<span class="w-6 h-6 rounded bg-surface-container-high text-secondary flex items-center justify-center font-code-sm text-code-sm font-bold">B</span>
+<div class="font-headline-md text-headline-md font-bold text-on-surface">Primary &amp; Secondary Packaging Suite</div>
+</div>
+<div class="flex items-center gap-space-sm">
+<span class="font-code-sm text-code-sm text-on-surface-variant">5 Items Assembled</span>
+<span class="font-code-lg text-code-lg font-bold text-on-surface">Rp 7.850</span>
+</div>
+</div>
+<div class="overflow-x-auto"><table class="w-full text-left font-body-sm text-body-sm min-w-[560px]"><thead class="bg-surface-container-low text-on-surface-variant font-label-caps text-label-caps uppercase"><tr><th class="py-1 px-space-sm rounded-l">Component</th><th class="py-1 px-space-sm">Material &amp; Finishing</th><th class="py-1 px-space-sm text-right">Vendor MOQ</th><th class="py-1 px-space-sm text-right rounded-r">Cost/Unit</th></tr></thead><tbody class="divide-y divide-surface-container-low font-body-sm text-body-sm"><tr class="hover:bg-surface-container-low/50 transition-colors"><td class="py-1.5 px-space-sm font-semibold text-on-surface">Frosted Glass Dropper Bottle 30ml</td><td class="py-1.5 px-space-sm text-on-surface-variant">Soda-Lime Glass, Acid Frosted, 18/415</td><td class="py-1.5 px-space-sm text-right font-code-sm text-code-sm">10,000 pcs</td><td class="py-1.5 px-space-sm text-right font-code-sm text-code-sm font-semibold">Rp 4.250</td></tr><tr class="hover:bg-surface-container-low/50 transition-colors"><td class="py-1.5 px-space-sm font-semibold text-on-surface">Matte UV Pipette Cap Collar</td><td class="py-1.5 px-space-sm text-on-surface-variant">NBR Bulb + Anodized Aluminum Collar</td><td class="py-1.5 px-space-sm text-right font-code-sm text-code-sm">10,000 pcs</td><td class="py-1.5 px-space-sm text-right font-code-sm text-code-sm font-semibold">Rp 1.650</td></tr><tr class="hover:bg-surface-container-low/50 transition-colors"><td class="py-1.5 px-space-sm font-semibold text-on-surface">Unit Folding Box (Silver Hot-Stamp)</td><td class="py-1.5 px-space-sm text-on-surface-variant">Ivory 350gsm + Doff Lamination + Foil</td><td class="py-1.5 px-space-sm text-right font-code-sm text-code-sm">10,000 pcs</td><td class="py-1.5 px-space-sm text-right font-code-sm text-code-sm font-semibold">Rp 1.400</td></tr><tr class="hover:bg-surface-container-low/50 transition-colors"><td class="py-1.5 px-space-sm font-semibold text-on-surface">Security Tamper Void Seal</td><td class="py-1.5 px-space-sm text-on-surface-variant">Hologram 15x30mm Micro-Text</td><td class="py-1.5 px-space-sm text-right font-code-sm text-code-sm">20,000 pcs</td><td class="py-1.5 px-space-sm text-right font-code-sm text-code-sm font-semibold">Rp 320</td></tr><tr class="hover:bg-surface-container-low/50 transition-colors"><td class="py-1.5 px-space-sm font-semibold text-on-surface">POF Heat Shrink Wrap Wrap-Around</td><td class="py-1.5 px-space-sm text-on-surface-variant">High-Clarity 19 Micron Polyolefin</td><td class="py-1.5 px-space-sm text-right font-code-sm text-code-sm">10,000 pcs</td><td class="py-1.5 px-space-sm text-right font-code-sm text-code-sm font-semibold">Rp 230</td></tr></tbody></table></div>
+</div>
+<!-- Section C & D Split Bento -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-space-md">
+<!-- Section C: Overhead & Labor -->
+<div class="bg-surface-container-lowest rounded-xl p-space-md shadow-sm flex flex-col justify-between">
+<div>
+<div class="flex items-center justify-between mb-space-xs">
+<div class="flex items-center gap-space-sm">
+<span class="w-6 h-6 rounded bg-surface-container-high text-secondary flex items-center justify-center font-code-sm text-code-sm font-bold">C</span>
+<span class="font-headline-md text-headline-md font-bold text-on-surface">Factory Overhead &amp; Labor</span>
+</div>
+<span class="font-code-lg text-code-lg font-bold text-on-surface">Rp 2.450</span>
+</div>
+<ul class="divide-y divide-surface-container-low font-body-sm text-body-sm">
+<li class="py-1 flex justify-between">
+<span class="text-on-surface-variant">Homo-Mixer Cleanroom Line (Class 10k)</span>
+<span class="font-code-sm text-code-sm font-semibold">Rp 950</span>
+</li>
+<li class="py-1 flex justify-between">
+<span class="text-on-surface-variant">Auto Filling &amp; Nitrogen Flush</span>
+<span class="font-code-sm text-code-sm font-semibold">Rp 650</span>
+</li>
+<li class="py-1 flex justify-between">
+<span class="text-on-surface-variant">Continuous Laser Batch Coder</span>
+<span class="font-code-sm text-code-sm font-semibold">Rp 250</span>
+</li>
+<li class="py-1 flex justify-between">
+<span class="text-on-surface-variant">Cartoning, QC Lab Release &amp; Clearance</span>
+<span class="font-code-sm text-code-sm font-semibold">Rp 600</span>
+</li>
+</ul>
+</div>
+<div class="bg-surface-container-low px-space-sm py-1 rounded font-code-sm text-code-sm text-on-surface-variant mt-space-sm flex justify-between">
+<span>Machine Downtime Factor</span>
+<span class="text-secondary font-semibold">1.8% Standard</span>
+</div>
+</div>
+<!-- Section D: Regulatory & Testing -->
+<div class="bg-surface-container-lowest rounded-xl p-space-md shadow-sm flex flex-col justify-between">
+<div>
+<div class="flex items-center justify-between mb-space-xs">
+<div class="flex items-center gap-space-sm">
+<span class="w-6 h-6 rounded bg-surface-container-high text-secondary flex items-center justify-center font-code-sm text-code-sm font-bold">D</span>
+<span class="font-headline-md text-headline-md font-bold text-on-surface">Regulatory &amp; Testing Surcharges</span>
+</div>
+<span class="font-code-lg text-code-lg font-bold text-on-surface">Rp 780</span>
+</div>
+<ul class="divide-y divide-surface-container-low font-body-sm text-body-sm">
+<li class="py-1 flex justify-between">
+<span class="text-on-surface-variant">BPOM e-Reg Amortization (3-Yr)</span>
+<span class="font-code-sm text-code-sm font-semibold">Rp 350</span>
+</li>
+<li class="py-1 flex justify-between">
+<span class="text-on-surface-variant">Halal BPJPH Amortized Unit Pool</span>
+<span class="font-code-sm text-code-sm font-semibold">Rp 180</span>
+</li>
+<li class="py-1 flex justify-between">
+<span class="text-on-surface-variant">Lot Microbial &amp; Heavy Metal Lab Test</span>
+<span class="font-code-sm text-code-sm font-semibold">Rp 150</span>
+</li>
+<li class="py-1 flex justify-between">
+<span class="text-on-surface-variant">COA Retention &amp; Stability Vault</span>
+<span class="font-code-sm text-code-sm font-semibold">Rp 100</span>
+</li>
+</ul>
+</div>
+<div class="bg-surface-container-low px-space-sm py-1 rounded font-code-sm text-code-sm text-on-surface-variant mt-space-sm flex justify-between">
+<span>Accredited Lab Audit</span>
+<span class="text-on-surface font-semibold">KAN LP-1420-ID</span>
+</div>
+</div>
+</div>
+<!-- COGS Aggregation Bar -->
+<div class="bg-surface-container-high p-space-md rounded-xl flex items-center justify-between">
+<div class="flex items-center gap-space-md">
+<span class="material-symbols-outlined text-secondary text-[24px]">calculate</span>
+<div>
+<div class="font-label-caps text-label-caps uppercase text-on-surface-variant">COGS Total (A + B + C + D)</div>
+<div class="font-headline-md text-headline-md font-bold text-on-surface">Total HPP Produksi Per Unit</div>
+</div>
+</div>
+<div class="text-right">
+<div class="font-code-lg text-code-lg font-bold text-on-surface">Rp 19.500 / unit</div>
+<div class="font-code-sm text-code-sm text-on-surface-variant">Production Total: Rp 195.000.000 (10k units)</div>
+</div>
+</div>
+</div>
+<!-- RIGHT COLUMN: MARGIN ENGINEERING & COMMERCIAL GATE (5 Cols) -->
+<div class="xl:col-span-5 flex flex-col gap-space-md">
+<!-- Commercial Margin Calculator Card -->
+<div class="bg-surface-container-lowest rounded-xl p-space-lg shadow-sm flex flex-col gap-space-md">
+<div class="flex items-center justify-between pb-space-xs">
+<div class="flex items-center gap-space-sm">
+<span class="material-symbols-outlined text-secondary text-[20px]">account_balance_wallet</span>
+<span class="font-headline-md text-headline-md font-bold text-on-surface">Margin Engineering &amp; Commercial Gate</span>
+</div>
+<span class="font-label-caps text-label-caps bg-surface-container-high text-secondary px-space-xs py-0.5 rounded font-bold uppercase">Dynamic Engine</span>
+</div>
+<!-- Price Setup Fields -->
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-space-sm"><div class="sm:col-span-2 flex items-center justify-between p-space-sm bg-surface-container-low rounded-lg"><div><div class="font-label-caps text-label-caps text-on-surface-variant uppercase">Maklon Net Selling Price (NSP)</div><div class="font-body-sm text-body-sm font-semibold text-on-surface">Harga Jual Pabrik ke Klien</div></div><div class="text-right"><span class="font-headline-md text-headline-md font-bold text-secondary" id="nspValue">Rp 32.500</span><div class="font-code-sm text-code-sm text-on-surface-variant">Exclude PPN 11%</div></div></div><div class="p-space-sm bg-surface-container-low rounded-lg flex flex-col justify-between gap-1"><div><div class="font-label-caps text-label-caps text-on-surface-variant uppercase">Factory Gross Margin</div><div class="font-body-sm text-body-sm text-on-surface font-semibold">Profit: Rp 13.000 / unit</div></div><div class="flex items-center justify-between mt-1"><span class="font-code-lg text-code-lg font-bold text-on-surface bg-surface-container-high px-space-sm py-0.5 rounded" id="factoryMarginBadge">40.0 %</span><span class="font-label-caps text-label-caps text-secondary font-bold uppercase flex items-center gap-0.5"><span class="material-symbols-outlined text-[12px]">check_circle</span>SAFE</span></div></div><div class="p-space-sm bg-surface-container-low rounded-lg flex flex-col justify-between gap-1"><div><div class="font-label-caps text-label-caps text-on-surface-variant uppercase">Client Brand Margin</div><div class="font-body-sm text-body-sm text-on-surface font-semibold">Spread vs HET Rp 119.000</div></div><div class="flex items-center justify-between mt-1"><span class="font-code-lg text-code-lg font-bold text-on-surface bg-surface-container-high px-space-sm py-0.5 rounded">72.7 %</span><span class="font-label-caps text-label-caps text-on-surface-variant font-bold uppercase">ATTRACTIVE</span></div></div></div>
+<!-- Sensitivity & Volatility Simulator Slider -->
+<div class="bg-surface-container-low p-space-md rounded-lg flex flex-col gap-space-sm">
+<div class="flex items-center justify-between">
+<span class="font-label-caps text-label-caps text-on-surface-variant uppercase">Simulasi Volatilitas Active Ingredients (±10%)</span>
+<span class="font-code-sm text-code-sm font-bold text-secondary" id="volatilityIndicator">0% (Normal)</span>
+</div>
+<input class="w-full accent-secondary cursor-pointer h-1.5 bg-surface-container rounded-lg" id="volatilitySlider" max="10" min="-10" step="1" type="range" value="0"/>
+<div class="flex justify-between font-code-sm text-code-sm text-on-surface-variant">
+<span>-10% Discount Drop</span>
+<span>Index Baseline</span>
+<span>+10% Supply Surge</span>
+</div>
+<div class="font-body-sm text-body-sm text-on-surface-variant flex items-center justify-between pt-1">
+<span>Impacted HPP Range:</span>
+<span class="font-code-sm text-code-sm font-semibold text-on-surface" id="hppRangeText">Rp 19.500 / unit (Steady)</span>
+</div>
+</div>
+<!-- Contract Commercial Summary Table -->
+<div class="bg-surface-container-low p-space-md rounded-lg flex flex-col gap-space-xs font-body-sm text-body-sm">
+<div class="font-label-caps text-label-caps text-on-surface-variant uppercase pb-1">Billing &amp; DP Gate Cleared Schedule</div>
+<div class="flex justify-between py-1">
+<span class="text-on-surface-variant">Total Nilai Kontrak PO (10.000 pcs)</span>
+<span class="font-code-md text-code-md font-bold text-on-surface">Rp 325.000.000</span>
+</div>
+<div class="flex justify-between py-1">
+<span class="text-on-surface-variant">PPN Masukan / Keluaran (11%)</span>
+<span class="font-code-md text-code-md text-on-surface-variant">Rp 35.750.000</span>
+</div>
+<div class="flex justify-between py-1 bg-surface-container-high px-space-sm rounded font-semibold text-on-surface">
+<span>Total Gross Invoice + PPN</span>
+<span class="font-code-md text-code-md font-bold">Rp 360.750.000</span>
+</div>
+<div class="flex justify-between py-1.5 text-secondary font-bold">
+<span class="flex items-center gap-1">
+<span class="material-symbols-outlined text-[16px]">lock</span>
+              Mandatory DP Gate (50% Milestone 1)
+            </span>
+<span class="font-code-lg text-code-lg">Rp 162.500.000</span>
+</div>
+</div>
+<!-- Mini Visual Chart: Cost vs Profit Structure -->
+<div class="bg-surface-container-low p-space-md rounded-lg flex flex-col gap-space-xs">
+<div class="flex justify-between font-label-caps text-label-caps text-on-surface-variant uppercase">
+<span>BOM Share Analysis</span>
+<span>Rp 32.500 Breakdown</span>
+</div>
+<div class="w-full h-3 rounded-full flex overflow-hidden">
+<div class="bg-primary h-full" style="width: 25.9%" title="Bulk Raw Material: 25.9%"></div>
+<div class="bg-secondary h-full" style="width: 24.1%" title="Packaging: 24.1%"></div>
+<div class="bg-outline h-full" style="width: 7.5%" title="Overhead: 7.5%"></div>
+<div class="bg-outline-variant h-full" style="width: 2.4%" title="Regulatory: 2.4%"></div>
+<div class="bg-secondary-container h-full" style="width: 40.1%" title="Factory Margin: 40.0%"></div>
+</div>
+<div class="flex items-center justify-between font-code-sm text-code-sm pt-1 text-on-surface-variant">
+<div class="flex items-center gap-1">
+<span class="w-2 h-2 rounded bg-primary"></span>
+<span>Raw (26%)</span>
+</div>
+<div class="flex items-center gap-1">
+<span class="w-2 h-2 rounded bg-secondary"></span>
+<span>Pack (24%)</span>
+</div>
+<div class="flex items-center gap-1">
+<span class="w-2 h-2 rounded bg-outline"></span>
+<span>Ops (10%)</span>
+</div>
+<div class="flex items-center gap-1">
+<span class="w-2 h-2 rounded bg-secondary-container"></span>
+<span class="font-bold text-on-surface">Margin (40%)</span>
+</div>
+</div>
+</div>
+</div>
+<!-- STAGE DECISION AUTHORITY & ACTIONS -->
+<div class="bg-surface-container-lowest rounded-xl p-space-md shadow-sm flex flex-col gap-space-sm">
+<div class="flex items-center justify-between">
+<span class="font-label-caps text-label-caps text-on-surface-variant uppercase">Stage Decision &amp; Commercial Actions</span>
+<span class="font-code-sm text-code-sm text-on-surface-variant">Signed by: <span class="font-semibold text-on-surface">Rian (Head CS/Chemist)</span></span>
+</div>
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-space-sm pt-space-xs">
+<!-- Button 1: Lock HPP -->
+<button class="sm:col-span-2 bg-primary hover:bg-primary-container text-on-primary font-body-sm text-body-sm font-semibold py-2 px-space-md rounded flex items-center justify-between transition-colors shadow-sm cursor-pointer" type="button">
+<div class="flex items-center gap-space-sm">
+<span class="material-symbols-outlined text-[18px]">verified</span>
+<span>Lock HPP &amp; Generate Client Approval Link</span>
+</div>
+<kbd class="font-code-sm text-code-sm bg-surface-container-lowest/20 px-space-xs py-0.5 rounded text-on-primary">Ctrl+Enter</kbd>
+</button>
+<!-- Button 2: Export Quotation -->
+<button class="bg-secondary hover:bg-secondary/90 text-on-secondary font-body-sm text-body-sm font-semibold py-2 px-space-md rounded flex items-center justify-between transition-colors shadow-sm cursor-pointer" type="button">
+<div class="flex items-center gap-space-sm">
+<span class="material-symbols-outlined text-[18px]">picture_as_pdf</span>
+<span>Quotation &amp; SPK PDF</span>
+</div>
+<kbd class="font-code-sm text-code-sm bg-surface-container-lowest/20 px-space-xs py-0.5 rounded text-on-secondary">Alt+P</kbd>
+</button>
+<!-- Button 3: Adjust Packaging Allowance -->
+<button class="bg-surface-container-low hover:bg-surface-container text-on-surface font-body-sm text-body-sm font-semibold py-2 px-space-md rounded flex items-center justify-between transition-colors shadow-sm cursor-pointer" type="button">
+<div class="flex items-center gap-space-sm">
+<span class="material-symbols-outlined text-[18px]">percent</span>
+<span>Apply Volume Rebate</span>
+</div>
+<span class="material-symbols-outlined text-[16px]">chevron_right</span>
+</button>
+</div>
+<div class="flex items-center justify-between pt-space-xs font-code-sm text-code-sm text-on-surface-variant">
+<div class="flex items-center gap-1">
+<span class="material-symbols-outlined text-secondary text-[14px]">format_image_left</span>
+<span>Cryptographic Checksum: <span class="font-code-sm text-code-sm font-semibold text-on-surface">SHA256:8b4e...291f</span></span>
+</div>
+<span>Valid for 14 Business Days</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<script>
+  (function() {
+    // MOQ Tier interactivity
+    const moqButtons = document.querySelectorAll('.moq-btn');
+    moqButtons.forEach(btn => {
+      btn.addEventListener('click', function() {
+        moqButtons.forEach(b => {
+          b.className = 'moq-btn py-1.5 px-space-sm text-center rounded font-code-sm text-code-sm bg-surface-container-lowest hover:bg-surface-container-high text-on-surface transition-all';
+        });
+        this.className = 'moq-btn active-moq py-1.5 px-space-sm text-center rounded font-code-sm text-code-sm bg-primary text-on-primary font-bold shadow-sm ring-1 ring-primary transition-all';
+      });
+    });
+
+    // Active ingredient volatility simulator slider
+    const slider = document.getElementById('volatilitySlider');
+    const indicator = document.getElementById('volatilityIndicator');
+    const rangeText = document.getElementById('hppRangeText');
+    const factoryBadge = document.getElementById('factoryMarginBadge');
+
+    const baseRaw = 8420;
+    const fixedOther = 7850 + 2450 + 780; // 11080
+    const sellingPrice = 32500;
+
+    if (slider) {
+      slider.addEventListener('input', function(e) {
+        const val = parseInt(e.target.value, 10);
+        const sign = val > 0 ? '+' : '';
+        indicator.textContent = `${sign}${val}% Fluctuating`;
+
+        const newRaw = baseRaw * (1 + val / 100);
+        const newHPP = Math.round(newRaw + fixedOther);
+        const diff = newHPP - 19500;
+        const diffSign = diff >= 0 ? '+' : '-';
+
+        rangeText.textContent = `Rp ${newHPP.toLocaleString('id-ID')} / unit (${diffSign}Rp ${Math.abs(diff).toLocaleString('id-ID')})`;
+
+        const currentMargin = (((sellingPrice - newHPP) / sellingPrice) * 100).toFixed(1);
+        factoryBadge.textContent = `${currentMargin} %`;
+
+        if (currentMargin < 35) {
+          factoryBadge.className = 'font-code-lg text-code-lg font-bold text-on-error bg-error px-space-sm py-0.5 rounded';
+        } else {
+          factoryBadge.className = 'font-code-lg text-code-lg font-bold text-on-surface bg-surface-container-high px-space-sm py-0.5 rounded';
+        }
+      });
+    }
+
+    // Keyboard Hotkey Affordance Listener
+    window.addEventListener('keydown', function(e) {
+      if (e.altKey && (e.key === 'p' || e.key === 'P')) {
+        e.preventDefault();
+        alert('Generating Standard Maklon Commercial PDF & Quotation SPK...');
+      }
+      if (e.ctrlKey && e.key === 'Enter') {
+        e.preventDefault();
+        alert('HPP Parameters Locked. Generated Verification Link: maklon.os/gate/appr-8890');
+      }
+    });
+  })();
+</script></main></div><footer class="fixed bottom-0 left-0 right-0 min-h-8 bg-surface-container-lowest z-50 flex flex-wrap items-center justify-between px-gutter py-1 gap-space-sm"><div class="flex flex-wrap items-center gap-space-md"><span class="font-label-caps text-label-caps text-on-surface-variant uppercase hidden sm:inline">Shortcuts:</span><div class="flex items-center gap-space-xs font-code-sm text-code-sm"><kbd class="bg-surface-container px-space-xs py-0.5 rounded text-on-surface font-code-sm text-code-sm">Ctrl+N</kbd><span class="text-on-surface-variant hidden md:inline">New Lead / Batch</span></div><div class="flex items-center gap-space-xs font-code-sm text-code-sm"><kbd class="bg-surface-container px-space-xs py-0.5 rounded text-on-surface font-code-sm text-code-sm">Alt+A</kbd><span class="text-on-surface-variant hidden md:inline">Lab Approval</span></div><div class="flex items-center gap-space-xs font-code-sm text-code-sm"><kbd class="bg-surface-container px-space-xs py-0.5 rounded text-on-surface font-code-sm text-code-sm">Alt+D</kbd><span class="text-on-surface-variant hidden md:inline">DP Gate Inspection</span></div><div class="flex items-center gap-space-xs font-code-sm text-code-sm"><kbd class="bg-surface-container px-space-xs py-0.5 rounded text-on-surface font-code-sm text-code-sm">Esc</kbd><span class="text-on-surface-variant hidden md:inline">Dismiss</span></div></div><div class="flex flex-wrap items-center gap-space-md"><span class="font-code-sm text-code-sm text-on-surface-variant hidden lg:inline">Local Cache: <span class="text-on-surface font-semibold">SQLite 3.44.0 (WAL)</span></span><div class="h-3 w-[1px] bg-surface-container hidden lg:block"></div><span class="font-code-sm text-code-sm text-secondary font-semibold">ENCRYPTED SECURE SESSION</span></div></footer></body></html>

@@ -83,7 +83,7 @@ async function findOperator(client: Client, identifier: string) {
         OR m.kode_operator = ? COLLATE NOCASE
         OR LOWER(COALESCE(m.email, '')) = ?
       )
-      AND m.status = 'Aktif' AND r.status = 'Aktif'
+      AND m.status = 'Active' AND r.status = 'Active'
       LIMIT 1;
     `,
     args: [clean, clean, email],
@@ -103,13 +103,13 @@ async function findOperator(client: Client, identifier: string) {
 function assertRecoverable(operator: OperatorRow | null): OperatorRow {
   if (!operator) {
     throw new PasswordResetError(
-      "Akun dengan username atau email tersebut tidak ditemukan.",
+      "No account with that username or email was found.",
       404,
     );
   }
   if (!operator.email.trim()) {
     throw new PasswordResetError(
-      "Akun ini belum memiliki email terdaftar sehingga link reset tidak dapat dikirim. Hubungi Admin untuk melengkapi data akun.",
+      "This account has no registered email, so a reset link cannot be sent. Ask an Admin to complete the account details.",
       409,
     );
   }
@@ -179,7 +179,7 @@ export async function confirmResetAccount(
   const confirmed = await findOperator(client, confirmation);
   if (!confirmed || confirmed.id !== operator.id) {
     throw new PasswordResetError(
-      "Konfirmasi username atau email tidak cocok dengan akun yang dipilih.",
+      "The confirmed username or email does not match the selected account.",
     );
   }
 
@@ -188,8 +188,8 @@ export async function confirmResetAccount(
   await client.execute({
     sql: `
       UPDATE password_reset_request
-      SET status = 'Dibatalkan'
-      WHERE operator_id = ? AND status IN ('Menunggu Verifikasi', 'Terkirim');
+      SET status = 'Cancelled'
+      WHERE operator_id = ? AND status IN ('Pending Verification', 'Sent');
     `,
     args: [operator.id],
   });
@@ -204,7 +204,7 @@ export async function confirmResetAccount(
         id, operator_id, identifier_used, contact_channel, contact_target,
         challenge_hash, challenge_sequence, status,
         requested_at, expires_at, request_ip_hash, user_agent_hash
-      ) VALUES (?, ?, ?, 'email', ?, ?, ?, 'Menunggu Verifikasi', ${NOW_SQL}, ${expirySql(
+      ) VALUES (?, ?, ?, 'email', ?, ?, ?, 'Pending Verification', ${NOW_SQL}, ${expirySql(
         CHALLENGE_TTL_MINUTES,
       )}, ?, ?)
       RETURNING expires_at;
@@ -259,21 +259,21 @@ async function loadPendingRequest(
   });
   const row = result.rows[0];
   if (!row) {
-    throw new PasswordResetError("Sesi verifikasi tidak ditemukan.", 404);
+    throw new PasswordResetError("Verification session not found.", 404);
   }
-  if (String(row.status) !== "Menunggu Verifikasi") {
+  if (String(row.status) !== "Pending Verification") {
     throw new PasswordResetError(
-      "Sesi verifikasi ini sudah tidak berlaku. Ulangi dari awal.",
+      "This verification session is no longer valid. Start over.",
       409,
     );
   }
   if (Number(row.is_expired ?? 0) === 1) {
     await client.execute({
-      sql: "UPDATE password_reset_request SET status = 'Kedaluwarsa' WHERE id = ?;",
+      sql: "UPDATE password_reset_request SET status = 'Expired' WHERE id = ?;",
       args: [requestId],
     });
     throw new PasswordResetError(
-      "Waktu verifikasi habis. Ulangi permintaan dari awal.",
+      "Verification time ran out. Start the request over.",
       409,
     );
   }
@@ -289,7 +289,7 @@ async function loadPendingRequest(
   }
   if (challenges.length === 0) {
     throw new PasswordResetError(
-      "Tantangan verifikasi rusak. Ulangi permintaan dari awal.",
+      "The verification challenge is corrupt. Start the request over.",
       409,
     );
   }
@@ -344,11 +344,11 @@ export async function swapResetChallenge(
     stepIndex < 0 ||
     stepIndex >= pending.challenges.length
   ) {
-    throw new PasswordResetError("Langkah tantangan tidak dikenal.");
+    throw new PasswordResetError("Unknown challenge step.");
   }
   if (pending.swaps >= MAX_CHALLENGE_SWAPS) {
     throw new PasswordResetError(
-      `Penggantian tantangan sudah mencapai batas (${MAX_CHALLENGE_SWAPS}). Ulangi permintaan dari awal di tempat yang lebih terang.`,
+      `The challenge swap limit (${MAX_CHALLENGE_SWAPS}) was reached. Start the request over somewhere brighter.`,
       409,
     );
   }
@@ -356,10 +356,7 @@ export async function swapResetChallenge(
   const used = new Set(pending.challenges);
   const alternatives = LIVENESS_CHALLENGES.filter((item) => !used.has(item));
   if (alternatives.length === 0) {
-    throw new PasswordResetError(
-      "Tidak ada tantangan pengganti yang tersisa.",
-      409,
-    );
+    throw new PasswordResetError("No replacement challenges are left.", 409);
   }
   const replacement = alternatives[
     Math.floor(Math.random() * alternatives.length)
@@ -371,7 +368,7 @@ export async function swapResetChallenge(
     sql: `
       UPDATE password_reset_request
       SET challenge_sequence = ?, liveness_report = ?
-      WHERE id = ? AND status = 'Menunggu Verifikasi';
+      WHERE id = ? AND status = 'Pending Verification';
     `,
     args: [
       JSON.stringify(next),
@@ -473,27 +470,21 @@ export async function approvePasswordReset(
   });
   const row = found.rows[0];
   if (!row) {
-    throw new PasswordResetError("Permintaan pemulihan tidak ditemukan.", 404);
+    throw new PasswordResetError("Recovery request not found.", 404);
   }
-  if (String(row.status ?? "") !== "Menunggu Verifikasi") {
-    throw new PasswordResetError(
-      "Permintaan ini sudah diproses sebelumnya.",
-      409,
-    );
+  if (String(row.status ?? "") !== "Pending Verification") {
+    throw new PasswordResetError("This request was already processed.", 409);
   }
-  if (String(row.delivery_status ?? "") !== "Menunggu Persetujuan") {
-    throw new PasswordResetError(
-      "Permintaan ini tidak menunggu persetujuan.",
-      409,
-    );
+  if (String(row.delivery_status ?? "") !== "Awaiting Approval") {
+    throw new PasswordResetError("This request is not awaiting approval.", 409);
   }
   if (Number(row.kedaluwarsa ?? 0) === 1) {
     await client.execute({
-      sql: "UPDATE password_reset_request SET status = 'Kedaluwarsa' WHERE id = ?;",
+      sql: "UPDATE password_reset_request SET status = 'Expired' WHERE id = ?;",
       args: [requestId.trim()],
     });
     throw new PasswordResetError(
-      "Permintaan ini sudah kedaluwarsa. Minta pemohon mengulang dari awal.",
+      "This request has expired. Ask the requester to start over.",
       409,
     );
   }
@@ -502,16 +493,16 @@ export async function approvePasswordReset(
   const applied = await client.execute({
     sql: `
       UPDATE password_reset_request
-      SET token_hash = ?, status = 'Terkirim', delivery_status = 'Disetujui',
+      SET token_hash = ?, status = 'Sent', delivery_status = 'Approved',
           delivery_error = NULL, sent_at = ${NOW_SQL},
           expires_at = ${expirySql(RESET_TOKEN_TTL_MINUTES)}
-      WHERE id = ? AND status = 'Menunggu Verifikasi';
+      WHERE id = ? AND status = 'Pending Verification';
     `,
     args: [await hashSessionToken(resetToken), requestId.trim()],
   });
   if (Number(applied.rowsAffected ?? 0) === 0) {
     throw new PasswordResetError(
-      "Permintaan ini sudah diproses oleh orang lain.",
+      "This request was already processed by someone else.",
       409,
     );
   }
@@ -573,19 +564,19 @@ export async function recoverWithRecoveryCode(
 ): Promise<{ namaOperator: string; sisaKode: number }> {
   const identifier = input.identifier.trim();
   if (!identifier) {
-    throw new PasswordResetError("Username atau kode operator wajib diisi.");
+    throw new PasswordResetError("Enter a username or operator code.");
   }
   const strengthError = validatePasswordStrength(input.newPassword);
   if (strengthError) throw new PasswordResetError(strengthError);
 
   const normalized = normalizeRecoveryCode(input.code);
   if (!normalized) {
-    throw new PasswordResetError("Kode pemulihan wajib diisi.");
+    throw new PasswordResetError("Enter a recovery code.");
   }
 
   const ditolak = () =>
     new PasswordResetError(
-      "Kode pemulihan tidak sesuai, atau sudah pernah dipakai.",
+      "The recovery code is wrong, or it has already been used.",
       409,
     );
 
@@ -596,7 +587,7 @@ export async function recoverWithRecoveryCode(
       FROM master_operator m
       JOIN app_role r ON r.id = m.role_id
       WHERE (m.username = ? COLLATE NOCASE OR m.kode_operator = ? COLLATE NOCASE)
-        AND m.status = 'Aktif' AND r.status = 'Aktif'
+        AND m.status = 'Active' AND r.status = 'Active'
       LIMIT 1;
     `,
     args: [identifier, identifier],
@@ -653,7 +644,7 @@ export async function verifyResetLiveness(
   const photo = input.photoBase64.trim();
   if (!photo || photo.length > MAX_PHOTO_BASE64_LENGTH) {
     throw new PasswordResetError(
-      "Foto verifikasi tidak valid atau terlalu besar.",
+      "The verification photo is invalid or too large.",
     );
   }
 
@@ -667,7 +658,7 @@ export async function verifyResetLiveness(
     throw new PasswordResetError(
       error instanceof Error
         ? error.message
-        : "Rekaman verifikasi tidak dapat dibaca.",
+        : "The verification recording could not be read.",
     );
   }
 
@@ -689,7 +680,7 @@ export async function verifyResetLiveness(
       sql: `
         UPDATE password_reset_request
         SET liveness_report = ?, liveness_score = ?, photo_mime = ?, photo_base64 = ?,
-            status = CASE WHEN ? = 1 THEN 'Dibatalkan' ELSE status END
+            status = CASE WHEN ? = 1 THEN 'Cancelled' ELSE status END
         WHERE id = ?;
       `,
       args: [
@@ -703,7 +694,7 @@ export async function verifyResetLiveness(
     });
     throw new PasswordResetError(
       exhausted
-        ? `${verdict.reason} Batas percobaan tercapai, ulangi permintaan dari awal.`
+        ? `${verdict.reason} The attempt limit was reached, start the request over.`
         : `${verdict.reason} Sisa percobaan: ${MAX_LIVENESS_ATTEMPTS - attempts}.`,
       409,
     );
@@ -720,10 +711,10 @@ export async function verifyResetLiveness(
       sql: `
         UPDATE password_reset_request
         SET liveness_score = ?, liveness_report = ?, photo_mime = ?, photo_base64 = ?,
-            contact_channel = 'in_app', delivery_status = 'Menunggu Persetujuan',
+            contact_channel = 'in_app', delivery_status = 'Awaiting Approval',
             delivery_error = NULL, verified_at = ${NOW_SQL},
             expires_at = ${expirySql(RESET_TOKEN_TTL_MINUTES)}
-        WHERE id = ? AND status = 'Menunggu Verifikasi';
+        WHERE id = ? AND status = 'Pending Verification';
       `,
       args: [
         verdict.score,
@@ -737,7 +728,7 @@ export async function verifyResetLiveness(
       delivered: false,
       mode: "in_app",
       maskedEmail: maskEmail(pending.contactTarget),
-      message: `Permintaan Anda sudah tercatat dan menunggu persetujuan Superadmin. Hubungi Superadmin untuk meninjau, lalu minta kode pemulihan yang berlaku ${RESET_TOKEN_TTL_MINUTES} menit.`,
+      message: `Your request was recorded and is awaiting Superadmin approval. Ask the Superadmin to review it, then ask for the recovery code, which is valid for ${RESET_TOKEN_TTL_MINUTES} minutes.`,
       score: verdict.score,
     };
   }
@@ -748,10 +739,10 @@ export async function verifyResetLiveness(
   await client.execute({
     sql: `
       UPDATE password_reset_request
-      SET token_hash = ?, status = 'Terkirim', liveness_score = ?, liveness_report = ?,
+      SET token_hash = ?, status = 'Sent', liveness_score = ?, liveness_report = ?,
           photo_mime = ?, photo_base64 = ?, verified_at = ${NOW_SQL},
           expires_at = ${expirySql(RESET_TOKEN_TTL_MINUTES)}
-      WHERE id = ? AND status = 'Menunggu Verifikasi';
+      WHERE id = ? AND status = 'Pending Verification';
     `,
     args: [
       tokenHash,
@@ -774,7 +765,7 @@ export async function verifyResetLiveness(
   const message = buildResetEmail({
     operatorName: pending.operatorName,
     resetLink: baseUrl
-      ? `${baseUrl}/lupa-password/reset?token=${encodeURIComponent(resetToken)}`
+      ? `${baseUrl}/forgot-password/reset?token=${encodeURIComponent(resetToken)}`
       : "",
     resetCode: resetToken,
     expiresInMinutes: RESET_TOKEN_TTL_MINUTES,
@@ -792,11 +783,11 @@ export async function verifyResetLiveness(
       UPDATE password_reset_request
       SET delivery_status = ?, delivery_error = ?,
           sent_at = CASE WHEN ? = 1 THEN ${NOW_SQL} ELSE NULL END,
-          status = CASE WHEN ? = 1 THEN 'Terkirim' ELSE 'Dibatalkan' END
+          status = CASE WHEN ? = 1 THEN 'Sent' ELSE 'Cancelled' END
       WHERE id = ?;
     `,
     args: [
-      delivery.delivered ? "Terkirim" : "Gagal",
+      delivery.delivered ? "Sent" : "Failed",
       delivery.delivered ? null : delivery.detail || delivery.message,
       delivery.delivered ? 1 : 0,
       delivery.delivered ? 1 : 0,
@@ -812,7 +803,7 @@ export async function verifyResetLiveness(
     delivered: true,
     mode: "email",
     maskedEmail: maskEmail(pending.contactTarget),
-    message: `Link reset password sudah dikirim ke ${maskEmail(pending.contactTarget)}. Berlaku ${RESET_TOKEN_TTL_MINUTES} menit.`,
+    message: `A password reset link was sent to ${maskEmail(pending.contactTarget)}. It is valid for ${RESET_TOKEN_TTL_MINUTES} minutes.`,
     score: verdict.score,
   };
 }
@@ -827,7 +818,7 @@ export interface ResetTokenInfo {
 async function loadTokenRequest(client: Client, token: string) {
   const clean = token.trim();
   if (clean.length < 16 || clean.length > 256) {
-    throw new PasswordResetError("Token reset tidak valid.", 404);
+    throw new PasswordResetError("Invalid reset token.", 404);
   }
   const result = await client.execute({
     sql: `
@@ -843,23 +834,23 @@ async function loadTokenRequest(client: Client, token: string) {
   const row = result.rows[0];
   if (!row) {
     throw new PasswordResetError(
-      "Token reset tidak dikenal atau sudah dipakai.",
+      "Unknown reset token, or it was already used.",
       404,
     );
   }
-  if (String(row.status) === "Terpakai") {
-    throw new PasswordResetError("Token reset ini sudah pernah dipakai.", 409);
+  if (String(row.status) === "Used") {
+    throw new PasswordResetError("This reset token was already used.", 409);
   }
-  if (String(row.status) !== "Terkirim") {
-    throw new PasswordResetError("Token reset sudah tidak berlaku.", 409);
+  if (String(row.status) !== "Sent") {
+    throw new PasswordResetError("The reset token is no longer valid.", 409);
   }
   if (Number(row.is_expired ?? 0) === 1) {
     await client.execute({
-      sql: "UPDATE password_reset_request SET status = 'Kedaluwarsa' WHERE id = ?;",
+      sql: "UPDATE password_reset_request SET status = 'Expired' WHERE id = ?;",
       args: [String(row.id)],
     });
     throw new PasswordResetError(
-      "Token reset sudah kedaluwarsa. Ulangi permintaan dari awal.",
+      "The reset token has expired. Start the request over.",
       409,
     );
   }
@@ -910,13 +901,13 @@ export async function completePasswordReset(
   const consumed = await client.execute({
     sql: `
       UPDATE password_reset_request
-      SET status = 'Terpakai', used_at = ${NOW_SQL}
-      WHERE id = ? AND status = 'Terkirim';
+      SET status = 'Used', used_at = ${NOW_SQL}
+      WHERE id = ? AND status = 'Sent';
     `,
     args: [request.id],
   });
   if (Number(consumed.rowsAffected ?? 0) === 0) {
-    throw new PasswordResetError("Token reset ini sudah pernah dipakai.", 409);
+    throw new PasswordResetError("This reset token was already used.", 409);
   }
   await client.execute({
     sql: `UPDATE master_operator SET password_hash = ?, updated_at = ${NOW_SQL} WHERE id = ?;`,

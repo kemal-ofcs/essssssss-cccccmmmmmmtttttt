@@ -15,7 +15,7 @@ function commandErrorMessage(error: unknown) {
       return value.message;
     }
   }
-  return "Perintah keamanan Desktop tidak dapat diproses.";
+  return "The desktop security command could not be processed.";
 }
 
 export async function invokeDesktop<T>(

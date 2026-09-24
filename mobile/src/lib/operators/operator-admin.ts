@@ -12,23 +12,23 @@ export function validateOperatorDraft(draft: OperatorDraft) {
   const username = draft.username.trim();
   if (!/^[A-Z0-9_-]{3,24}$/.test(code)) {
     throw new Error(
-      "Kode operator harus 3-24 karakter: huruf, angka, _ atau -.",
+      "The operator code must be 3-24 characters: letters, numbers, _ or -.",
     );
   }
   if (draft.name.trim().length < 3) {
     throw new Error("Nama operator minimal 3 karakter.");
   }
   if (!/^[a-zA-Z0-9._-]{3,40}$/.test(username)) {
-    throw new Error("Username harus 3-40 karakter tanpa spasi.");
+    throw new Error("The username must be 3-40 characters with no spaces.");
   }
   // Email dan nomor HP wajib pada setiap penyimpanan, termasuk saat menyunting
   // akun lama. Email adalah satu-satunya jalur pengiriman link "Lupa Password".
   assertOperatorContact(draft.email, draft.noHp);
   if (!Number.isSafeInteger(draft.roleId) || draft.roleId < 1) {
-    throw new Error("Role operator wajib dipilih.");
+    throw new Error("Choose a role for the operator.");
   }
-  if (draft.status !== "Aktif" && draft.status !== "Nonaktif") {
-    throw new Error("Status operator tidak valid.");
+  if (draft.status !== "Active" && draft.status !== "Inactive") {
+    throw new Error("Invalid operator status.");
   }
 }
 
@@ -45,7 +45,7 @@ function toOperatorRecord(row: Record<string, unknown>): OperatorRecord {
     roleKey: String(row.role_key),
     roleName: String(row.nama_role),
     isSuperadmin: Number(row.is_superadmin) === 1,
-    status: String(row.status) === "Nonaktif" ? "Nonaktif" : "Aktif",
+    status: String(row.status) === "Inactive" ? "Inactive" : "Active",
   };
 }
 
@@ -67,10 +67,10 @@ export async function listOperators(client: Client) {
 
 async function getLegacyRole(client: Client, roleId: number) {
   const role = await client.execute({
-    sql: "SELECT role_key FROM app_role WHERE id = ? AND status = 'Aktif' LIMIT 1;",
+    sql: "SELECT role_key FROM app_role WHERE id = ? AND status = 'Active' LIMIT 1;",
     args: [roleId],
   });
-  if (role.rows.length === 0) throw new Error("Role aktif tidak ditemukan.");
+  if (role.rows.length === 0) throw new Error("Active role not found.");
   const roleKey = String(role.rows[0]?.role_key);
   return ["admin", "scanner"].includes(roleKey)
     ? `${roleKey.charAt(0).toUpperCase()}${roleKey.slice(1)}`
@@ -79,7 +79,7 @@ async function getLegacyRole(client: Client, roleId: number) {
 
 export async function insertOperator(client: Client, draft: OperatorDraft) {
   validateOperatorDraft(draft);
-  if (!draft.password) throw new Error("Password operator wajib diisi.");
+  if (!draft.password) throw new Error("The operator password is required.");
   const result = await client.execute({
     sql: `
       INSERT INTO master_operator (
@@ -107,27 +107,27 @@ export async function bootstrapSuperadmin(
   draft: Omit<OperatorDraft, "roleId">,
 ) {
   if (draft.kodeOperator.trim().toUpperCase() !== "SPD001") {
-    throw new Error("Kode bootstrap Superadmin harus SPD001.");
+    throw new Error("The Superadmin bootstrap code must be SPD001.");
   }
-  if (!draft.password) throw new Error("Password Superadmin wajib diisi.");
+  if (!draft.password) throw new Error("The Superadmin password is required.");
 
   const existing = await client.execute(`
     SELECT COUNT(*) AS total
     FROM master_operator m JOIN app_role r ON r.id = m.role_id
-    WHERE m.status = 'Aktif' AND r.is_superadmin = 1;
+    WHERE m.status = 'Active' AND r.is_superadmin = 1;
   `);
   if (Number(existing.rows[0]?.total) > 0) {
     throw new Error(
-      "Bootstrap ditutup karena Superadmin aktif sudah tersedia.",
+      "Bootstrap is closed because an active Superadmin already exists.",
     );
   }
 
   const role = await client.execute(
-    "SELECT id FROM app_role WHERE role_key = 'superadmin' AND status = 'Aktif' LIMIT 1;",
+    "SELECT id FROM app_role WHERE role_key = 'superadmin' AND status = 'Active' LIMIT 1;",
   );
   const roleId = Number(role.rows[0]?.id);
   if (!Number.isSafeInteger(roleId)) {
-    throw new Error("Role Superadmin aktif belum tersedia.");
+    throw new Error("No active Superadmin role exists yet.");
   }
   return insertOperator(client, { ...draft, roleId });
 }
@@ -147,29 +147,30 @@ export async function editOperator(
     `,
     args: [operatorId],
   });
-  if (target.rows.length === 0) throw new Error("Operator tidak ditemukan.");
+  if (target.rows.length === 0) throw new Error("Operator not found.");
   const nextRole = await client.execute({
     sql: "SELECT is_superadmin, status FROM app_role WHERE id = ? LIMIT 1;",
     args: [draft.roleId],
   });
   if (
     nextRole.rows.length === 0 ||
-    String(nextRole.rows[0]?.status) !== "Aktif"
+    String(nextRole.rows[0]?.status) !== "Active"
   ) {
-    throw new Error("Role tujuan tidak ditemukan atau sedang nonaktif.");
+    throw new Error("The target role was not found or is inactive.");
   }
   const removesActiveSuperadmin =
     Number(target.rows[0]?.is_superadmin) === 1 &&
-    String(target.rows[0]?.status) === "Aktif" &&
-    (draft.status !== "Aktif" || Number(nextRole.rows[0]?.is_superadmin) !== 1);
+    String(target.rows[0]?.status) === "Active" &&
+    (draft.status !== "Active" ||
+      Number(nextRole.rows[0]?.is_superadmin) !== 1);
   if (removesActiveSuperadmin) {
     const count = await client.execute(`
       SELECT COUNT(*) AS total
       FROM master_operator m JOIN app_role r ON r.id = m.role_id
-      WHERE m.status = 'Aktif' AND r.is_superadmin = 1;
+      WHERE m.status = 'Active' AND r.is_superadmin = 1;
     `);
     if (Number(count.rows[0]?.total) <= 1) {
-      throw new Error("Superadmin aktif terakhir tidak dapat dinonaktifkan.");
+      throw new Error("The last active Superadmin cannot be deactivated.");
     }
   }
 
@@ -219,7 +220,7 @@ export async function removeOperator(
   operatorId: number,
 ) {
   if (actorId === operatorId) {
-    throw new Error("Akun yang sedang digunakan tidak dapat dihapus.");
+    throw new Error("The account in use cannot be deleted.");
   }
   const target = await client.execute({
     sql: `
@@ -229,19 +230,19 @@ export async function removeOperator(
     `,
     args: [operatorId],
   });
-  if (target.rows.length === 0) throw new Error("Operator tidak ditemukan.");
+  if (target.rows.length === 0) throw new Error("Operator not found.");
   const operatorCode = String(target.rows[0]?.kode_operator);
   if (
     Number(target.rows[0]?.is_superadmin) === 1 &&
-    String(target.rows[0]?.status) === "Aktif"
+    String(target.rows[0]?.status) === "Active"
   ) {
     const count = await client.execute(`
       SELECT COUNT(*) AS total
       FROM master_operator m JOIN app_role r ON r.id = m.role_id
-      WHERE m.status = 'Aktif' AND r.is_superadmin = 1;
+      WHERE m.status = 'Active' AND r.is_superadmin = 1;
     `);
     if (Number(count.rows[0]?.total) <= 1) {
-      throw new Error("Superadmin aktif terakhir tidak dapat dihapus.");
+      throw new Error("The last active Superadmin cannot be deleted.");
     }
   }
 
@@ -254,7 +255,7 @@ export async function removeOperator(
   });
   if (Number(references.rows[0]?.total) > 0) {
     throw new Error(
-      "Operator memiliki histori transaksi. Nonaktifkan akun agar audit tetap utuh.",
+      "This operator has transaction history. Deactivate the account so the audit trail stays intact.",
     );
   }
 
@@ -264,7 +265,7 @@ export async function removeOperator(
   });
   if (Number(resetHistory.rows[0]?.total) > 0) {
     throw new Error(
-      "Operator memiliki riwayat pengajuan reset password beserta foto verifikasinya. Hapus riwayat itu lebih dulu, atau nonaktifkan akun agar bukti audit tetap utuh.",
+      "This operator has password reset requests with verification photos. Delete that history first, or deactivate the account so the audit evidence stays intact.",
     );
   }
 

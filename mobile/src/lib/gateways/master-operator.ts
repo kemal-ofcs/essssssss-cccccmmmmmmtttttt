@@ -47,7 +47,7 @@ function normalizeOperator(value: JsonRecord): OperatorRecord {
     isSuperadmin: Boolean(
       value.isSuperadmin ?? Number(value.is_superadmin ?? 0) === 1,
     ),
-    status: value.status === "Nonaktif" ? "Nonaktif" : "Aktif",
+    status: value.status === "Inactive" ? "Inactive" : "Active",
   };
 }
 
@@ -66,7 +66,7 @@ function normalizeRole(value: JsonRecord): RoleRecord {
     isSuperadmin: Boolean(
       value.isSuperadmin ?? Number(value.is_superadmin ?? 0) === 1,
     ),
-    status: value.status === "Nonaktif" ? "Nonaktif" : "Aktif",
+    status: value.status === "Inactive" ? "Inactive" : "Active",
     requireTotp:
       value.requireTotp === true || Number(value.require_totp ?? 0) === 1,
     operatorCount: Number(value.operatorCount ?? value.operator_count ?? 0),

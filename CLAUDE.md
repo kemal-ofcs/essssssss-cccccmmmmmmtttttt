@@ -180,7 +180,7 @@ untuk database baru, dan `ALTER TABLE` (`ensure_column` di Rust,
 29. `company_profile` adalah tabel PLATFORM, bukan domain contoh. Bentuknya
     baris tunggal ber-kunci konstanta `'default_company'`, dan barisnya
     SENGAJA tidak di-seed saat provisioning: menyeednya berarti setiap perangkat
-    baru mendorong "Nama Perusahaan" ke cloud lewat outbox, dan perangkat yang
+    baru mendorong "Company Name" ke cloud lewat outbox, dan perangkat yang
     sinkron belakangan menimpa identitas asli yang sudah diisi orang lain. Ia
     dibuat saat pertama kali DISUNTING, bukan saat pertama kali dibaca.
 
@@ -202,7 +202,7 @@ dilayani Web dan Desktop bergantian, dan bila keduanya menyimpulkan jalur
 berbeda sebuah permintaan akan menunggu persetujuan yang tidak pernah diminta.
 
 Pada jalur `in_app`, `verify` **tidak membuat token sama sekali** — barisnya
-tetap `Menunggu Verifikasi` dengan `delivery_status = 'Menunggu Persetujuan'`,
+tetap `Pending Verification` dengan `delivery_status = 'Awaiting Approval'`,
 dan tokennya baru lahir di layar peninjau saat `approve`. Kalau token dibuat
 lebih dulu, bentuk aslinya harus disimpan sampai disetujui, sedangkan database
 hanya boleh memegang hash-nya. Cabang ini ADA karena sebelumnya email yang belum
@@ -339,8 +339,24 @@ Detail lengkap ada di `README.md`.
     dan TIDAK boleh masuk `DEVICE_LOCAL_SETTING_KEYS`. Tes memakai vektor
     kanonik alat penerbit (produk `kos-absensi`) lewat `parse_license_for`,
     jadi vektornya tidak perlu dibuat ulang per aplikasi. Web tidak menegakkan
-    lisensi. `LicenseNotice.tsx` ditulis terpisah per workspace karena kontrak
-    `Modal` keduanya berbeda; komponen lisensi lain ikut `filesToCopy`.
+    lisensi. Seluruh komponen lisensi, termasuk `LicenseNotice.tsx`, ikut
+    `filesToCopy` (kontrak `Modal` kedua workspace kini sama).
     Halaman pertama setelah login ditentukan SATU fungsi, `landingPath`
     (`src/lib/auth/landing.ts`): Pengaturan bila boleh, lalu Item, Aktivitas,
     Riwayat Reset — hanya rute yang ada di kedua workspace.
+35. **Bahasa dan tampilan (MaklonOS).** Antarmuka, pesan error (TS dan
+    `CommandError` Rust), dan nilai yang TERSIMPAN di database berbahasa
+    Inggris (`'Active'`/`'Inactive'`, `'Pending Verification'`, `'Sent'`,
+    `'Used'`, `'Expired'`, `'Cancelled'`, `delivery_status = 'Awaiting Approval'`,
+    filter `"ALL"`); kode error tetap seperti semula. Database pra-rilis yang
+    CHECK-nya masih berbahasa Indonesia ditolak di awal `ensure_schema`
+    (`LEGACY_STORED_VALUES_SQL` di `turso.rs` dan `db-schema.ts`, wajib
+    identik) karena SQLite tidak bisa mengubah CHECK di tempat. Dokumen
+    developer tetap berbahasa Indonesia. Tampilan mengikuti `DESIGN.md`: token
+    di `@theme` pada `globals.css` kedua workspace, tema terang, font lewat
+    `next/font` (dibundel saat build), ikon dari `components/ui/Icon.tsx`.
+    Komponen UI bersama (`components/ui/*`, kartu Pengaturan, panel
+    provisioning, lisensi, `SyncIndicator`) ditulis SEKALI di web-desktop dan
+    ikut `filesToCopy`; beda platform ditangani di dalam komponen lewat
+    `isMobileRuntime()`. Yang tetap terpisah hanya kerangka layar
+    (`AppShell`/`MobileAppShell`) dan halaman `src/app/**`.

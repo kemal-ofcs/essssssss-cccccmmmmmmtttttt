@@ -22,7 +22,7 @@ describe("domain contoh, jalur Web", () => {
       kode_item: " ITM-1 ",
       nama: "Kertas A4",
       harga: 45000,
-      status_aktif: "Aktif",
+      status_aktif: "Active",
     });
     const [item] = await domain.listItems(client);
     expect(item).toMatchObject({
@@ -30,7 +30,7 @@ describe("domain contoh, jalur Web", () => {
       nama: "Kertas A4",
       kategori: "",
       harga: 45000,
-      status_aktif: "Aktif",
+      status_aktif: "Active",
     });
     expect(item?.update_terakhir).toMatch(/^\d+$/);
   });
@@ -39,7 +39,7 @@ describe("domain contoh, jalur Web", () => {
     await domain.saveItem(client, {
       kode_item: "ITM-1",
       nama: "Kertas A4 70gsm",
-      status_aktif: "Nonaktif",
+      status_aktif: "Inactive",
     });
     const items = await domain.listItems(client);
     expect(items).toHaveLength(1);

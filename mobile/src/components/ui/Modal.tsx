@@ -1,82 +1,59 @@
-"use client";
-
-import { type KeyboardEvent, type ReactNode, useEffect } from "react";
+import type { KeyboardEvent, ReactNode } from "react";
+import { Icon } from "./Icon";
 
 interface ModalProps {
-  isOpen: boolean;
+  children: ReactNode;
+  descriptionId?: string;
   onClose: () => void;
   title: string;
-  titleId?: string;
-  children: ReactNode;
-  maxWidth?: string;
+  titleId: string;
 }
 
+function focusDialog(node: HTMLDivElement | null) {
+  node?.focus();
+}
+
+/**
+ * Dipakai Web, Desktop, dan Mobile (disalin lewat `filesToCopy`). Pemanggil
+ * yang memutuskan kapan dirender; komponen ini tidak menyimpan state buka/tutup.
+ */
 export function Modal({
-  isOpen,
+  children,
+  descriptionId,
   onClose,
   title,
-  titleId = "modal-title",
-  children,
-  maxWidth = "max-w-lg",
+  titleId,
 }: ModalProps) {
-  useEffect(() => {
-    if (!isOpen) return;
-    const handleKeyDown = (e: globalThis.KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, onClose]);
-
-  if (!isOpen) return null;
-
-  const handleContainerKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key === "Escape") onClose();
   };
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center p-3 sm:p-4 bg-slate-950/90 backdrop-blur-md animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[80] grid place-items-center overflow-y-auto bg-inverse-surface/40 p-3 backdrop-blur-sm sm:p-4">
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
+        aria-describedby={descriptionId}
         tabIndex={-1}
-        onKeyDown={handleContainerKeyDown}
-        className={`flex flex-col w-full ${maxWidth} max-h-[85dvh] rounded-3xl border border-white/15 bg-slate-900/98 shadow-2xl backdrop-blur-2xl overflow-hidden transition-all my-auto`}
+        ref={focusDialog}
+        onKeyDown={handleKeyDown}
+        className="my-auto max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto overscroll-contain rounded-lg border border-surface-container bg-surface-container-lowest p-4 shadow-[0_8px_32px_rgb(11_28_48/0.16)] sm:p-5"
       >
-        {/* Sticky Modal Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-white/10 shrink-0 bg-slate-900/95">
-          <h3
-            id={titleId}
-            className="text-sm sm:text-base font-bold text-white tracking-wide"
-          >
+        <div className="mb-4 flex items-center justify-between gap-3 border-b border-surface-container pb-3">
+          <h2 id={titleId} className="text-headline-md text-on-surface">
             {title}
-          </h3>
+          </h2>
           <button
             type="button"
             onClick={onClose}
-            aria-label="Tutup dialog"
-            className="grid size-9 place-items-center rounded-xl bg-white/10 text-slate-300 hover:bg-white/20 transition active:scale-95 text-sm font-bold"
+            aria-label="Close dialog"
+            className="grid size-11 shrink-0 place-items-center rounded-md text-on-surface-variant hover:bg-surface-container-low"
           >
-            ✕
+            <Icon name="x" className="size-4" />
           </button>
         </div>
-
-        {/* Scrollable Body with Momentum Touch Scrolling */}
-        <div className="flex-1 overflow-y-auto overscroll-contain p-4 sm:p-5 text-slate-100 touch-pan-y">
-          {children}
-        </div>
-
-        {/* Sticky Modal Footer */}
-        <div className="px-5 py-3 border-t border-white/10 shrink-0 bg-slate-950/80 flex items-center justify-end">
-          <button
-            type="button"
-            onClick={onClose}
-            className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-sky-500 hover:bg-sky-400 active:scale-95 text-slate-950 font-black text-xs transition shadow-md shadow-sky-500/20"
-          >
-            Tutup
-          </button>
-        </div>
+        {children}
       </div>
     </div>
   );

@@ -228,7 +228,7 @@ akan menunggu persetujuan yang tidak pernah diminta.
 | `in_app` | Bawaan bila email mati | Peninjau manusia yang melihat foto wajah pemohon |
 | Kode cetak | Kapan saja, tanpa menunggu siapa pun | Kertas yang dipegang pemilik akun |
 
-**Jalur `in_app`** menahan permintaan di status `Menunggu Persetujuan`. Tidak
+**Jalur `in_app`** menahan permintaan di status pengiriman `Awaiting Approval`. Tidak
 ada token yang dibuat saat verifikasi wajah — ia baru lahir di layar peninjau
 saat disetujui, karena token yang dibuat lebih dulu harus disimpan dalam bentuk
 aslinya sampai disetujui, sedangkan database hanya boleh memegang hash-nya.

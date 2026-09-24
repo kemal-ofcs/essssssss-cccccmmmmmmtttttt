@@ -56,7 +56,7 @@ export async function authenticateOperatorWithClient(
       FROM master_operator m
       JOIN app_role r ON r.id = m.role_id
       WHERE (m.username = ? COLLATE NOCASE OR m.kode_operator = ? COLLATE NOCASE)
-        AND m.status = 'Aktif' AND r.status = 'Aktif'
+        AND m.status = 'Active' AND r.status = 'Active'
       LIMIT 1;
     `,
     args: [identifier, identifier],

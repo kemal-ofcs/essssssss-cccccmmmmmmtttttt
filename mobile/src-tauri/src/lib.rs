@@ -105,7 +105,7 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .unwrap_or_else(|error| {
-            eprintln!("Aplikasi Mobile berhenti karena runtime Tauri gagal: {error}");
+            eprintln!("The mobile app stopped because the Tauri runtime failed: {error}");
             std::process::exit(1);
         });
 }

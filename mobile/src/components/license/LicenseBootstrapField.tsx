@@ -25,21 +25,20 @@ export function LicenseBootstrapField({ value, onChange }: Props) {
   if (!status) return null;
   if (status.state === "active" && status.license) {
     return (
-      <p className="rounded-xl border border-white/10 bg-slate-950/60 p-3 text-xs text-slate-300">
-        Lisensi aktif untuk{" "}
-        <span className="font-bold text-white">{status.license.holder}</span>{" "}
-        sudah terpasang di perangkat ini.
+      <p className="rounded-md border border-surface-container bg-surface-container-low p-3 text-body-md text-on-surface-variant">
+        An active license for{" "}
+        <span className="font-semibold text-on-surface">
+          {status.license.holder}
+        </span>{" "}
+        is installed on this device.
       </p>
     );
   }
 
   return (
     <div className="space-y-1.5">
-      <label
-        htmlFor={textId}
-        className="text-xs font-semibold text-slate-300 uppercase tracking-wider block"
-      >
-        Teks lisensi
+      <label htmlFor={textId} className="app-label">
+        License text
       </label>
       <textarea
         id={textId}
@@ -49,14 +48,14 @@ export function LicenseBootstrapField({ value, onChange }: Props) {
         spellCheck={false}
         autoComplete="off"
         placeholder="LIS1.…"
-        className="w-full resize-y rounded-xl border border-slate-800 bg-slate-950/90 px-3 py-2.5 font-mono text-[11px] text-white outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 break-all"
+        className="app-input resize-y break-all py-2 font-mono text-code-sm"
       />
-      <p className="text-[11px] text-slate-500">
-        Kode perangkat ini:{" "}
-        <code className="select-all font-mono font-bold text-slate-300">
+      <p className="text-body-sm text-on-surface-variant">
+        This device code:{" "}
+        <code className="select-all font-bold text-on-surface">
           {status.deviceCode}
-        </code>{" "}
-        — kirim kepada {LICENSE_ISSUER} untuk mendapatkan lisensi.
+        </code>
+        . Send it to {LICENSE_ISSUER} to get a license.
       </p>
     </div>
   );

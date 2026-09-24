@@ -145,7 +145,7 @@ export function AutoSyncRunner() {
           message:
             error instanceof Error
               ? error.message
-              : "Sinkronisasi gagal tanpa keterangan.",
+              : "Sync failed without details.",
           partial: false,
           attempt: failureStreakRef.current,
         });

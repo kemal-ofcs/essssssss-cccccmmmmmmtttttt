@@ -13,7 +13,7 @@
  *
  * Tanpa daftar pengecualian, dan tanpa menebak dari nama folder: sebuah berkas
  * MENGAKU privat ketika ia sendiri mengalihkan pengguna yang belum terautentikasi
- * ke `/login`. Halaman publik — login, forbidden, lupa-password — tidak pernah
+ * ke `/login`. Halaman publik — login, forbidden, forgot-password — tidak pernah
  * melakukan itu, sehingga mereka tidak pernah masuk cakupan dan tidak perlu
  * dikecualikan. Pengakuan itu datang dari kodenya sendiri, bukan dari sebuah
  * daftar yang harus dipelihara manusia.
@@ -72,7 +72,7 @@ function kumpulkanTsx(direktori: string, hasil: string[] = []): string[] {
  * Apakah berkas ini mengalihkan pengguna yang belum terautentikasi ke `/login`?
  *
  * Menyebut `"/login"` saja tidak cukup — halaman `forbidden` dan
- * `lupa-password` MENAUT ke sana tanpa menjadi halaman privat. Yang dicari
+ * `forgot-password` MENAUT ke sana tanpa menjadi halaman privat. Yang dicari
  * adalah cabang atas `!isAuthenticated` yang navigasinya menuju `/login`.
  */
 function mengakuPrivat(sumber: string): boolean {
@@ -89,7 +89,7 @@ function mengakuPrivat(sumber: string): boolean {
  *
  * Halaman yang tidak memanggil satu pun gateway tidak menampilkan apa pun yang
  * perlu diotorisasi — `forbidden` adalah justru TUJUAN penolakan, dan halaman
- * lupa-password memang dilayani tanpa sesi. Keduanya keluar dari cakupan lewat
+ * forgot-password memang dilayani tanpa sesi. Keduanya keluar dari cakupan lewat
  * sifatnya sendiri, bukan lewat daftar pengecualian.
  */
 function memuatDataDomain(sumber: string): boolean {

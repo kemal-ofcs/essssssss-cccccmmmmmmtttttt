@@ -40,21 +40,21 @@ type BootstrapPanelProps = {
 };
 
 const TONE_CARD: Record<DatabaseCheckTone, string> = {
-  success: "border-emerald-400/30 bg-emerald-950/40 text-emerald-100",
-  warning: "border-amber-400/30 bg-amber-950/40 text-amber-100",
-  danger: "border-rose-500/30 bg-rose-950/50 text-rose-100",
+  success: "border-success/30 bg-success-container text-on-success-container",
+  warning: "border-tertiary-fixed-dim bg-tertiary-fixed text-on-tertiary-fixed",
+  danger: "border-error/30 bg-error-container text-on-error-container",
 };
 
 const TONE_BADGE: Record<DatabaseCheckTone, string> = {
-  success: "bg-emerald-400 text-emerald-950",
-  warning: "bg-amber-400 text-amber-950",
-  danger: "bg-rose-400 text-rose-950",
+  success: "bg-success text-on-secondary",
+  warning: "bg-tertiary-container text-on-tertiary",
+  danger: "bg-error text-on-error",
 };
 
 const TONE_LABEL: Record<DatabaseCheckTone, string> = {
-  success: "Aman",
-  warning: "Perhatian",
-  danger: "Bahaya",
+  success: "Safe",
+  warning: "Caution",
+  danger: "Danger",
 };
 
 export function BootstrapPanel({
@@ -93,17 +93,9 @@ export function BootstrapPanel({
       (!summary.requiresConfirmation || forceProceed),
   );
 
-  const inputClass =
-    "min-h-12 rounded-2xl border border-white/15 bg-slate-950 px-4 text-sm text-white focus:border-sky-400 focus:outline-none";
-
-  const resetCheck = useCallback(() => {
-    setCheck(null);
-    setForceProceed(false);
-  }, []);
-
   const providerInfo = describeProvider(provider);
 
-  // Cermin sisi klien dari aturan Rust: menjelaskan sebelum tombol ditekan,
+  // Cermin sisi klien dari aturan Rust: memberi tahu sebelum tombol ditekan,
   // bukan setelah IPC gagal. Backend tetap penjaga yang sebenarnya.
   const endpoint = useMemo(
     () => reviewDatabaseEndpoint(databaseUrl, provider, allowInsecure),
@@ -120,6 +112,11 @@ export function BootstrapPanel({
     !needsEndpoint ||
     (endpoint.valid &&
       (!endpoint.tokenRequired || authToken.trim().length > 0));
+
+  const resetCheck = useCallback(() => {
+    setCheck(null);
+    setForceProceed(false);
+  }, []);
 
   const credentials = useCallback((): DatabaseCredentials => {
     if (!needsCredentials) return {};
@@ -152,7 +149,7 @@ export function BootstrapPanel({
       setFeedback(
         error instanceof Error
           ? error.message
-          : "Pemeriksaan database tidak dapat diproses.",
+          : "The database check could not be run.",
       );
     } finally {
       setChecking(false);
@@ -180,7 +177,7 @@ export function BootstrapPanel({
       setFeedback(
         error instanceof Error
           ? error.message
-          : "Database tidak dapat digunakan.",
+          : "This database cannot be used.",
       );
     } finally {
       setLinking(false);
@@ -190,13 +187,11 @@ export function BootstrapPanel({
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (!provisioningUnlocked) {
-      setFeedback(
-        "Periksa database terlebih dahulu sebelum membuat Superadmin.",
-      );
+      setFeedback("Check the database before creating the Superadmin.");
       return;
     }
     if (password !== confirmation) {
-      setFeedback("Konfirmasi password tidak sama.");
+      setFeedback("The password confirmation does not match.");
       return;
     }
     setSubmitting(true);
@@ -227,7 +222,7 @@ export function BootstrapPanel({
       setFeedback(
         error instanceof Error
           ? error.message
-          : "Bootstrap Superadmin tidak dapat diproses.",
+          : "The Superadmin could not be created.",
       );
     } finally {
       setSubmitting(false);
@@ -239,45 +234,41 @@ export function BootstrapPanel({
   // lain yang menggoda pengguna melewatinya.
   if (recoveryCodes) {
     return (
-      <main className="grid min-h-dvh place-items-center bg-slate-950 p-4 text-slate-100">
-        <section className="max-h-[92dvh] w-full max-w-md touch-pan-y overflow-y-auto overscroll-contain rounded-3xl border border-amber-400/30 bg-slate-900 p-6 shadow-2xl">
-          <p className="bootstrap-recovery-eyebrow text-xs font-black uppercase tracking-[0.18em] text-amber-300">
-            Simpan kode pemulihan
-          </p>
-          <h1 className="bootstrap-recovery-title mt-2 text-2xl font-black text-white">
-            Cetak atau salin sekarang
+      <main className="grid min-h-dvh place-items-center bg-background p-4 sm:p-6">
+        <section className="app-panel w-full max-w-lg p-5 shadow-[0_8px_32px_rgb(11_28_48/0.08)] sm:p-6">
+          <h1 className="text-headline-xl text-on-surface">
+            Save your recovery codes
           </h1>
-          <p className="bootstrap-recovery-desc mt-2 text-sm leading-6 text-slate-400">
-            Akun Superadmin adalah satu-satunya akun yang tidak punya siapa pun
-            di atasnya untuk menyetujui pemulihan. Kode di bawah adalah jalan
-            masuk terakhir bila passwordnya terlupa — terutama pada pemasangan
-            tanpa internet, yang tidak bisa mengirim email apa pun.
+          <p className="mt-2 text-body-md text-on-surface-variant">
+            The Superadmin is the only account with nobody above it to approve a
+            recovery. These codes are the last way in if its password is
+            forgotten, especially on installs without internet, which cannot
+            send any email.
           </p>
 
-          <ul className="mt-5 grid grid-cols-2 gap-2">
+          <ul className="mt-4 grid grid-cols-2 gap-2">
             {recoveryCodes.map((code) => (
               <li
                 key={code}
-                className="bootstrap-recovery-code select-all rounded-xl border border-amber-400/25 bg-amber-400/10 px-3 py-2.5 text-center font-mono text-sm font-black tracking-wider text-amber-100"
+                className="select-all rounded-md border border-outline-variant bg-surface-container-low px-3 py-2.5 text-center font-mono text-code-lg font-bold text-on-surface"
               >
                 {code}
               </li>
             ))}
           </ul>
 
-          <p className="bootstrap-recovery-warning mt-4 rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-[11px] font-bold leading-4 text-rose-200">
-            Kode ini tidak tersimpan dalam bentuk aslinya dan tidak dapat
-            ditampilkan ulang. Setiap kode hanya berlaku sekali. Simpan di
-            tempat yang berbeda dari perangkat ini — brankas, atau lemari arsip
-            terkunci.
+          <p className="mt-4 rounded-md border border-error/30 bg-error-container p-3 text-body-md font-semibold text-on-error-container">
+            These codes are not stored in readable form and cannot be shown
+            again. Each code works once. Keep them somewhere other than this
+            device, such as a safe or a locked archive cabinet.
           </p>
 
           <button
             type="button"
             onClick={onCompleted}
-            className="bootstrap-recovery-submit mt-5 min-h-11 w-full rounded-xl bg-amber-400 text-xs font-black text-slate-950 transition hover:bg-amber-300"
+            className="app-btn app-btn-primary mt-4 w-full"
           >
-            Saya sudah menyimpannya, lanjutkan
+            I have saved them, continue
           </button>
         </section>
       </main>
@@ -285,30 +276,27 @@ export function BootstrapPanel({
   }
 
   return (
-    <main className="grid min-h-dvh place-items-center bg-slate-950 p-4 text-slate-100">
-      <section className="max-h-[92dvh] w-full max-w-md touch-pan-y overflow-y-auto overscroll-contain rounded-3xl border border-sky-400/20 bg-slate-900 p-6 shadow-2xl">
-        <p className="text-xs font-black uppercase tracking-[0.18em] text-sky-300">
-          Provisioning satu kali
-        </p>
-        <h1 className="mt-2 text-xl font-black text-white">
-          Cek database, lalu buat Superadmin
+    <main className="grid min-h-dvh place-items-center bg-background p-4 sm:p-6">
+      <section className="app-panel w-full max-w-lg p-5 shadow-[0_8px_32px_rgb(11_28_48/0.08)] sm:p-6">
+        <h1 className="text-headline-xl text-on-surface">
+          Check the database, then create the Superadmin
         </h1>
-        <p className="mt-2 text-xs leading-5 text-slate-400">
-          Database diperiksa lebih dulu agar salah input URL tertahan, dan agar
-          terlihat apakah Superadmin sudah pernah dibuat di sana.
+        <p className="mt-2 text-body-md text-on-surface-variant">
+          This is done once. The database is checked first so a mistyped URL is
+          caught, and so you can see whether a Superadmin already exists there.
         </p>
         {status.configured && !status.reachable ? (
-          <div className="mt-4 rounded-xl border border-amber-400/30 bg-amber-950/40 p-3 text-xs leading-5 text-amber-100">
-            <span className="font-bold">
-              Database cloud tersimpan tidak dapat dihubungi.
+          <div className="mt-4 rounded-md border border-tertiary-fixed-dim bg-tertiary-fixed p-3 text-body-md text-on-tertiary-fixed">
+            <span className="font-semibold">
+              The saved cloud database cannot be reached.
             </span>{" "}
             {status.message ??
-              "Perangkat ini masih menunjuk database lama. Kalau database itu memang sudah dihapus atau diganti, tekan “Ganti database” lalu masukkan URL dan Auth Token yang baru."}
+              "This device still points at the old database. If that database was deleted or replaced, press “Change database” and enter the new URL and Auth Token."}
           </div>
         ) : null}
         {status.configured ? (
           <div className="mt-3 flex flex-wrap items-center gap-2">
-            <p className="min-w-0 flex-1 truncate rounded-xl bg-slate-950 px-3 py-2 font-mono text-xs text-sky-200">
+            <p className="min-w-0 flex-1 truncate rounded-md border border-surface-container bg-surface-container-low px-3 py-2 font-mono text-code-md text-on-surface">
               {status.serverOrigin}
             </p>
             <button
@@ -317,36 +305,37 @@ export function BootstrapPanel({
                 setEditingDatabase((value) => !value);
                 resetCheck();
               }}
-              className="min-h-10 rounded-xl border border-white/15 px-3 text-xs font-bold text-slate-300"
+              className="app-btn app-btn-secondary"
             >
-              {editingDatabase ? "Batal ganti" : "Ganti database"}
+              {editingDatabase ? "Cancel change" : "Change database"}
             </button>
           </div>
         ) : null}
         {feedback ? (
-          <div className="mt-4 rounded-xl border border-rose-500/30 bg-rose-950/50 p-3 text-xs text-rose-200">
+          <div
+            role="alert"
+            className="mt-4 rounded-md border border-error/30 bg-error-container p-3 text-body-md text-on-error-container"
+          >
             {feedback}
           </div>
         ) : null}
 
-        <div className="mt-5 grid gap-4">
+        <div className="mt-4 grid gap-4">
           {needsCredentials ? (
             <>
               <fieldset className="grid gap-2">
-                <legend className="text-xs font-bold text-slate-300">
-                  Jenis database
-                </legend>
-                <div className="grid gap-2">
+                <legend className="app-label mb-2">Database type</legend>
+                <div className="grid gap-2 sm:grid-cols-2">
                   {DATABASE_PROVIDER_OPTIONS.map((option) => (
                     <label
                       key={option.value}
-                      className={`grid min-w-0 cursor-pointer gap-1 rounded-2xl border p-3 text-xs leading-4 transition ${
+                      className={`grid min-w-0 cursor-pointer gap-1 rounded-md border p-3 text-body-sm transition-colors ${
                         provider === option.value
-                          ? "border-sky-400/60 bg-sky-400/10 text-sky-100"
-                          : "border-white/10 bg-slate-950/60 text-slate-400"
+                          ? "border-secondary bg-secondary-fixed text-on-secondary-fixed-variant"
+                          : "border-outline-variant bg-surface-container-lowest text-on-surface-variant hover:border-outline"
                       }`}
                     >
-                      <span className="flex items-center gap-2 font-black">
+                      <span className="flex items-center gap-2 text-body-md font-semibold">
                         <input
                           type="radio"
                           name="database-provider"
@@ -357,23 +346,21 @@ export function BootstrapPanel({
                             setAllowInsecure(false);
                             resetCheck();
                           }}
-                          className="size-4 shrink-0 accent-sky-400"
+                          className="size-4 shrink-0 accent-secondary"
                         />
                         <span className="min-w-0 truncate">{option.label}</span>
                       </span>
-                      <span className="font-normal opacity-80">
-                        {option.description}
-                      </span>
+                      <span>{option.description}</span>
                     </label>
                   ))}
                 </div>
               </fieldset>
               {needsEndpoint ? (
                 <>
-                  <label className="grid gap-1.5 text-xs font-bold text-slate-300">
+                  <label className="app-label grid gap-1.5">
                     {provider === "turso"
-                      ? "URL database Turso"
-                      : "Alamat server database"}
+                      ? "Turso database URL"
+                      : "Database server address"}
                     <input
                       type="text"
                       inputMode="url"
@@ -383,18 +370,18 @@ export function BootstrapPanel({
                         resetCheck();
                       }}
                       placeholder={providerInfo.urlPlaceholder}
-                      className={`${inputClass} font-mono text-xs`}
+                      className="app-input font-mono text-code-md font-normal"
                     />
                     {databaseUrl.trim().length > 0 && endpoint.issue ? (
-                      <span className="font-normal leading-5 text-amber-300">
+                      <span className="font-normal text-error">
                         {endpoint.issue.message}
                       </span>
                     ) : null}
                   </label>
-                  <label className="grid gap-1.5 text-xs font-bold text-slate-300">
+                  <label className="app-label grid gap-1.5">
                     {endpoint.tokenRequired
                       ? "Auth Token"
-                      : "Auth Token (opsional)"}
+                      : "Auth Token (optional)"}
                     <input
                       type="password"
                       value={authToken}
@@ -404,20 +391,20 @@ export function BootstrapPanel({
                       }}
                       placeholder={providerInfo.tokenPlaceholder}
                       autoComplete="off"
-                      className={`${inputClass} font-mono text-xs`}
+                      className="app-input font-mono text-code-md font-normal"
                     />
                   </label>
                 </>
               ) : (
-                <p className="rounded-xl border border-sky-400/30 bg-sky-400/5 p-3 text-[11px] font-bold leading-4 text-sky-100">
-                  Data disimpan pada berkas SQLite di perangkat ini. Tidak ada
-                  alamat server maupun Auth Token yang perlu diisi, dan aplikasi
-                  berjalan penuh tanpa internet.
+                <p className="rounded-md border border-secondary/20 bg-secondary-fixed p-3 text-body-md text-on-secondary-fixed-variant">
+                  Data is stored in a SQLite file on this device. No server
+                  address or Auth Token is needed, and the app runs fully
+                  without internet.
                 </p>
               )}
               {provider === "self_hosted" &&
               endpoint.issue?.code === "INSECURE_PUBLIC" ? (
-                <label className="flex items-start gap-2 rounded-2xl border border-rose-500/30 bg-rose-950/40 p-3 text-[11px] font-bold leading-4 text-rose-100">
+                <label className="flex items-start gap-2 rounded-md border border-error/30 bg-error-container p-3 text-body-md font-semibold text-on-error-container">
                   <input
                     type="checkbox"
                     checked={allowInsecure}
@@ -425,11 +412,11 @@ export function BootstrapPanel({
                       setAllowInsecure(event.target.checked);
                       resetCheck();
                     }}
-                    className="mt-0.5 size-4 shrink-0 accent-rose-400"
+                    className="mt-0.5 size-4 shrink-0 accent-error"
                   />
-                  Izinkan koneksi tanpa enkripsi. Auth Token dan data
-                  operasional akan dikirim sebagai teks biasa — hanya pakai ini
-                  pada jaringan yang benar-benar Anda percayai.
+                  Allow an unencrypted connection. The Auth Token and
+                  operational data will be sent as plain text. Only use this on
+                  a network you fully trust.
                 </label>
               ) : null}
             </>
@@ -438,36 +425,36 @@ export function BootstrapPanel({
             type="button"
             onClick={handleCheck}
             disabled={checking || linking || submitting || !credentialsReady}
-            className="min-h-12 rounded-2xl border border-sky-400/40 bg-sky-400/10 px-4 text-sm font-black text-sky-200 disabled:opacity-50"
+            className="app-btn app-btn-secondary"
           >
-            {checking ? "Memeriksa database..." : "Cek database"}
+            {checking ? "Checking database..." : "Check database"}
           </button>
         </div>
 
         {summary ? (
           <div
-            className={`mt-4 rounded-2xl border p-4 text-xs ${TONE_CARD[summary.tone]}`}
+            className={`mt-4 rounded-md border p-3 text-body-md ${TONE_CARD[summary.tone]}`}
           >
             <div className="flex items-start gap-2">
               <span
-                className={`mt-0.5 shrink-0 rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wider ${TONE_BADGE[summary.tone]}`}
+                className={`mt-0.5 shrink-0 rounded-md px-1.5 py-0.5 font-mono text-label-caps uppercase ${TONE_BADGE[summary.tone]}`}
               >
                 {TONE_LABEL[summary.tone]}
               </span>
-              <p className="font-black leading-5">{summary.title}</p>
+              <p className="font-semibold">{summary.title}</p>
             </div>
-            <p className="mt-2 leading-5 opacity-90">{summary.detail}</p>
+            <p className="mt-2">{summary.detail}</p>
             {summary.facts.length > 0 ? (
-              <dl className="mt-3 grid gap-1.5 border-t border-white/10 pt-3">
+              <dl className="mt-3 grid gap-1.5 border-t border-current/15 pt-3 sm:grid-cols-2">
                 {summary.facts.map((fact) => (
                   <div
                     key={fact.label}
-                    className="flex items-baseline justify-between gap-3"
+                    className="flex items-baseline justify-between gap-2 sm:block"
                   >
-                    <dt className="shrink-0 text-[10px] font-bold uppercase tracking-wider opacity-70">
-                      {fact.label}
-                    </dt>
-                    <dd className="truncate font-mono text-xs">{fact.value}</dd>
+                    <dt className="text-body-sm opacity-80">{fact.label}</dt>
+                    <dd className="truncate font-mono text-code-md">
+                      {fact.value}
+                    </dd>
                   </div>
                 ))}
               </dl>
@@ -477,51 +464,54 @@ export function BootstrapPanel({
                 type="button"
                 onClick={() => void handleUseExisting()}
                 disabled={linking}
-                className="mt-4 min-h-12 w-full rounded-2xl bg-emerald-400 px-4 text-sm font-black text-emerald-950 disabled:opacity-50"
+                className="app-btn app-btn-primary mt-4 w-full"
               >
                 {linking
-                  ? "Menyimpan konfigurasi..."
-                  : "Gunakan database ini & lanjut login"}
+                  ? "Saving settings..."
+                  : "Use this database and sign in"}
               </button>
             ) : null}
             {summary.requiresConfirmation ? (
-              <label className="mt-4 flex items-start gap-2 rounded-xl border border-white/15 bg-slate-950/50 p-3 text-[11px] font-bold leading-4">
+              <label className="mt-4 flex items-start gap-2 rounded-md border border-current/20 bg-surface-container-lowest/60 p-3 font-semibold">
                 <input
                   type="checkbox"
                   checked={forceProceed}
                   onChange={(event) => setForceProceed(event.target.checked)}
-                  className="mt-0.5 size-4 accent-rose-400"
+                  className="mt-0.5 size-4 accent-error"
                 />
-                Saya sudah memastikan database ini benar dan tetap ingin
-                melanjutkan pembuatan Superadmin.
+                I have made sure this is the right database and still want to
+                create the Superadmin.
               </label>
             ) : null}
           </div>
         ) : null}
 
         {provisioningUnlocked ? (
-          <form onSubmit={submit} className="mt-5 grid gap-4">
-            <label className="grid gap-1.5 text-xs font-bold text-slate-300">
-              Kode Superadmin
-              <input
-                value="SPD001"
-                readOnly
-                className={`${inputClass} opacity-70`}
-              />
-            </label>
-            <label className="grid gap-1.5 text-xs font-bold text-slate-300">
-              Nama lengkap
-              <input
-                required
-                minLength={3}
-                maxLength={120}
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                autoComplete="name"
-                className={inputClass}
-              />
-            </label>
-            <label className="grid gap-1.5 text-xs font-bold text-slate-300">
+          <form onSubmit={submit} className="mt-4 grid gap-4">
+            <div className="grid gap-4 sm:grid-cols-[7rem_1fr]">
+              <label className="app-label grid gap-1.5">
+                Code
+                <input
+                  value="SPD001"
+                  readOnly
+                  className="app-input font-mono font-normal"
+                  disabled
+                />
+              </label>
+              <label className="app-label grid min-w-0 gap-1.5">
+                Full name
+                <input
+                  required
+                  minLength={3}
+                  maxLength={120}
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                  autoComplete="name"
+                  className="app-input min-w-0 font-normal"
+                />
+              </label>
+            </div>
+            <label className="app-label grid gap-1.5">
               Username
               <input
                 required
@@ -531,12 +521,12 @@ export function BootstrapPanel({
                 value={username}
                 onChange={(event) => setUsername(event.target.value)}
                 autoComplete="username"
-                className={inputClass}
+                className="app-input font-normal"
               />
             </label>
             <LicenseBootstrapField value={license} onChange={setLicense} />
-            <label className="grid gap-1.5 text-xs font-bold text-slate-300">
-              Password kuat
+            <label className="app-label grid gap-1.5">
+              Strong password
               <input
                 required
                 minLength={12}
@@ -545,14 +535,15 @@ export function BootstrapPanel({
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
                 autoComplete="new-password"
-                className={inputClass}
+                className="app-input font-normal"
               />
-              <span className="font-normal leading-5 text-slate-500">
-                Gunakan huruf besar, kecil, angka, simbol, minimal 12 karakter.
+              <span className="font-normal text-on-surface-variant">
+                At least 12 characters with uppercase, lowercase, a number, and
+                a symbol, and it must not contain the username.
               </span>
             </label>
-            <label className="grid gap-1.5 text-xs font-bold text-slate-300">
-              Ulangi password
+            <label className="app-label grid gap-1.5">
+              Repeat password
               <input
                 required
                 minLength={12}
@@ -561,30 +552,30 @@ export function BootstrapPanel({
                 value={confirmation}
                 onChange={(event) => setConfirmation(event.target.value)}
                 autoComplete="new-password"
-                className={inputClass}
+                className="app-input font-normal"
               />
             </label>
             <button
               type="submit"
               disabled={submitting}
-              className="min-h-12 rounded-2xl bg-sky-400 px-4 text-sm font-black text-slate-950 disabled:opacity-50"
+              className="app-btn app-btn-primary"
             >
-              {submitting ? "Mengamankan database..." : "Aktifkan Superadmin"}
+              {submitting ? "Securing the database..." : "Create Superadmin"}
             </button>
           </form>
         ) : (
-          <p className="mt-5 rounded-2xl border border-white/10 bg-slate-950/60 p-4 text-xs leading-5 text-slate-400">
-            Form pembuatan Superadmin terbuka setelah database berhasil
-            diperiksa dan dinyatakan siap.
+          <p className="mt-4 rounded-md border border-surface-container bg-surface-container-low p-3 text-body-md text-on-surface-variant">
+            The Superadmin form opens after the database has been checked and
+            reported ready.
           </p>
         )}
         {onCancel ? (
           <button
             type="button"
             onClick={onCancel}
-            className="mt-4 min-h-11 w-full rounded-2xl border border-white/15 px-4 text-xs font-bold text-slate-300 hover:border-sky-400/40 hover:text-sky-200"
+            className="app-btn app-btn-secondary mt-4 w-full"
           >
-            Kembali ke layar login
+            Back to sign in
           </button>
         ) : null}
       </section>

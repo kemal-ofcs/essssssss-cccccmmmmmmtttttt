@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<meta content="web_dashboard" name="shell-type"/>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&amp;family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+    @layer base {
+      html, body { margin: 0; padding: 0; }
+      body { overscroll-behavior: none; }
+      main > :first-child { margin-top: 0 !important; }
+      main > :last-child { margin-bottom: 0 !important; }
+    }
+    ::-webkit-scrollbar { display: none; }
+  </style>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "surface-container-high": "#dce9ff",
+            "inverse-surface": "#213145",
+            "on-primary": "#ffffff",
+            "surface-bright": "#f8f9ff",
+            "on-tertiary-container": "#c76c00",
+            "on-background": "#0b1c30",
+            "primary": "#000000",
+            "primary-fixed": "#dae2fd",
+            "outline": "#76777d",
+            "outline-variant": "#c6c6cd",
+            "primary-container": "#131b2e",
+            "primary-fixed-dim": "#bec6e0",
+            "secondary-container": "#316bf3",
+            "on-secondary-fixed": "#00174b",
+            "on-secondary-fixed-variant": "#003ea8",
+            "tertiary-fixed": "#ffdcc3",
+            "background": "#f8f9ff",
+            "on-surface-variant": "#45464d",
+            "error": "#ba1a1a",
+            "on-primary-container": "#7c839b",
+            "on-tertiary": "#ffffff",
+            "surface": "#f8f9ff",
+            "inverse-on-surface": "#eaf1ff",
+            "surface-container-lowest": "#ffffff",
+            "on-secondary": "#ffffff",
+            "surface-container": "#e5eeff",
+            "on-secondary-container": "#fefcff",
+            "on-error-container": "#93000a",
+            "on-tertiary-fixed-variant": "#6e3900",
+            "on-primary-fixed-variant": "#3f465c",
+            "secondary": "#0051d5",
+            "surface-container-low": "#eff4ff",
+            "surface-container-highest": "#d3e4fe",
+            "on-error": "#ffffff",
+            "secondary-fixed": "#dbe1ff",
+            "on-tertiary-fixed": "#2f1500",
+            "surface-tint": "#565e74",
+            "surface-dim": "#cbdbf5",
+            "secondary-fixed-dim": "#b4c5ff",
+            "tertiary-fixed-dim": "#ffb77d",
+            "on-primary-fixed": "#131b2e",
+            "on-surface": "#0b1c30",
+            "tertiary": "#000000",
+            "tertiary-container": "#2f1500",
+            "inverse-primary": "#bec6e0",
+            "error-container": "#ffdad6",
+            "surface-variant": "#d3e4fe"
+          },
+          borderRadius: {
+            DEFAULT: "0.125rem",
+            lg: "0.25rem",
+            xl: "0.5rem",
+            full: "0.75rem"
+          },
+          spacing: {
+            "space-sm": "0.25rem",
+            "space-lg": "0.75rem",
+            "space-xs": "0.125rem",
+            "gutter-dense": "0.375rem",
+            "space-md": "0.5rem",
+            gutter: "0.75rem",
+            margin: "1rem",
+            "space-xl": "1rem"
+          },
+          fontFamily: {
+            "headline-xl": ["Plus Jakarta Sans"],
+            "code-lg": ["JetBrains Mono"],
+            "label-caps": ["JetBrains Mono"],
+            "body-md": ["Plus Jakarta Sans"],
+            "headline-md": ["Plus Jakarta Sans"],
+            "body-sm": ["Plus Jakarta Sans"],
+            "code-sm": ["JetBrains Mono"],
+            "headline-lg": ["Plus Jakarta Sans"],
+            "code-md": ["JetBrains Mono"]
+          },
+          fontSize: {
+            "headline-xl": ["24px", { lineHeight: "32px", letterSpacing: "-0.02em", fontWeight: "700" }],
+            "code-lg": ["13px", { lineHeight: "18px", letterSpacing: "-0.01em", fontWeight: "500" }],
+            "label-caps": ["10px", { lineHeight: "12px", letterSpacing: "0.08em", fontWeight: "600" }],
+            "body-md": ["13px", { lineHeight: "18px", letterSpacing: "0em", fontWeight: "400" }],
+            "headline-md": ["15px", { lineHeight: "20px", letterSpacing: "-0.01em", fontWeight: "600" }],
+            "body-sm": ["12px", { lineHeight: "16px", letterSpacing: "0em", fontWeight: "400" }],
+            "code-sm": ["11px", { lineHeight: "14px", letterSpacing: "0.02em", fontWeight: "500" }],
+            "headline-lg": ["18px", { lineHeight: "24px", letterSpacing: "-0.015em", fontWeight: "600" }],
+            "code-md": ["12px", { lineHeight: "16px", letterSpacing: "0em", fontWeight: "500" }]
+          }
+        }
+      }
+    };
+  </script>
+</head>
+<body class="bg-background font-body-md text-body-md text-on-surface antialiased min-h-screen">
+<!-- Top Global Navigation Bar -->
+<header class="fixed top-0 left-0 right-0 h-14 bg-surface-container-lowest z-50 flex items-center justify-between px-gutter border-b border-surface-container shadow-[0_1px_6px_rgba(0,0,0,0.03)]">
+<div class="flex items-center gap-space-lg">
+<div class="flex items-center gap-space-sm pl-space-xs">
+<span class="material-symbols-outlined text-secondary text-[20px]">precision_manufacturing</span>
+<span class="font-headline-md text-headline-md tracking-tight text-on-surface font-bold">MaklonOS</span>
+<span class="font-label-caps text-label-caps bg-surface-container px-space-xs py-0.5 rounded text-on-surface-variant uppercase">CORE V2.4</span>
+</div>
+<div class="h-4 w-[1px] bg-surface-container"></div>
+<button class="flex items-center gap-space-md bg-surface-container-low hover:bg-surface-container px-space-lg py-space-xs rounded text-on-surface-variant hover:text-on-surface transition-colors cursor-pointer" type="button">
+<span class="material-symbols-outlined text-[16px]">search</span>
+<span class="font-body-sm text-body-sm hidden sm:inline">Cari SPK, Work Order, Batch Lab, SKU...</span>
+<span class="font-body-sm text-body-sm sm:hidden">Cari...</span>
+<span class="font-label-caps text-label-caps bg-surface-container-lowest px-space-xs rounded text-on-surface-variant">CTRL+K</span>
+</button>
+</div>
+<div class="flex items-center gap-space-lg">
+<div class="hidden md:flex items-center gap-space-xs bg-surface-container-low px-space-sm py-0.5 rounded">
+<span class="h-2 w-2 rounded-full bg-secondary animate-pulse"></span>
+<span class="font-code-sm text-code-sm text-on-surface-variant">SQLite Sync: <span class="text-on-surface font-semibold">0 pending txns</span></span>
+</div>
+<div class="hidden sm:flex items-center gap-space-xs text-on-surface-variant font-code-sm text-code-sm">
+<span class="material-symbols-outlined text-[16px]">schedule</span>
+<span>14:32:08 WIB</span>
+</div>
+<div class="h-4 w-[1px] bg-surface-container"></div>
+<div class="flex items-center gap-space-md">
+<div class="text-right">
+<div class="font-headline-md text-headline-md text-on-surface leading-none">Siti PPIC</div>
+<div class="font-label-caps text-label-caps text-secondary uppercase font-semibold">Floor Controller</div>
+</div>
+<div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center">
+<span class="material-symbols-outlined text-on-primary text-[18px]">precision_manufacturing</span>
+</div>
+<button class="p-space-xs text-error hover:bg-error-container hover:text-on-error-container rounded transition-colors" title="Force Logout" type="button">
+<span class="material-symbols-outlined text-[18px]">power_settings_new</span>
+</button>
+</div>
+</div>
+</header>
+<!-- Left Sidebar Navigation -->
+<aside class="fixed left-0 top-14 bottom-8 w-64 bg-surface-container-lowest border-r border-surface-container z-40 flex flex-col justify-between overflow-y-auto hidden lg:flex">
+<div class="p-space-md">
+<div class="font-label-caps text-label-caps text-on-surface-variant px-space-sm mb-space-xs tracking-wider uppercase">Fase 1: Intake &amp; Client</div>
+<nav class="flex flex-col gap-0.5">
+<a class="flex items-center justify-between px-space-md py-space-sm text-on-surface-variant hover:bg-surface-container hover:text-on-surface font-body-sm text-body-sm transition-colors rounded" data-path="cs-crm-core" href="#">
+<span>CS/CRM Core</span>
+<span class="font-code-sm text-code-sm bg-surface-container px-space-xs rounded">M1</span>
+</a>
+<a class="flex items-center justify-between px-space-md py-space-sm text-on-surface-variant hover:bg-surface-container hover:text-on-surface font-body-sm text-body-sm transition-colors rounded" data-path="lead-intake" href="#">
+<span>Lead Intake</span>
+<span class="font-code-sm text-code-sm bg-surface-container px-space-xs rounded">M2</span>
+</a>
+<a class="flex items-center justify-between px-space-md py-space-sm text-on-surface-variant hover:bg-surface-container hover:text-on-surface font-body-sm text-body-sm transition-colors rounded" data-path="sample-tracker" href="#">
+<span>Sample Tracker</span>
+<span class="font-code-sm text-code-sm bg-surface-container px-space-xs rounded">M3</span>
+</a>
+</nav>
+<div class="my-space-md bg-surface-container h-[1px]"></div>
+<div class="font-label-caps text-label-caps text-on-surface-variant px-space-sm mb-space-xs tracking-wider uppercase">Fase 2: R&amp;D &amp; Commercial</div>
+<nav class="flex flex-col gap-0.5">
+<a class="flex items-center justify-between px-space-md py-space-sm text-on-surface-variant hover:bg-surface-container hover:text-on-surface font-body-sm text-body-sm transition-colors rounded" data-path="rnd-lab-queue" href="#">
+<span>RnD Lab Queue</span>
+<span class="font-code-sm text-code-sm bg-surface-container px-space-xs rounded">M4</span>
+</a>
+<a class="flex items-center justify-between px-space-md py-space-sm text-on-surface-variant hover:bg-surface-container hover:text-on-surface font-body-sm text-body-sm transition-colors rounded" data-path="hpp-pricing-engine" href="#">
+<span>HPP &amp; Pricing</span>
+<span class="font-code-sm text-code-sm bg-surface-container px-space-xs rounded">M5</span>
+</a>
+<a class="flex items-center justify-between px-space-md py-space-sm text-on-surface-variant hover:bg-surface-container hover:text-on-surface font-body-sm text-body-sm transition-colors rounded" data-path="client-approval-dp-gate" href="#">
+<span>Client Approval &amp; DP Gate</span>
+<span class="font-code-sm text-code-sm bg-surface-container px-space-xs rounded">M6</span>
+</a>
+</nav>
+<div class="my-space-md bg-surface-container h-[1px]"></div>
+<div class="font-label-caps text-label-caps text-secondary px-space-sm mb-space-xs tracking-wider uppercase font-semibold">Fase 3: PPIC &amp; Lantai Pabrik</div>
+<nav class="flex flex-col gap-0.5">
+<a aria-current="page" class="flex items-center justify-between px-space-md py-space-sm transition-colors bg-primary-container text-on-primary font-semibold rounded" data-path="ppic-master-schedule" href="#">
+<span class="text-white">PPIC Master Schedule</span>
+<span class="font-code-sm text-code-sm bg-surface-container-high text-on-surface px-space-xs rounded">SCR-15</span>
+</a>
+<a class="flex items-center justify-between px-space-md py-space-sm text-on-surface-variant hover:bg-surface-container hover:text-on-surface font-body-sm text-body-sm transition-colors rounded" data-path="production-floor" href="#">
+<span>4-Stage Production Floor</span>
+<span class="font-code-sm text-code-sm bg-surface-container px-space-xs rounded">SCR-16</span>
+</a>
+<a class="flex items-center justify-between px-space-md py-space-sm text-on-surface-variant hover:bg-surface-container hover:text-on-surface font-body-sm text-body-sm transition-colors rounded" data-path="dispatch-gate" href="#">
+<span>Pelunasan &amp; Dispatch Gate</span>
+<span class="font-code-sm text-code-sm bg-surface-container px-space-xs rounded">SCR-17</span>
+</a>
+<a class="flex items-center justify-between px-space-md py-space-sm text-on-surface-variant hover:bg-surface-container hover:text-on-surface font-body-sm text-body-sm transition-colors rounded" data-path="qc-retur" href="#">
+<span>QC Rilis &amp; Retur</span>
+<span class="font-code-sm text-code-sm bg-surface-container px-space-xs rounded">SCR-18</span>
+</a>
+</nav>
+<div class="my-space-md bg-surface-container h-[1px]"></div>
+<div class="font-label-caps text-label-caps text-on-surface-variant px-space-sm mb-space-xs tracking-wider uppercase">System Logs &amp; Audit</div>
+<nav class="flex flex-col gap-0.5">
+<a class="flex items-center justify-between px-space-md py-space-sm text-on-surface-variant hover:bg-surface-container hover:text-on-surface font-body-sm text-body-sm transition-colors rounded" data-path="audit-log-security-sessions" href="#">
+<span>Audit Log &amp; Sessions</span>
+<span class="font-code-sm text-code-sm text-on-surface-variant">SEC</span>
+</a>
+</nav>
+</div>
+<div class="p-space-md bg-surface-container-low border-t border-surface-container">
+<div class="flex items-center justify-between text-on-surface-variant">
+<span class="font-label-caps text-label-caps uppercase">Terminal ID</span>
+<span class="font-code-sm text-code-sm font-semibold text-on-surface">WS-FLR-089</span>
+</div>
+<div class="flex items-center justify-between text-on-surface-variant mt-0.5">
+<span class="font-label-caps text-label-caps uppercase">Engine Cache</span>
+<span class="font-code-sm text-code-sm text-secondary font-semibold">WAL 64MB OK</span>
+</div>
+</div>
+</aside>
+<!-- Main Content Wrapper -->
+<div class="lg:pl-64">
+<main class="pt-16 pb-12 min-h-screen bg-background w-full px-space-md sm:px-space-lg">
+<div class="flex flex-col w-full gap-space-md max-w-full">
+<!-- 2. Hard Gate Banner -->
+<section class="bg-surface-container-lowest border border-surface-container p-space-md rounded-xl shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-space-md flex-wrap">
+<div class="flex items-center gap-space-md min-w-0 flex-1">
+<div class="w-10 h-10 rounded-lg bg-primary flex items-center justify-center flex-shrink-0">
+<span class="material-symbols-outlined text-on-primary text-[22px]" style="font-variation-settings: 'FILL' 1;">shield_with_heart</span>
+</div>
+<div class="min-w-0">
+<div class="flex items-center gap-space-sm flex-wrap">
+<span class="font-label-caps text-label-caps text-secondary uppercase bg-secondary-fixed px-space-xs py-0.5 rounded font-bold">GATEKEEPER RELEASE</span>
+<span class="font-code-sm text-code-sm text-on-surface font-bold">PO-2025-08992</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">• Aura Lumina Skin (10.000 unit)</span>
+</div>
+<div class="font-headline-md text-headline-md text-on-surface truncate mt-0.5">
+                DP 50% CLEARED <span class="font-code-md text-code-md text-secondary font-bold">(Rp 162.500.000)</span>
+<span class="text-on-surface-variant font-normal text-[13px] ml-space-xs">• AUTO-QUEUED TO KETTLE 02</span>
+</div>
+</div>
+</div>
+<div class="flex items-center gap-space-sm flex-shrink-0 flex-wrap">
+<div class="bg-surface-container-high px-space-md py-space-xs rounded flex items-center gap-space-sm border border-surface-container">
+<span class="material-symbols-outlined text-secondary text-[16px]">verified</span>
+<div class="text-right">
+<div class="font-label-caps text-label-caps text-on-surface-variant uppercase">Finance Clearance</div>
+<div class="font-code-sm text-code-sm text-on-surface font-bold">INV-9821-PAID</div>
+</div>
+</div>
+<div class="bg-primary px-space-md py-space-xs rounded flex items-center gap-space-sm shadow-sm">
+<span class="material-symbols-outlined text-on-primary text-[16px]">fingerprint</span>
+<div>
+<div class="font-label-caps text-label-caps text-on-primary-container uppercase">Audit Seal</div>
+<div class="font-code-sm text-code-sm text-on-primary font-bold">HASH_SHA256:7D0A</div>
+</div>
+</div>
+</div>
+</section>
+<!-- 3. Top 4 Metric Cards in responsive grid -->
+<section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+<!-- Card 1: Kettle & Line Utilization -->
+<div class="bg-surface-container-lowest p-space-md rounded-xl shadow-sm border border-surface-container flex flex-col justify-between">
+<div class="flex items-start justify-between">
+<div>
+<div class="font-label-caps text-label-caps text-on-surface-variant uppercase font-semibold">Kettle &amp; Line Utilization</div>
+<div class="font-headline-xl text-headline-xl text-on-surface mt-space-xs flex items-baseline gap-space-xs">
+                  88.5%
+                  <span class="font-code-sm text-code-sm text-secondary font-semibold">Active High</span>
+</div>
+</div>
+<div class="w-8 h-8 rounded bg-surface-container flex items-center justify-center text-secondary">
+<span class="material-symbols-outlined text-[18px]">heat_pump</span>
+</div>
+</div>
+<div class="mt-space-md pt-space-xs bg-surface-container-low p-space-sm rounded">
+<div class="flex justify-between items-center font-code-sm text-code-sm mb-0.5">
+<span class="text-on-surface font-semibold">Kettle 01</span>
+<span class="text-secondary font-medium">Running (Lot 08971)</span>
+</div>
+<div class="flex justify-between items-center font-code-sm text-code-sm mb-0.5">
+<span class="text-on-surface font-semibold">Kettle 02</span>
+<span class="text-on-surface-variant">Scheduled (Aura 10k)</span>
+</div>
+<div class="flex justify-between items-center font-code-sm text-code-sm">
+<span class="text-on-surface font-semibold">Kettle 03</span>
+<span class="text-on-tertiary-container font-semibold">Cleaning CIP/SIP</span>
+</div>
+</div>
+</div>
+<!-- Card 2: Raw Material Readiness -->
+<div class="bg-surface-container-lowest p-space-md rounded-xl shadow-sm border border-surface-container flex flex-col justify-between">
+<div class="flex items-start justify-between">
+<div>
+<div class="font-label-caps text-label-caps text-on-surface-variant uppercase font-semibold">Raw Material Readiness</div>
+<div class="font-headline-xl text-headline-xl text-on-surface mt-space-xs flex items-baseline gap-space-xs">
+                  100%
+                  <span class="font-code-sm text-code-sm text-secondary font-semibold">Allocated</span>
+</div>
+</div>
+<div class="w-8 h-8 rounded bg-surface-container flex items-center justify-center text-secondary">
+<span class="material-symbols-outlined text-[18px]">inventory_2</span>
+</div>
+</div>
+<div class="mt-space-md pt-space-xs bg-surface-container-low p-space-sm rounded">
+<div class="font-code-sm text-code-sm text-on-surface font-medium truncate">Niacinamide, Ceramide, HA, Squalane</div>
+<div class="flex items-center gap-space-xs text-on-surface-variant font-code-sm text-code-sm mt-0.5">
+<span class="material-symbols-outlined text-[14px] text-secondary">warehouse</span>
+<span>Reserved in rack: <strong class="text-on-surface">B-04 (Locked)</strong></span>
+</div>
+</div>
+</div>
+<!-- Card 3: Packaging Lead Time -->
+<div class="bg-surface-container-lowest p-space-md rounded-xl shadow-sm border border-surface-container flex flex-col justify-between">
+<div class="flex items-start justify-between">
+<div>
+<div class="font-label-caps text-label-caps text-on-surface-variant uppercase font-semibold">Packaging Lead Time</div>
+<div class="font-headline-xl text-headline-xl text-on-surface mt-space-xs flex items-baseline gap-space-xs">
+                  10.200 <span class="font-headline-md text-headline-md text-on-surface-variant font-normal">pcs</span>
+</div>
+</div>
+<div class="w-8 h-8 rounded bg-surface-container flex items-center justify-center text-secondary">
+<span class="material-symbols-outlined text-[18px]">package_2</span>
+</div>
+</div>
+<div class="mt-space-md pt-space-xs bg-surface-container-low p-space-sm rounded flex items-center justify-between">
+<div class="text-on-surface font-code-sm text-code-sm">
+<span>Botol Amber + Box Segel</span>
+<div class="text-on-surface-variant font-label-caps text-label-caps">+2% overage allowance</div>
+</div>
+<span class="bg-secondary text-on-secondary font-label-caps text-label-caps px-space-xs py-0.5 rounded font-bold uppercase tracking-wider">QC PASS</span>
+</div>
+</div>
+<!-- Card 4: Scheduled Completion SLA -->
+<div class="bg-surface-container-lowest p-space-md rounded-xl shadow-sm border border-surface-container flex flex-col justify-between">
+<div class="flex items-start justify-between">
+<div>
+<div class="font-label-caps text-label-caps text-on-surface-variant uppercase font-semibold">Scheduled Completion SLA</div>
+<div class="font-headline-xl text-headline-xl text-on-surface mt-space-xs flex items-baseline gap-space-xs">
+                  T+14 <span class="font-headline-md text-headline-md text-on-surface-variant font-normal">Days</span>
+</div>
+</div>
+<div class="w-8 h-8 rounded bg-surface-container flex items-center justify-center text-secondary">
+<span class="material-symbols-outlined text-[18px]">event_available</span>
+</div>
+</div>
+<div class="mt-space-md pt-space-xs bg-surface-container-low p-space-sm rounded">
+<div class="flex items-center justify-between font-code-sm text-code-sm text-on-surface">
+<span>Dispatch Target:</span>
+<span class="font-bold text-secondary">2025-06-02</span>
+</div>
+<div class="font-label-caps text-label-caps text-on-surface-variant mt-0.5">Line A reserved buffer: 18h</div>
+</div>
+</div>
+</section>
+<!-- 4. Main Content Area in responsive 12-column grid -->
+<div class="grid grid-cols-1 xl:grid-cols-12 gap-4 w-full">
+<!-- Left Column (8 cols) -->
+<div class="xl:col-span-8 min-w-0 space-y-4">
+<!-- Production Gantt & Kettle Matrix Card -->
+<section class="bg-surface-container-lowest p-space-md rounded-xl shadow-sm border border-surface-container flex flex-col">
+<div class="flex flex-col sm:flex-row sm:items-center justify-between pb-space-md gap-space-sm">
+<div>
+<div class="flex items-center gap-space-sm flex-wrap">
+<span class="font-headline-lg text-headline-lg text-on-surface font-bold">Production Gantt &amp; Kettle Matrix</span>
+<span class="bg-surface-container px-space-xs py-0.5 rounded font-code-sm text-code-sm text-on-surface-variant font-semibold">T+1 to T+14 Cycle</span>
+</div>
+<div class="font-body-sm text-body-sm text-on-surface-variant">Live visual sequencing from RM dispensing to release gating</div>
+</div>
+<div class="flex items-center gap-space-sm self-start sm:self-auto flex-wrap">
+<button class="bg-surface-container hover:bg-surface-container-high text-on-surface px-space-md py-space-xs rounded font-body-sm text-body-sm flex items-center gap-space-xs transition-colors cursor-pointer" id="rescheduleBtn" type="button">
+<span class="material-symbols-outlined text-[16px] text-error">swap_horiz</span>
+<span>Bypass / Reschedule Kettle Slot</span>
+</button>
+<div class="flex items-center gap-0.5 bg-surface-container-low p-0.5 rounded font-label-caps text-label-caps">
+<button class="bg-surface-container-lowest px-space-sm py-1 rounded text-on-surface shadow-xs font-bold" type="button">WEEK 1-2</button>
+<button class="px-space-sm py-1 text-on-surface-variant hover:text-on-surface transition-colors" type="button">WEEK 3-4</button>
+</div>
+</div>
+</div>
+<!-- Interactive Conflict Alert -->
+<div class="bg-error-container text-on-error-container p-space-sm rounded mb-space-md flex items-center justify-between hidden" id="conflictWarning">
+<div class="flex items-center gap-space-sm">
+<span class="material-symbols-outlined text-[18px]">warning</span>
+<span class="font-code-sm text-code-sm"><strong>CONFLICT DETECTED:</strong> Kettle 02 slot overlapped by batch #08969 extension (CIP delay 4h). Re-routing auto-queued.</span>
+</div>
+<button class="font-label-caps text-label-caps uppercase underline ml-2 flex-shrink-0" id="dismissConflict" type="button">Acknowledge</button>
+</div>
+<!-- Visual Gantt Timeline Container -->
+<div class="bg-surface-container-low p-space-md rounded-lg overflow-x-auto">
+<div class="min-w-[620px]">
+<!-- Timeline Scale Header -->
+<div class="grid grid-cols-12 gap-1 text-center font-code-sm text-code-sm text-on-surface-variant pb-space-sm mb-space-sm border-b border-surface-container">
+<div class="font-semibold text-left pl-space-xs col-span-2 text-on-surface">PROCESS STAGE</div>
+<div class="bg-surface-container-lowest py-0.5 rounded font-medium">D1</div>
+<div class="bg-surface-container-lowest py-0.5 rounded font-medium">D2</div>
+<div class="bg-surface-container-lowest py-0.5 rounded font-medium">D3</div>
+<div class="bg-surface-container-lowest py-0.5 rounded font-medium">D4</div>
+<div class="bg-surface-container-lowest py-0.5 rounded font-bold text-secondary border border-secondary/30">D5</div>
+<div class="bg-surface-container-lowest py-0.5 rounded font-medium">D6</div>
+<div class="bg-surface-container-lowest py-0.5 rounded font-medium">D7</div>
+<div class="bg-surface-container-lowest py-0.5 rounded font-medium">D8</div>
+<div class="bg-surface-container-lowest py-0.5 rounded font-medium">D9</div>
+<div class="bg-surface-container-lowest py-0.5 rounded font-medium">D10-12</div>
+</div>
+<!-- Gantt Rows -->
+<div class="space-y-space-sm">
+<!-- Stage 1 -->
+<div class="grid grid-cols-12 gap-1 items-center bg-surface-container-lowest p-space-xs rounded shadow-xs">
+<div class="col-span-2 font-code-sm text-code-sm text-on-surface font-semibold truncate pl-space-xs" title="1. Dispensing / Weighing">
+                        1. Dispensing...
+                      </div>
+<div class="col-span-2 bg-secondary text-on-secondary text-center py-1 rounded font-code-sm text-code-sm font-bold shadow-xs">
+                        Day 1-2 [Staging]
+                      </div>
+<div class="col-span-8 bg-surface-container-high h-2 rounded-full self-center"></div>
+</div>
+<!-- Stage 2 -->
+<div class="grid grid-cols-12 gap-1 items-center bg-surface-container-lowest p-space-xs rounded shadow-xs">
+<div class="col-span-2 font-code-sm text-code-sm text-on-surface font-semibold truncate pl-space-xs" title="2. Kettle 02 Mixing">
+                        2. Kettle 02...
+                      </div>
+<div class="col-span-2"></div>
+<div class="col-span-2 bg-primary text-on-primary text-center py-1 rounded font-code-sm text-code-sm font-bold shadow-xs">
+                        Day 3-4 [500kg Bulk]
+                      </div>
+<div class="col-span-6 bg-surface-container-high h-2 rounded-full self-center"></div>
+</div>
+<!-- Stage 3 -->
+<div class="grid grid-cols-12 gap-1 items-center bg-surface-container-lowest p-space-xs rounded shadow-xs">
+<div class="col-span-2 font-code-sm text-code-sm text-on-surface font-semibold truncate pl-space-xs" title="3. Filling Line A">
+                        3. Filling L...
+                      </div>
+<div class="col-span-4"></div>
+<div class="col-span-3 bg-secondary-container text-on-secondary-container text-center py-1 rounded font-code-sm text-code-sm font-bold shadow-xs">
+                        Day 5-7 [Line A: 60bpm]
+                      </div>
+<div class="col-span-3 bg-surface-container-high h-2 rounded-full self-center"></div>
+</div>
+<!-- Stage 4 -->
+<div class="grid grid-cols-12 gap-1 items-center bg-surface-container-lowest p-space-xs rounded shadow-xs">
+<div class="col-span-2 font-code-sm text-code-sm text-on-surface font-semibold truncate pl-space-xs" title="4. Secondary Pack">
+                        4. Secondary...
+                      </div>
+<div class="col-span-7"></div>
+<div class="col-span-2 bg-surface-container-high text-on-surface text-center py-1 rounded font-code-sm text-code-sm font-bold border border-surface-container">
+                        Day 8-9 [Cellophane]
+                      </div>
+<div class="col-span-1 bg-surface-container-high h-2 rounded-full self-center"></div>
+</div>
+<!-- Stage 5 -->
+<div class="grid grid-cols-12 gap-1 items-center bg-surface-container-lowest p-space-xs rounded shadow-xs">
+<div class="col-span-2 font-code-sm text-code-sm text-on-surface font-semibold truncate pl-space-xs" title="5. QC Release Lab">
+                        5. QC Releas...
+                      </div>
+<div class="col-span-9"></div>
+<div class="col-span-1 bg-primary text-on-primary text-center py-1 rounded font-code-sm text-code-sm font-bold truncate">
+                        Day 10-12
+                      </div>
+</div>
+</div>
+</div>
+</div>
+<!-- Facility Line Equipment Status Visual -->
+<div class="mt-space-md grid grid-cols-1 sm:grid-cols-3 gap-space-sm pt-space-xs">
+<div class="bg-surface-container-low p-space-sm rounded flex items-center justify-between border border-surface-container">
+<div>
+<div class="font-label-caps text-label-caps text-on-surface-variant uppercase">Reactor Kettle 01 (1000L)</div>
+<div class="font-code-sm text-code-sm text-on-surface font-bold">Batch WO-08971 (82°C Emulsify)</div>
+</div>
+<span class="w-2.5 h-2.5 rounded-full bg-secondary flex-shrink-0"></span>
+</div>
+<div class="bg-surface-container p-space-sm rounded flex items-center justify-between border border-secondary/20">
+<div>
+<div class="font-label-caps text-label-caps text-secondary uppercase font-bold">Reactor Kettle 02 (500L)</div>
+<div class="font-code-sm text-code-sm text-on-surface font-bold">Aura Lumina Reserved (Ready)</div>
+</div>
+<span class="w-2.5 h-2.5 rounded-full bg-secondary animate-pulse flex-shrink-0"></span>
+</div>
+<div class="bg-surface-container-low p-space-sm rounded flex items-center justify-between border border-surface-container">
+<div>
+<div class="font-label-caps text-label-caps text-on-surface-variant uppercase">Reactor Kettle 03 (300L)</div>
+<div class="font-code-sm text-code-sm text-on-tertiary-container font-bold">CIP Sanitize (Cycle 4/6)</div>
+</div>
+<span class="w-2.5 h-2.5 rounded-full bg-on-tertiary-container flex-shrink-0"></span>
+</div>
+</div>
+</section>
+<!-- Active Floor Work Orders Table Card -->
+<section class="bg-surface-container-lowest p-space-md rounded-xl shadow-sm border border-surface-container flex flex-col">
+<div class="flex items-center justify-between mb-space-sm flex-wrap gap-space-xs">
+<div class="flex items-center gap-space-sm">
+<span class="font-headline-md text-headline-md text-on-surface font-bold">Active Floor Work Orders</span>
+<span class="font-label-caps text-label-caps bg-surface-container text-on-surface-variant px-space-xs py-0.5 rounded font-semibold">3 Priority Jobs</span>
+</div>
+<span class="font-code-sm text-code-sm text-on-surface-variant">Hotkeys enabled: <kbd class="bg-surface-container px-space-xs py-0.5 rounded text-on-surface font-code-sm">Ctrl+Enter</kbd></span>
+</div>
+<div class="overflow-x-auto w-full">
+<div class="min-w-[640px]">
+<table class="w-full text-left font-body-sm text-body-sm">
+<thead>
+<tr class="bg-surface-container-low text-on-surface-variant font-label-caps text-label-caps uppercase">
+<th class="py-space-xs px-space-sm">WO # / SKU Name</th>
+<th class="py-space-xs px-space-sm">Batch Target</th>
+<th class="py-space-xs px-space-sm">Priority</th>
+<th class="py-space-xs px-space-sm">Financial Gate</th>
+<th class="py-space-xs px-space-sm">Assigned Line</th>
+<th class="py-space-xs px-space-sm text-right">Floor Action</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-surface-container">
+<!-- Item 1: Focused / Active WO-08992 -->
+<tr class="bg-surface-container-high/60 hover:bg-surface-container-high transition-colors">
+<td class="py-space-sm px-space-sm font-code-sm text-code-sm">
+<div class="font-bold text-on-surface">WO-08992</div>
+<div class="text-on-surface-variant">Aura Lumina Skin 30ml</div>
+</td>
+<td class="py-space-sm px-space-sm font-code-sm text-code-sm font-semibold text-on-surface">
+                          10.000 pcs
+                        </td>
+<td class="py-space-sm px-space-sm">
+<span class="bg-primary text-on-primary font-label-caps text-label-caps px-space-xs py-0.5 rounded uppercase font-bold">P1 HIGH</span>
+</td>
+<td class="py-space-sm px-space-sm font-code-sm text-code-sm">
+<span class="text-secondary font-bold">DP 50% Verified</span>
+</td>
+<td class="py-space-sm px-space-sm font-code-sm text-code-sm">
+                          Kettle 02 / Line A
+                        </td>
+<td class="py-space-sm px-space-sm text-right">
+<button class="bg-primary hover:bg-surface-container-highest hover:text-on-surface text-on-primary font-code-sm text-code-sm px-space-md py-1 rounded inline-flex items-center gap-space-xs transition-colors cursor-pointer" id="dispatchFloorBtn" type="button">
+<span>Dispatch to Floor</span>
+<kbd class="bg-surface-container-high text-on-surface px-1 py-0.2 rounded font-label-caps text-label-caps">Ctrl+↵</kbd>
+</button>
+</td>
+</tr>
+<!-- Item 2: WO-08985 GlowSkin -->
+<tr class="hover:bg-surface-container-low transition-colors">
+<td class="py-space-sm px-space-sm font-code-sm text-code-sm">
+<div class="font-bold text-on-surface">WO-08985</div>
+<div class="text-on-surface-variant">GlowSkin Micellar Water 100ml</div>
+</td>
+<td class="py-space-sm px-space-sm font-code-sm text-code-sm">
+                          5.000 pcs
+                        </td>
+<td class="py-space-sm px-space-sm">
+<span class="bg-surface-container text-on-surface-variant font-label-caps text-label-caps px-space-xs py-0.5 rounded uppercase font-bold">P2 MED</span>
+</td>
+<td class="py-space-sm px-space-sm font-code-sm text-code-sm text-on-tertiary-container font-medium">
+                          DP Received
+                        </td>
+<td class="py-space-sm px-space-sm font-code-sm text-code-sm text-error font-medium">
+                          Pack Pending (ETA 2d)
+                        </td>
+<td class="py-space-sm px-space-sm text-right">
+<span class="bg-surface-container px-space-sm py-1 rounded text-on-surface-variant font-code-sm text-code-sm font-semibold uppercase">In-Hold</span>
+</td>
+</tr>
+<!-- Item 3: WO-08971 Dermatech -->
+<tr class="hover:bg-surface-container-low transition-colors">
+<td class="py-space-sm px-space-sm font-code-sm text-code-sm">
+<div class="font-bold text-on-surface">WO-08971</div>
+<div class="text-on-surface-variant">Dermatech Salicylic Acid Cleanse</div>
+</td>
+<td class="py-space-sm px-space-sm font-code-sm text-code-sm">
+                          15.000 pcs
+                        </td>
+<td class="py-space-sm px-space-sm">
+<span class="bg-primary text-on-primary font-label-caps text-label-caps px-space-xs py-0.5 rounded uppercase font-bold">P1 HIGH</span>
+</td>
+<td class="py-space-sm px-space-sm font-code-sm text-code-sm text-secondary font-bold">
+                          DP 50% Verified
+                        </td>
+<td class="py-space-sm px-space-sm font-code-sm text-code-sm">
+                          Kettle 01 / Line B
+                        </td>
+<td class="py-space-sm px-space-sm text-right">
+<span class="bg-secondary-fixed text-on-secondary-fixed font-code-sm text-code-sm px-space-sm py-1 rounded font-semibold">Filling (68%)</span>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</section>
+</div>
+<!-- Right Column (4 cols) -->
+<div class="xl:col-span-4 min-w-0 space-y-4">
+<!-- Material Allocation & QA Clearance Card -->
+<section class="bg-surface-container-lowest p-space-md rounded-xl shadow-sm border border-surface-container flex flex-col gap-space-md">
+<div class="flex items-center justify-between pb-space-xs border-b border-surface-container">
+<div class="flex items-center gap-space-sm">
+<span class="material-symbols-outlined text-secondary text-[20px]">science</span>
+<span class="font-headline-md text-headline-md text-on-surface font-bold">Material &amp; QA Clearance</span>
+</div>
+<span class="bg-secondary text-on-secondary font-label-caps text-label-caps px-space-xs py-0.5 rounded uppercase font-bold">ALL STAGED</span>
+</div>
+<!-- Raw Chemical Lots (COA Verified) -->
+<div class="space-y-space-sm">
+<div class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider font-semibold">Raw Chemical Lots (COA Verified)</div>
+<div class="bg-surface-container-low p-space-sm rounded space-y-space-xs border border-surface-container">
+<div class="flex items-center justify-between">
+<span class="font-code-sm text-code-sm font-bold text-on-surface">Niacinamide USP Grade</span>
+<span class="bg-surface-container px-space-xs py-0.2 rounded font-code-sm text-code-sm text-secondary font-bold">RELEASED</span>
+</div>
+<div class="flex items-center justify-between font-code-sm text-code-sm text-on-surface-variant">
+<span>Lot: <strong class="text-on-surface">NC-9912</strong> • 50.0 kg</span>
+<span class="font-label-caps text-label-caps uppercase bg-surface-container-lowest px-1 rounded border border-surface-container text-secondary font-bold">CoA: PASS</span>
+</div>
+<div class="font-code-sm text-code-sm text-on-surface-variant truncate">
+                    Barcode Hash: <span class="text-on-surface font-mono">0x9F41C2B0...E17</span>
+</div>
+</div>
+<div class="bg-surface-container-low p-space-sm rounded space-y-space-xs border border-surface-container">
+<div class="flex items-center justify-between">
+<span class="font-code-sm text-code-sm font-bold text-on-surface">Ceramide NP Complex</span>
+<span class="bg-surface-container px-space-xs py-0.2 rounded font-code-sm text-code-sm text-secondary font-bold">RELEASED</span>
+</div>
+<div class="flex items-center justify-between font-code-sm text-code-sm text-on-surface-variant">
+<span>Lot: <strong class="text-on-surface">CR-2041</strong> • 15.0 kg</span>
+<span class="font-label-caps text-label-caps uppercase bg-surface-container-lowest px-1 rounded border border-surface-container text-secondary font-bold">CoA: PASS</span>
+</div>
+<div class="font-code-sm text-code-sm text-on-surface-variant truncate">
+                    Barcode Hash: <span class="text-on-surface font-mono">0x11B89AC3...4D2</span>
+</div>
+</div>
+<div class="bg-surface-container-low p-space-sm rounded space-y-space-xs border border-surface-container">
+<div class="flex items-center justify-between">
+<span class="font-code-sm text-code-sm font-bold text-on-surface">Hyaluronic Acid (Multi-Mol)</span>
+<span class="bg-surface-container px-space-xs py-0.2 rounded font-code-sm text-code-sm text-secondary font-bold">RELEASED</span>
+</div>
+<div class="flex items-center justify-between font-code-sm text-code-sm text-on-surface-variant">
+<span>Lot: <strong class="text-on-surface">HA-0881</strong> • 20.0 kg</span>
+<span class="font-label-caps text-label-caps uppercase bg-surface-container-lowest px-1 rounded border border-surface-container text-secondary font-bold">CoA: PASS</span>
+</div>
+</div>
+</div>
+<!-- Packaging Batch Verification -->
+<div class="space-y-space-sm">
+<div class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider font-semibold">Packaging Batch Verification</div>
+<div class="bg-surface-container p-space-sm rounded border border-surface-container">
+<div class="flex items-center justify-between mb-1">
+<div class="font-code-sm text-code-sm font-bold text-on-surface">Amber Dropper 30ml Bottle</div>
+<span class="font-label-caps text-label-caps text-secondary font-bold">COUNT VERIFIED</span>
+</div>
+<div class="font-body-sm text-body-sm text-on-surface-variant">
+                    Gross: <strong class="text-on-surface font-code-sm text-code-sm">10.200 pcs</strong> (Optical scale tolerance: ±0.01%)
+                  </div>
+<div class="mt-space-xs flex items-center gap-space-xs text-on-surface-variant font-code-sm text-code-sm">
+<span class="material-symbols-outlined text-secondary text-[14px]">qr_code_scanner</span>
+<span>Pallet ID: PLT-PKG-8891 • QA Inspector: Rian S.</span>
+</div>
+</div>
+<div class="bg-surface-container-low p-space-sm rounded border border-surface-container">
+<div class="flex items-center justify-between mb-1">
+<div class="font-code-sm text-code-sm font-bold text-on-surface">Outer Folding Carton Box</div>
+<span class="font-label-caps text-label-caps text-secondary font-bold uppercase">10.200 PCS</span>
+</div>
+<div class="font-body-sm text-body-sm text-on-surface-variant">
+                    Hot stamp gold foil alignment validated on sample test.
+                  </div>
+</div>
+</div>
+</section>
+<!-- Execution Release Gate Action Card -->
+<section class="bg-surface-container-lowest p-space-md rounded-xl shadow-sm border border-surface-container flex flex-col gap-space-md">
+<div>
+<div class="font-label-caps text-label-caps text-secondary uppercase font-bold tracking-wider">Execution Release Gate</div>
+<div class="font-headline-md text-headline-md text-on-surface font-bold mt-space-xs">PPIC Production Handover</div>
+<div class="font-body-sm text-body-sm text-on-surface-variant mt-0.5">
+                  Commit allocation schedule and automatically freeze physical inventory to Batch #LOT-2025-08992.
+                </div>
+</div>
+<div class="bg-surface-container-low p-space-sm rounded font-code-sm text-code-sm space-y-1 border border-surface-container">
+<div class="flex justify-between text-on-surface-variant">
+<span>Operator Assigned:</span>
+<span class="font-bold text-on-surface">Line Master Agus T.</span>
+</div>
+<div class="flex justify-between text-on-surface-variant">
+<span>Scheduled Startup:</span>
+<span class="font-bold text-on-surface">Tomorrow 07:30 WIB</span>
+</div>
+<div class="flex justify-between text-on-surface-variant">
+<span>Cleanroom Stage:</span>
+<span class="font-bold text-secondary">Class 10.000 (Grade C)</span>
+</div>
+</div>
+<div class="flex flex-col gap-space-sm">
+<!-- Primary CTA -->
+<button class="w-full bg-primary hover:bg-neutral-800 text-on-primary py-space-sm px-space-md rounded font-code-md text-code-md font-bold flex items-center justify-center gap-space-sm shadow-sm transition-colors cursor-pointer" id="lockFloorBatchBtn" type="button">
+<span class="material-symbols-outlined text-[18px]">lock</span>
+<span class="truncate">Issue SPK &amp; Lock Floor Batch #LOT-2025-08992</span>
+</button>
+<!-- Secondary CTA -->
+<button class="w-full bg-surface-container hover:bg-surface-container-high text-on-surface py-space-sm px-space-md rounded font-code-sm text-code-sm flex items-center justify-center gap-space-sm transition-colors cursor-pointer" id="exportTicketBtn" type="button">
+<span class="material-symbols-outlined text-[16px]">print</span>
+<span>Export PPIC Schedule / Print Job Ticket (Alt+P)</span>
+</button>
+</div>
+<!-- Real-time SQLite Local Storage Indicator -->
+<div class="pt-space-xs flex items-center justify-between text-on-surface-variant font-code-sm text-code-sm border-t border-surface-container">
+<span class="flex items-center gap-space-xs">
+<span class="w-2 h-2 rounded-full bg-secondary"></span>
+                  Sync ready (0 conflicts)
+                </span>
+<span class="font-label-caps text-label-caps uppercase font-semibold">SECURE LEVEL 3 GATE</span>
+</div>
+</section>
+</div>
+</div>
+</div>
+<!-- Notification Toast Overlay -->
+<div class="fixed bottom-12 right-6 bg-primary text-on-primary px-space-md py-space-sm rounded-lg shadow-xl flex items-center gap-space-sm transition-all transform translate-y-20 opacity-0 z-50 pointer-events-none" id="toastNotification">
+<span class="material-symbols-outlined text-secondary text-[20px]">task_alt</span>
+<div>
+<div class="font-code-sm text-code-sm font-bold" id="toastTitle">SPK Issued Successfully</div>
+<div class="font-body-sm text-body-sm text-surface-container-highest" id="toastMessage">Batch #LOT-2025-08992 transmitted to Floor Terminal WS-FLR-089.</div>
+</div>
+</div>
+</main>
+</div>
+<!-- 5. Bottom Global Bar -->
+<footer class="fixed bottom-0 left-0 right-0 h-8 bg-surface-container-lowest border-t border-surface-container z-50 flex items-center justify-between px-gutter text-on-surface-variant overflow-x-auto">
+<div class="flex items-center gap-space-lg flex-shrink-0">
+<div class="flex items-center gap-space-xs">
+<span class="font-label-caps text-label-caps uppercase">Terminal:</span>
+<span class="font-code-sm text-code-sm text-on-surface font-semibold">WS-FLR-089</span>
+</div>
+<div class="h-3 w-[1px] bg-surface-container"></div>
+<div class="flex items-center gap-space-xs">
+<span class="font-label-caps text-label-caps uppercase">Cache:</span>
+<span class="font-code-sm text-code-sm text-secondary font-semibold">WAL 64MB OK</span>
+</div>
+<div class="h-3 w-[1px] bg-surface-container"></div>
+<span class="font-label-caps text-label-caps uppercase hidden sm:inline">Shortcuts:</span>
+<div class="hidden sm:flex items-center gap-space-xs font-code-sm text-code-sm">
+<kbd class="bg-surface-container px-space-xs py-0.5 rounded text-on-surface font-code-sm text-code-sm">Ctrl+N</kbd>
+<span>SPK Baru</span>
+</div>
+<div class="hidden md:flex items-center gap-space-xs font-code-sm text-code-sm">
+<kbd class="bg-surface-container px-space-xs py-0.5 rounded text-on-surface font-code-sm text-code-sm">Alt+P</kbd>
+<span>PPIC Dispatch</span>
+</div>
+<div class="hidden md:flex items-center gap-space-xs font-code-sm text-code-sm">
+<kbd class="bg-surface-container px-space-xs py-0.5 rounded text-on-surface font-code-sm text-code-sm">Ctrl+Enter</kbd>
+<span>QC Confirm</span>
+</div>
+<div class="hidden lg:flex items-center gap-space-xs font-code-sm text-code-sm">
+<kbd class="bg-surface-container px-space-xs py-0.5 rounded text-on-surface font-code-sm text-code-sm">Esc</kbd>
+<span>Batal</span>
+</div>
+</div>
+<div class="flex items-center gap-space-md flex-shrink-0 pl-space-md">
+<span class="font-code-sm text-code-sm hidden sm:inline">Local Cache: <span class="text-on-surface font-semibold">SQLite 3.44.0 (In-Memory WAL)</span></span>
+<div class="h-3 w-[1px] bg-surface-container hidden sm:block"></div>
+<span class="font-code-sm text-code-sm text-secondary font-semibold">ENCRYPTED SECURE SESSION</span>
+</div>
+</footer>
+<script>
+    (function() {
+      const lockBtn = document.getElementById('lockFloorBatchBtn');
+      const dispatchBtn = document.getElementById('dispatchFloorBtn');
+      const rescheduleBtn = document.getElementById('rescheduleBtn');
+      const conflictWarning = document.getElementById('conflictWarning');
+      const dismissConflict = document.getElementById('dismissConflict');
+      const exportBtn = document.getElementById('exportTicketBtn');
+      const toast = document.getElementById('toastNotification');
+      const toastTitle = document.getElementById('toastTitle');
+      const toastMessage = document.getElementById('toastMessage');
+
+      function showToast(title, msg) {
+        if (!toast) return;
+        toastTitle.textContent = title;
+        toastMessage.textContent = msg;
+        toast.classList.remove('translate-y-20', 'opacity-0', 'pointer-events-none');
+        toast.classList.add('translate-y-0', 'opacity-100');
+        setTimeout(() => {
+          toast.classList.remove('translate-y-0', 'opacity-100');
+          toast.classList.add('translate-y-20', 'opacity-0', 'pointer-events-none');
+        }, 3500);
+      }
+
+      if (lockBtn) {
+        lockBtn.addEventListener('click', () => {
+          showToast('SPK Issued & Floor Batch Locked', 'SPK-2025-08992 generated. Floor operators notified.');
+        });
+      }
+
+      if (dispatchBtn) {
+        dispatchBtn.addEventListener('click', () => {
+          showToast('Work Order Dispatched', 'WO-08992 pushed to Kettle 02 mixing queue.');
+        });
+      }
+
+      if (rescheduleBtn) {
+        rescheduleBtn.addEventListener('click', () => {
+          if (conflictWarning.classList.contains('hidden')) {
+            conflictWarning.classList.remove('hidden');
+            showToast('Reschedule Tool Active', 'Conflict analyzer recalculating line loads...');
+          } else {
+            conflictWarning.classList.add('hidden');
+          }
+        });
+      }
+
+      if (dismissConflict) {
+        dismissConflict.addEventListener('click', () => {
+          conflictWarning.classList.add('hidden');
+        });
+      }
+
+      if (exportBtn) {
+        exportBtn.addEventListener('click', () => {
+          showToast('Exporting PPIC Schedule', 'Rendering high-res PDF floor travel ticket...');
+        });
+      }
+
+      // Keyboard Shortcuts
+      document.addEventListener('keydown', (e) => {
+        // Ctrl + Enter: Dispatch / Issue SPK
+        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+          e.preventDefault();
+          if (lockBtn) lockBtn.click();
+        }
+        // Alt + P: Print Ticket
+        if (e.altKey && (e.key === 'p' || e.key === 'P')) {
+          e.preventDefault();
+          if (exportBtn) exportBtn.click();
+        }
+      });
+    })();
+  </script>
+</body></html>

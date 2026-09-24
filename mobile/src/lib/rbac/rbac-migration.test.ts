@@ -25,7 +25,7 @@ beforeAll(async () => {
       username TEXT UNIQUE NOT NULL,
       password_hash TEXT NOT NULL,
       role TEXT NOT NULL CHECK(role IN ('Admin', 'Operator', 'Scanner')),
-      status TEXT DEFAULT 'Aktif'
+      status TEXT DEFAULT 'Active'
     );
   `);
   await client.execute(`
@@ -37,7 +37,7 @@ beforeAll(async () => {
   await client.execute(`
     INSERT INTO master_operator (
       kode_operator, nama_operator, username, password_hash, role, status
-    ) VALUES ('OP001', 'Admin Lama', 'admin', 'legacy-password', 'Admin', 'Aktif');
+    ) VALUES ('OP001', 'Admin Lama', 'admin', 'legacy-password', 'Admin', 'Active');
   `);
 });
 
@@ -148,7 +148,7 @@ describe("provisioning silang Web dan Desktop/Mobile", () => {
           username TEXT UNIQUE NOT NULL,
           password_hash TEXT NOT NULL,
           role TEXT NOT NULL DEFAULT 'Operator',
-          status TEXT NOT NULL DEFAULT 'Aktif'
+          status TEXT NOT NULL DEFAULT 'Active'
         );
       `);
       await initDatabaseSchema(legacyClient);

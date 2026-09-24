@@ -1,49 +1,47 @@
+import type { ReactNode } from "react";
+import { Icon } from "./Icon";
+
 interface FeedbackBannerProps {
-  type?: "success" | "error" | "warning" | "info";
-  message: string;
-  className?: string;
-  onClose?: () => void;
+  children: ReactNode;
+  onDismiss?: () => void;
+  tone: "error" | "success" | "warning" | "info";
 }
 
-const bannerStyles = {
-  success: "border-emerald-500/40 bg-emerald-950/50 text-emerald-200",
-  error: "border-rose-500/40 bg-rose-950/50 text-rose-200",
-  warning: "border-amber-500/40 bg-amber-950/50 text-amber-200",
-  info: "border-sky-500/40 bg-sky-950/50 text-sky-200",
+const toneClasses = {
+  error: "border-error/30 bg-error-container text-on-error-container",
+  success: "border-success/30 bg-success-container text-on-success-container",
+  warning: "border-tertiary-fixed-dim bg-tertiary-fixed text-on-tertiary-fixed",
+  info: "border-secondary/20 bg-secondary-fixed text-on-secondary-fixed-variant",
 };
 
-export function FeedbackBanner({
-  type = "info",
-  message,
-  className = "",
-  onClose,
-}: FeedbackBannerProps) {
-  if (!message) return null;
+const toneIcon = {
+  error: "alert",
+  success: "check",
+  warning: "alert",
+  info: "alert",
+} as const;
 
+export function FeedbackBanner({
+  children,
+  onDismiss,
+  tone,
+}: FeedbackBannerProps) {
   return (
     <div
-      role="alert"
-      className={`relative flex items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-sm font-medium shadow-lg backdrop-blur-md transition-all ${bannerStyles[type]} ${className}`}
+      role={tone === "error" ? "alert" : "status"}
+      className={`flex items-start gap-2 rounded-lg border p-3 text-body-md ${toneClasses[tone]}`}
     >
-      <div className="flex items-center gap-2.5">
-        <span className="shrink-0 font-bold">
-          {type === "success" && "✓"}
-          {type === "error" && "✕"}
-          {type === "warning" && "!"}
-          {type === "info" && "ℹ"}
-        </span>
-        <p className="leading-snug">{message}</p>
-      </div>
-      {onClose && (
+      <Icon name={toneIcon[tone]} className="mt-px size-4 shrink-0" />
+      <div className="min-w-0 flex-1">{children}</div>
+      {onDismiss ? (
         <button
           type="button"
-          onClick={onClose}
-          aria-label="Tutup notifikasi"
-          className="grid size-7 shrink-0 place-items-center rounded-lg bg-white/10 text-xs font-bold hover:bg-white/20"
+          onClick={onDismiss}
+          className="min-h-8 rounded-md px-2 text-body-sm font-semibold hover:bg-black/5"
         >
-          ×
+          Dismiss
         </button>
-      )}
+      ) : null}
     </div>
   );
 }

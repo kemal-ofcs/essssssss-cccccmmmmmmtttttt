@@ -60,7 +60,7 @@ export function decodeBase32(value: string) {
   for (const character of clean) {
     const index = BASE32_ALPHABET.indexOf(character);
     if (index < 0)
-      throw new Error("Rahasia 2FA memuat karakter yang tidak valid.");
+      throw new Error("The 2FA secret contains invalid characters.");
     accumulator = (accumulator << 5) | index;
     bits += 5;
     if (bits >= 8) {
@@ -96,7 +96,7 @@ async function hmacSha1(key: Uint8Array, message: Uint8Array) {
 /** HOTP (RFC 4226): HMAC dari pencacah, lalu pemotongan dinamis jadi 6 digit. */
 export async function generateHotp(secretBase32: string, counter: number) {
   const key = decodeBase32(secretBase32);
-  if (key.length === 0) throw new Error("Rahasia 2FA kosong.");
+  if (key.length === 0) throw new Error("The 2FA secret is empty.");
   const message = new Uint8Array(8);
   let remaining = counter;
   for (let index = 7; index >= 0; index -= 1) {

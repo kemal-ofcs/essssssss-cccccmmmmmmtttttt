@@ -12,7 +12,7 @@ const LANDING_ORDER: readonly (readonly [AppArea, string])[] = [
   ["settings", "/settings"],
   ["items", "/items"],
   ["activity", "/activity"],
-  ["password_reset", "/riwayat-reset-password"],
+  ["password_reset", "/password-reset-history"],
 ];
 
 /**
