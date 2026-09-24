@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { MobileAppShell } from "@/components/MobileAppShell";
 import { Icon } from "@/components/ui/Icon";
 import { canAccessArea, hasPermission } from "@/lib/auth/access";
@@ -81,10 +81,16 @@ export default function RiwayatResetPasswordMobilePage() {
     null,
   );
   const [approval, setApproval] = useState<ResetApprovalResult | null>(null);
+  // Ref, bukan state `busy`: dua ketukan dalam satu tick sama-sama membaca
+  // state lama. Menyetujui dua kali menerbitkan dua kode untuk satu permintaan.
+  const isSubmittingRef = useRef(false);
 
+  // Static export tidak punya rute /forbidden; `/` meneruskan ke `landingPath`.
   useEffect(() => {
-    if (!authLoading && !isAuthenticated) router.replace("/login");
-  }, [authLoading, isAuthenticated, router]);
+    if (authLoading) return;
+    if (!isAuthenticated) router.replace("/login");
+    else if (!canView) router.replace("/");
+  }, [authLoading, isAuthenticated, canView, router]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -126,7 +132,8 @@ export default function RiwayatResetPasswordMobilePage() {
   };
 
   const runDelete = async () => {
-    if (!confirmDelete) return;
+    if (!confirmDelete || isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
     setBusy(true);
     try {
       await deletePasswordResetHistory(confirmDelete.id);
@@ -145,6 +152,7 @@ export default function RiwayatResetPasswordMobilePage() {
             : "Riwayat tidak dapat dihapus.",
       });
     } finally {
+      isSubmittingRef.current = false;
       setBusy(false);
     }
   };
@@ -156,6 +164,8 @@ export default function RiwayatResetPasswordMobilePage() {
    * memegang hash-nya — sehingga layar ini satu-satunya kesempatan membacanya.
    */
   const approve = async (entry: ResetHistoryEntry) => {
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
     setBusy(true);
     triggerHaptic("light");
     try {
@@ -170,9 +180,13 @@ export default function RiwayatResetPasswordMobilePage() {
             : "Permintaan tidak dapat disetujui.",
       });
     } finally {
+      isSubmittingRef.current = false;
       setBusy(false);
     }
   };
+
+  if (authLoading || !isAuthenticated || !canView)
+    return <div className="min-h-dvh bg-slate-950" />;
 
   return (
     <MobileAppShell>

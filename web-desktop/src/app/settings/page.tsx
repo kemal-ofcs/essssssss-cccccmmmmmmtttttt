@@ -1,6 +1,13 @@
 "use client";
 
-import { type FormEvent, useCallback, useEffect, useState } from "react";
+import { redirect } from "next/navigation";
+import {
+  type FormEvent,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { AppShell } from "@/components/AppShell";
 import { CompanyProfileCard } from "@/components/CompanyProfileCard";
 import { DatabaseBackupCard } from "@/components/DatabaseBackupCard";
@@ -8,7 +15,7 @@ import { LicenseCard } from "@/components/license/LicenseCard";
 import { MailSettingsCard } from "@/components/MailSettingsCard";
 import { PasswordRecoveryCard } from "@/components/PasswordRecoveryCard";
 import { TwoFactorCard } from "@/components/TwoFactorCard";
-import { hasPermission } from "@/lib/auth/access";
+import { canAccessArea, hasPermission } from "@/lib/auth/access";
 import { useAuth } from "@/lib/context/AuthContext";
 import {
   getSyncStatus,
@@ -23,6 +30,7 @@ import {
   type TursoConnectionStatus,
   testTursoConnection,
 } from "@/lib/gateways/turso-config";
+import { useHydrated } from "@/lib/hooks/useHydrated";
 import { isDesktopRuntime } from "@/lib/runtime/app-runtime";
 import {
   DATABASE_PROVIDER_OPTIONS,
@@ -35,9 +43,12 @@ import {
 type Feedback = { type: "success" | "error"; message: string } | null;
 
 export default function SettingsPage() {
-  const { user } = useAuth();
+  const isHydrated = useHydrated();
+  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
   const canManage = hasPermission(user, "settings.manage");
   const isDesktop = isDesktopRuntime();
+  // Ref, bukan state: dua klik dalam satu tick sama-sama membaca state lama.
+  const isSubmittingRef = useRef(false);
 
   const [provider, setProvider] = useState<DatabaseProvider>("turso");
   const [allowInsecure, setAllowInsecure] = useState(false);
@@ -98,6 +109,8 @@ export default function SettingsPage() {
       });
       return;
     }
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
     setBusy(true);
     try {
       await saveTursoConfig(
@@ -129,6 +142,7 @@ export default function SettingsPage() {
             : "Konfigurasi database gagal disimpan.",
       });
     } finally {
+      isSubmittingRef.current = false;
       setBusy(false);
     }
   };
@@ -162,7 +176,9 @@ export default function SettingsPage() {
   };
 
   const handleReset = async () => {
+    if (isSubmittingRef.current) return;
     if (!confirm("Hapus konfigurasi database dari perangkat ini?")) return;
+    isSubmittingRef.current = true;
     setBusy(true);
     try {
       await clearTursoConfig();
@@ -183,6 +199,7 @@ export default function SettingsPage() {
           error instanceof Error ? error.message : "Reset konfigurasi gagal.",
       });
     } finally {
+      isSubmittingRef.current = false;
       setBusy(false);
     }
   };
@@ -203,6 +220,11 @@ export default function SettingsPage() {
       setSyncing(false);
     }
   };
+
+  if (!isHydrated || authLoading)
+    return <div className="min-h-dvh bg-slate-950" />;
+  if (!isAuthenticated) redirect("/login");
+  if (!canAccessArea(user, "settings")) redirect("/forbidden");
 
   return (
     <AppShell>

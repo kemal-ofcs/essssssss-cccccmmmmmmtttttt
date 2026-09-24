@@ -1,7 +1,7 @@
 "use client";
 
 import { redirect } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { FeedbackBanner } from "@/components/ui/FeedbackBanner";
 import { Icon } from "@/components/ui/Icon";
@@ -65,6 +65,9 @@ export default function RiwayatResetPasswordPage() {
   const canDelete = hasPermission(user, "password_reset.delete");
   const canApprove = hasPermission(user, "password_reset.approve");
   const [approval, setApproval] = useState<ResetApprovalResult | null>(null);
+  // Ref, bukan state `busy`: dua klik dalam satu tick sama-sama membaca state
+  // lama. Menyetujui dua kali menerbitkan dua kode untuk satu permintaan.
+  const isSubmittingRef = useRef(false);
 
   /**
    * Setujui permintaan, lalu tampilkan kodenya.
@@ -75,6 +78,8 @@ export default function RiwayatResetPasswordPage() {
    * sendiri, bukan notifikasi yang hilang otomatis.
    */
   const approve = async (entry: ResetHistoryEntry) => {
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
     setBusy(true);
     try {
       setApproval(await approvePasswordReset(entry.id));
@@ -88,6 +93,7 @@ export default function RiwayatResetPasswordPage() {
             : "Permintaan tidak dapat disetujui.",
       });
     } finally {
+      isSubmittingRef.current = false;
       setBusy(false);
     }
   };
@@ -135,7 +141,8 @@ export default function RiwayatResetPasswordPage() {
   };
 
   const confirmDelete = async () => {
-    if (!deleteTarget) return;
+    if (!deleteTarget || isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
     setBusy(true);
     try {
       await deletePasswordResetHistory(deleteTarget.id);
@@ -154,11 +161,14 @@ export default function RiwayatResetPasswordPage() {
             : "Riwayat tidak dapat dihapus.",
       });
     } finally {
+      isSubmittingRef.current = false;
       setBusy(false);
     }
   };
 
   const confirmPurge = async () => {
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
     setBusy(true);
     try {
       const result = await purgePasswordResetHistory(PURGE_DAYS);
@@ -178,6 +188,7 @@ export default function RiwayatResetPasswordPage() {
           error instanceof Error ? error.message : "Pembersihan riwayat gagal.",
       });
     } finally {
+      isSubmittingRef.current = false;
       setBusy(false);
     }
   };

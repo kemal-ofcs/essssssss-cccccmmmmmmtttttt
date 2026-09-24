@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import {
   type FormEvent,
   useCallback,
@@ -8,7 +9,7 @@ import {
   useState,
 } from "react";
 import { MobileAppShell } from "@/components/MobileAppShell";
-import { hasPermission } from "@/lib/auth/access";
+import { canAccessArea, hasPermission } from "@/lib/auth/access";
 import { useAuth } from "@/lib/context/AuthContext";
 import {
   type ActivityDraft,
@@ -26,14 +27,23 @@ const EMPTY_DRAFT: ActivityDraft = {
 };
 
 export default function ActivityPage() {
-  const { user } = useAuth();
+  const router = useRouter();
+  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
+  const canView = canAccessArea(user, "activity");
   const canRecord = hasPermission(user, "activity.record");
 
   const [rows, setRows] = useState<ActivityRecord[]>([]);
   const [draft, setDraft] = useState<ActivityDraft>(EMPTY_DRAFT);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
-  const submitting = useRef(false);
+  const isSubmittingRef = useRef(false);
+
+  // Static export tidak punya rute /forbidden; `/` meneruskan ke `landingPath`.
+  useEffect(() => {
+    if (authLoading) return;
+    if (!isAuthenticated) router.replace("/login");
+    else if (!canView) router.replace("/");
+  }, [authLoading, isAuthenticated, canView, router]);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -48,8 +58,8 @@ export default function ActivityPage() {
   }, []);
 
   useEffect(() => {
-    void refresh();
-  }, [refresh]);
+    if (canView) void refresh();
+  }, [canView, refresh]);
 
   useEffect(() => {
     const onSynced = () => void refresh();
@@ -59,8 +69,8 @@ export default function ActivityPage() {
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    if (submitting.current) return;
-    submitting.current = true;
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
     try {
       await recordActivity({ ...draft, jumlah: Number(draft.jumlah) || 0 });
       setDraft(EMPTY_DRAFT);
@@ -70,9 +80,12 @@ export default function ActivityPage() {
         cause instanceof Error ? cause.message : "Aktivitas gagal dicatat.",
       );
     } finally {
-      submitting.current = false;
+      isSubmittingRef.current = false;
     }
   };
+
+  if (authLoading || !isAuthenticated || !canView)
+    return <div className="min-h-dvh bg-slate-950" />;
 
   return (
     <MobileAppShell>

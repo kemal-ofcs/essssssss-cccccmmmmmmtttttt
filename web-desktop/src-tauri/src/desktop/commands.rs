@@ -685,7 +685,7 @@ pub async fn desktop_password_reset_approve(
     let actor = require_permission(&state, "password_reset.approve")?;
     let hasil = state
         .get_turso_client()?
-        .password_reset_approve(actor.id, request_id.trim())
+        .password_reset_approve(request_id.trim())
         .await?;
     storage::audit(
         &state.data_dir,
@@ -1842,9 +1842,17 @@ pub async fn desktop_save_item(
         .and_then(Value::as_str)
         .unwrap_or_default()
         .to_owned();
+    // Nilai asing ditolak, tidak pernah dinormalkan menjadi "Aktif" — aturan
+    // yang sama dieja `saveItem` di `src/lib/server/example-domain.ts`.
     let status = match item.get("status_aktif").and_then(Value::as_str) {
+        None | Some("Aktif") => "Aktif",
         Some("Nonaktif") => "Nonaktif",
-        _ => "Aktif",
+        Some(_) => {
+            return Err(CommandError::new(
+                "ITEM_INVALID",
+                "Status item harus Aktif atau Nonaktif.",
+            ))
+        }
     };
     let updated = storage::now_epoch_seconds().to_string();
 

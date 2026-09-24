@@ -132,7 +132,9 @@ console.log("");
 // aplikasi menolak SEMUA lisensi sampai `keygen` untuk produk ini dijalankan.
 const licenseProduct = `kos-${slug}`;
 if (licenseProduct.length > 40) {
-	console.error(`Kode produk lisensi "${licenseProduct}" lebih dari 40 karakter; pakai slug yang lebih pendek.`);
+	console.error(
+		`Kode produk lisensi "${licenseProduct}" lebih dari 40 karakter; pakai slug yang lebih pendek.`,
+	);
 	process.exit(1);
 }
 for (const relative of [
@@ -150,7 +152,10 @@ for (const relative of [
 			/const PRODUCT_PUBLIC_KEY_HEX: &str =\s*"[0-9a-f]{64}";/,
 			`const PRODUCT_PUBLIC_KEY_HEX: &str =\n    "${"0".repeat(64)}";`,
 		);
-	if (!updated.includes(`"${licenseProduct}"`) || !updated.includes("0".repeat(64))) {
+	if (
+		!updated.includes(`"${licenseProduct}"`) ||
+		!updated.includes("0".repeat(64))
+	) {
 		console.error(`Gagal menyetel kode produk lisensi di ${relative}.`);
 		process.exit(1);
 	}
@@ -178,9 +183,7 @@ if (verification.exitCode !== 0) {
 
 console.log("Langkah berikutnya:");
 console.log("  1. bun run setup");
-console.log(
-	`  2. Di E:\\Freelance\\lisensi: bun run keygen ${licenseProduct}`,
-);
+console.log(`  2. Di E:\\Freelance\\lisensi: bun run keygen ${licenseProduct}`);
 console.log(
 	"     lalu tempel public key-nya ke PRODUCT_PUBLIC_KEY_HEX di web-desktop/src-tauri/src/desktop/license.rs",
 );

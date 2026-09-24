@@ -4809,9 +4809,12 @@ impl TursoClient {
     /// Peninjau manusia yang melihat foto wajah pemohon adalah faktor kedua di
     /// jalur ini, dan sebenarnya lebih kuat daripada email: email hanya
     /// membuktikan penguasaan kotak masuk, bukan siapa yang meminta.
+    ///
+    /// Siapa yang menyetujui dicatat pemanggilnya lewat `storage::audit`. Tabel
+    /// `role_permission_audit` khusus perubahan izin per role; INSERT lama ke
+    /// sana memakai kolom yang tidak pernah ada dan selalu gagal diam-diam.
     pub async fn password_reset_approve(
         &self,
-        actor_id: i64,
         request_id: &str,
     ) -> Result<Value, CommandError> {
         let existing = self
@@ -4884,13 +4887,6 @@ impl TursoClient {
                 "Permintaan ini sudah diproses oleh orang lain.",
             ));
         }
-
-        self.query_one(
-            "INSERT INTO role_permission_audit (actor_operator_id, action, detail, created_at) VALUES (?, 'password-reset-approve', ?, datetime('now'));",
-            vec![json!(actor_id), json!(request_id)],
-        )
-        .await
-        .ok();
 
         Ok(json!({
             "sukses": true,

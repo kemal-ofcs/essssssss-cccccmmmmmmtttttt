@@ -189,7 +189,8 @@ export default function LoginPage() {
 
   const handleSaveServerUrl = async (urlToSave: string) => {
     const target = urlToSave.trim();
-    if (!target) return;
+    if (!target || isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
     setIsSavingServer(true);
     setServerSaveMessage("");
     try {
@@ -208,6 +209,7 @@ export default function LoginPage() {
         err instanceof Error ? err.message : "Gagal menyimpan URL server.",
       );
     } finally {
+      isSubmittingRef.current = false;
       setIsSavingServer(false);
     }
   };

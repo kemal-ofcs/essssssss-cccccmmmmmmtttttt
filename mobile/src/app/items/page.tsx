@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import {
   type FormEvent,
   useCallback,
@@ -8,7 +9,7 @@ import {
   useState,
 } from "react";
 import { MobileAppShell } from "@/components/MobileAppShell";
-import { hasPermission } from "@/lib/auth/access";
+import { canAccessArea, hasPermission } from "@/lib/auth/access";
 import { useAuth } from "@/lib/context/AuthContext";
 import {
   deleteItem,
@@ -30,7 +31,9 @@ const EMPTY_DRAFT: ItemDraft = {
 };
 
 export default function ItemsPage() {
-  const { user } = useAuth();
+  const router = useRouter();
+  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
+  const canView = canAccessArea(user, "items");
   const canManage = hasPermission(user, "items.manage");
 
   const [items, setItems] = useState<ItemRecord[]>([]);
@@ -39,7 +42,14 @@ export default function ItemsPage() {
   const [loading, setLoading] = useState(true);
   // Guard race condition submit ganda: klik cepat dua kali tidak boleh
   // menghasilkan dua event outbox untuk mutasi yang sama.
-  const submitting = useRef(false);
+  const isSubmittingRef = useRef(false);
+
+  // Static export tidak punya rute /forbidden; `/` meneruskan ke `landingPath`.
+  useEffect(() => {
+    if (authLoading) return;
+    if (!isAuthenticated) router.replace("/login");
+    else if (!canView) router.replace("/");
+  }, [authLoading, isAuthenticated, canView, router]);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -54,8 +64,8 @@ export default function ItemsPage() {
   }, []);
 
   useEffect(() => {
-    void refresh();
-  }, [refresh]);
+    if (canView) void refresh();
+  }, [canView, refresh]);
 
   // Data yang baru masuk dari perangkat lain tiba lewat siklus sinkronisasi,
   // bukan lewat aksi pengguna di layar ini. Tanpa listener ini, hasil scan di
@@ -68,8 +78,8 @@ export default function ItemsPage() {
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    if (submitting.current) return;
-    submitting.current = true;
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
     try {
       await saveItem({ ...draft, harga: Number(draft.harga) || 0 });
       setDraft(EMPTY_DRAFT);
@@ -77,9 +87,25 @@ export default function ItemsPage() {
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Item gagal disimpan.");
     } finally {
-      submitting.current = false;
+      isSubmittingRef.current = false;
     }
   };
+
+  const remove = async (kodeItem: string) => {
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
+    try {
+      await deleteItem(kodeItem);
+      await refresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Item gagal dihapus.");
+    } finally {
+      isSubmittingRef.current = false;
+    }
+  };
+
+  if (authLoading || !isAuthenticated || !canView)
+    return <div className="min-h-dvh bg-slate-950" />;
 
   return (
     <MobileAppShell>
@@ -210,9 +236,7 @@ export default function ItemsPage() {
                     <td className="px-4 py-3 text-right">
                       <button
                         type="button"
-                        onClick={() => {
-                          void deleteItem(item.kode_item).then(refresh);
-                        }}
+                        onClick={() => void remove(item.kode_item)}
                         className="rounded-lg border border-rose-500/30 px-2.5 py-1 text-[11px] font-bold text-rose-300"
                       >
                         Hapus

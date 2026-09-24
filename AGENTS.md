@@ -32,8 +32,28 @@ bun run check             # + cargo test
 
 bun run audit:schema      # JALANKAN DDL keempat lapisan, bandingkan hasilnya
 bun run audit:contract    # route kanonik, tabel snapshot, permission, command
+bun run audit:docs        # dokumen + skill agent vs kode
+bun run audit:sql         # prepare setiap query terhadap skema nyata
+bun run audit:ui-guard    # halaman bermutasi wajib isSubmittingRef
+bun run audit:page-guard  # halaman privat wajib menolak yang tidak berhak
 bun run verify:template   # semua gerbang sekaligus; --rust ikut cargo test
 ```
+
+Tiga audit terakhir ikut `check:quick` dan `check`. `audit:sql` ada karena
+query ke tabel yang tidak ada lolos dari lint maupun typecheck: saat dipasang,
+ia menemukan penghapusan operator di Web yang selalu gagal karena menghitung
+tabel milik proyek asal. Query yang dirakit saat runtime tidak bisa ia periksa,
+dan jumlahnya dicetak di setiap run. `audit:ui-guard` hanya menghitung fungsi
+yang diimpor dari `src/lib/gateways/*`, dan `audit:page-guard` hanya halaman
+yang sendiri mengalihkan tamu ke `/login`; halaman yang memuat data tanpa
+pengalihan itu dicetak sebagai "di luar cakupan". Ketiganya tidak punya daftar
+pengecualian, dan jangan pernah ditambah: halaman yang melanggar diperbaiki.
+
+Skill agent untuk repo ini ada di `.agents/skills/` (Codex dan agent lain) dan
+`.claude/skills/` (Claude Code): `kerjakan-fitur-lintas-platform`,
+`audit-lalu-perbaiki`, dan `resolve-sync-schema-mismatch`. Kedua folder wajib
+identik; `audit:docs` menagihnya, sekaligus memeriksa setiap berkas yang dirujuk
+skill.
 
 Jalankan `bun run check` **sekali di akhir**, setelah perubahan selesai utuh.
 Menjalankannya berulang di tengah penulisan hanya membuang waktu.

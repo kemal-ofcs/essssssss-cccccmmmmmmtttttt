@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 /**
@@ -29,11 +29,42 @@ function read(relativePath: string) {
 	return readFileSync(path, "utf8");
 }
 
-/** Dokumen yang wajib ikut mutakhir. */
-const DOCS = ["CLAUDE.md", "AGENTS.md", "README.md"] as const;
+/**
+ * Dokumen yang wajib ikut mutakhir. Skill agent ikut diperiksa: ia menuntun
+ * agent langkah demi langkah, jadi rujukan berkas yang usang di sana lebih
+ * cepat mengulang bug daripada di README.
+ */
+const SKILL_DIRS = [".agents/skills", ".claude/skills"] as const;
+const skillDocs = (dir: string) =>
+	existsSync(resolve(projectRoot, dir))
+		? readdirSync(resolve(projectRoot, dir)).map(
+				(name) => `${dir}/${name}/SKILL.md`,
+			)
+		: [];
+const DOCS = [
+	"CLAUDE.md",
+	"AGENTS.md",
+	"README.md",
+	...SKILL_DIRS.flatMap(skillDocs),
+];
 
 const docText = new Map<string, string>();
 for (const doc of DOCS) docText.set(doc, read(doc));
+
+// `.agents/skills` (Codex dan agent lain) dan `.claude/skills` (Claude Code)
+// harus berisi skill yang sama; salinan yang berbeda membuat dua agent bekerja
+// dengan aturan berbeda di repo yang sama.
+for (const doc of skillDocs(SKILL_DIRS[0])) {
+	const kembar = doc.replace(SKILL_DIRS[0], SKILL_DIRS[1]);
+	if (docText.get(doc) !== docText.get(kembar)) {
+		errors.push(`${doc} dan ${kembar} berbeda (atau salah satunya tidak ada).`);
+	}
+}
+for (const doc of skillDocs(SKILL_DIRS[1])) {
+	if (!docText.has(doc.replace(SKILL_DIRS[1], SKILL_DIRS[0]))) {
+		errors.push(`${doc} tidak punya kembaran di ${SKILL_DIRS[0]}.`);
+	}
+}
 
 // ── Nilai yang diturunkan dari kode ────────────────────────────────────────
 

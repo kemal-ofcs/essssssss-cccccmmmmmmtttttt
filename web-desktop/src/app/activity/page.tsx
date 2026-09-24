@@ -1,5 +1,6 @@
 "use client";
 
+import { redirect } from "next/navigation";
 import {
   type FormEvent,
   useCallback,
@@ -8,7 +9,7 @@ import {
   useState,
 } from "react";
 import { AppShell } from "@/components/AppShell";
-import { hasPermission } from "@/lib/auth/access";
+import { canAccessArea, hasPermission } from "@/lib/auth/access";
 import { useAuth } from "@/lib/context/AuthContext";
 import {
   type ActivityDraft,
@@ -17,6 +18,7 @@ import {
   recordActivity,
 } from "@/lib/gateways/activity";
 import { SYNC_COMPLETED_EVENT } from "@/lib/gateways/sync-status";
+import { useHydrated } from "@/lib/hooks/useHydrated";
 
 const EMPTY_DRAFT: ActivityDraft = {
   kode_item: "",
@@ -26,14 +28,15 @@ const EMPTY_DRAFT: ActivityDraft = {
 };
 
 export default function ActivityPage() {
-  const { user } = useAuth();
+  const isHydrated = useHydrated();
+  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
   const canRecord = hasPermission(user, "activity.record");
 
   const [rows, setRows] = useState<ActivityRecord[]>([]);
   const [draft, setDraft] = useState<ActivityDraft>(EMPTY_DRAFT);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
-  const submitting = useRef(false);
+  const isSubmittingRef = useRef(false);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -59,8 +62,8 @@ export default function ActivityPage() {
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    if (submitting.current) return;
-    submitting.current = true;
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
     try {
       await recordActivity({ ...draft, jumlah: Number(draft.jumlah) || 0 });
       setDraft(EMPTY_DRAFT);
@@ -70,9 +73,14 @@ export default function ActivityPage() {
         cause instanceof Error ? cause.message : "Aktivitas gagal dicatat.",
       );
     } finally {
-      submitting.current = false;
+      isSubmittingRef.current = false;
     }
   };
+
+  if (!isHydrated || authLoading)
+    return <div className="min-h-dvh bg-slate-950" />;
+  if (!isAuthenticated) redirect("/login");
+  if (!canAccessArea(user, "activity")) redirect("/forbidden");
 
   return (
     <AppShell>

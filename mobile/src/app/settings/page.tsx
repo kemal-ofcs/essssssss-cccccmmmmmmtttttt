@@ -1,7 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { type FormEvent, useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import {
+  type FormEvent,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { CompanyProfileCard } from "@/components/CompanyProfileCard";
 import { DatabaseBackupCard } from "@/components/DatabaseBackupCard";
 import { LicenseCard } from "@/components/license/LicenseCard";
@@ -10,7 +17,7 @@ import { MobileAppShell } from "@/components/MobileAppShell";
 import { PasswordRecoveryCard } from "@/components/PasswordRecoveryCard";
 import { TwoFactorCard } from "@/components/TwoFactorCard";
 import { Icon } from "@/components/ui/Icon";
-import { hasPermission } from "@/lib/auth/access";
+import { canAccessArea, hasPermission } from "@/lib/auth/access";
 import { triggerHaptic } from "@/lib/client/haptics";
 import { useAuth } from "@/lib/context/AuthContext";
 import {
@@ -38,8 +45,12 @@ import {
 type Feedback = { type: "success" | "error"; message: string } | null;
 
 export default function SettingsPage() {
-  const { user } = useAuth();
+  const router = useRouter();
+  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
+  const canView = canAccessArea(user, "settings");
   const canManage = hasPermission(user, "settings.manage");
+  // Ref, bukan state: dua klik dalam satu tick sama-sama membaca state lama.
+  const isSubmittingRef = useRef(false);
   // MENGAJUKAN reset password terbuka untuk semua akun tanpa sesi; yang
   // di-RBAC adalah MEMBACA jejaknya, karena tiap baris menyimpan foto wajah.
   const canViewResetHistory = hasPermission(user, "password_reset.view");
@@ -74,13 +85,21 @@ export default function SettingsPage() {
     setTokenSaved(config.authTokenSaved);
   }, []);
 
+  // Static export tidak punya rute /forbidden; `/` meneruskan ke halaman
+  // pertama yang boleh dibuka akun ini (`landingPath`).
   useEffect(() => {
-    if (!isDesktop) return;
+    if (authLoading) return;
+    if (!isAuthenticated) router.replace("/login");
+    else if (!canView) router.replace("/");
+  }, [authLoading, isAuthenticated, canView, router]);
+
+  useEffect(() => {
+    if (!isDesktop || !canView) return;
     void loadConfig().catch(() => undefined);
     void getSyncStatus()
       .then(setSync)
       .catch(() => undefined);
-  }, [isDesktop, loadConfig]);
+  }, [isDesktop, canView, loadConfig]);
 
   const handleSave = async (event: FormEvent) => {
     event.preventDefault();
@@ -104,6 +123,8 @@ export default function SettingsPage() {
       });
       return;
     }
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
     setBusy(true);
     try {
       await saveTursoConfig(
@@ -135,6 +156,7 @@ export default function SettingsPage() {
             : "Konfigurasi database gagal disimpan.",
       });
     } finally {
+      isSubmittingRef.current = false;
       setBusy(false);
     }
   };
@@ -168,7 +190,9 @@ export default function SettingsPage() {
   };
 
   const handleReset = async () => {
+    if (isSubmittingRef.current) return;
     if (!confirm("Hapus konfigurasi database dari perangkat ini?")) return;
+    isSubmittingRef.current = true;
     setBusy(true);
     try {
       await clearTursoConfig();
@@ -189,6 +213,7 @@ export default function SettingsPage() {
           error instanceof Error ? error.message : "Reset konfigurasi gagal.",
       });
     } finally {
+      isSubmittingRef.current = false;
       setBusy(false);
     }
   };
@@ -209,6 +234,9 @@ export default function SettingsPage() {
       setSyncing(false);
     }
   };
+
+  if (authLoading || !isAuthenticated || !canView)
+    return <div className="min-h-dvh bg-slate-950" />;
 
   return (
     <MobileAppShell>

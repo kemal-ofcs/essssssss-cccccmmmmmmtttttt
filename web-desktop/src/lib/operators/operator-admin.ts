@@ -245,28 +245,14 @@ export async function removeOperator(
     }
   }
 
-  const references = await Promise.all([
-    client.execute({
-      sql: "SELECT COUNT(*) AS total FROM log_scan WHERE kode_operator = ?;",
-      args: [operatorCode],
-    }),
-    client.execute({
-      sql: "SELECT COUNT(*) AS total FROM koreksi_admin WHERE kode_operator = ?;",
-      args: [operatorCode],
-    }),
-    client.execute({
-      sql: `
-        SELECT COUNT(*) AS total FROM backup_karyawan
-        WHERE kode_operator = ? OR operator_pembatalan = ?;
-      `,
-      args: [operatorCode, operatorCode],
-    }),
-    client.execute({
-      sql: "SELECT COUNT(*) AS total FROM role_permission_audit WHERE changed_by = ?;",
-      args: [operatorCode],
-    }),
-  ]);
-  if (references.some((result) => Number(result.rows[0]?.total) > 0)) {
+  // Hanya tabel yang ada di skema ini. Daftar lama juga menghitung tabel milik
+  // proyek asal (`log_scan`, `koreksi_admin`, `backup_karyawan`), sehingga
+  // setiap penghapusan gagal dengan "no such table".
+  const references = await client.execute({
+    sql: "SELECT COUNT(*) AS total FROM role_permission_audit WHERE changed_by = ?;",
+    args: [operatorCode],
+  });
+  if (Number(references.rows[0]?.total) > 0) {
     throw new Error(
       "Operator memiliki histori transaksi. Nonaktifkan akun agar audit tetap utuh.",
     );

@@ -1,5 +1,6 @@
 "use client";
 
+import { redirect } from "next/navigation";
 import {
   type FormEvent,
   useCallback,
@@ -8,7 +9,7 @@ import {
   useState,
 } from "react";
 import { AppShell } from "@/components/AppShell";
-import { hasPermission } from "@/lib/auth/access";
+import { canAccessArea, hasPermission } from "@/lib/auth/access";
 import { useAuth } from "@/lib/context/AuthContext";
 import {
   deleteItem,
@@ -18,6 +19,7 @@ import {
   saveItem,
 } from "@/lib/gateways/item";
 import { SYNC_COMPLETED_EVENT } from "@/lib/gateways/sync-status";
+import { useHydrated } from "@/lib/hooks/useHydrated";
 
 const EMPTY_DRAFT: ItemDraft = {
   kode_item: "",
@@ -30,7 +32,8 @@ const EMPTY_DRAFT: ItemDraft = {
 };
 
 export default function ItemsPage() {
-  const { user } = useAuth();
+  const isHydrated = useHydrated();
+  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
   const canManage = hasPermission(user, "items.manage");
 
   const [items, setItems] = useState<ItemRecord[]>([]);
@@ -39,7 +42,7 @@ export default function ItemsPage() {
   const [loading, setLoading] = useState(true);
   // Guard race condition submit ganda: klik cepat dua kali tidak boleh
   // menghasilkan dua event outbox untuk mutasi yang sama.
-  const submitting = useRef(false);
+  const isSubmittingRef = useRef(false);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -68,8 +71,8 @@ export default function ItemsPage() {
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    if (submitting.current) return;
-    submitting.current = true;
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
     try {
       await saveItem({ ...draft, harga: Number(draft.harga) || 0 });
       setDraft(EMPTY_DRAFT);
@@ -77,9 +80,27 @@ export default function ItemsPage() {
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Item gagal disimpan.");
     } finally {
-      submitting.current = false;
+      isSubmittingRef.current = false;
     }
   };
+
+  const remove = async (kodeItem: string) => {
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
+    try {
+      await deleteItem(kodeItem);
+      await refresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Item gagal dihapus.");
+    } finally {
+      isSubmittingRef.current = false;
+    }
+  };
+
+  if (!isHydrated || authLoading)
+    return <div className="min-h-dvh bg-slate-950" />;
+  if (!isAuthenticated) redirect("/login");
+  if (!canAccessArea(user, "items")) redirect("/forbidden");
 
   return (
     <AppShell>
@@ -210,9 +231,7 @@ export default function ItemsPage() {
                     <td className="px-4 py-3 text-right">
                       <button
                         type="button"
-                        onClick={() => {
-                          void deleteItem(item.kode_item).then(refresh);
-                        }}
+                        onClick={() => void remove(item.kode_item)}
                         className="rounded-lg border border-rose-500/30 px-2.5 py-1 text-[11px] font-bold text-rose-300"
                       >
                         Hapus

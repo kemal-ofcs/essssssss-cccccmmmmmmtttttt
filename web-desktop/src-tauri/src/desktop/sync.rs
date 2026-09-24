@@ -445,19 +445,6 @@ fn apply_table(
                 continue;
             }
 
-            if definition.domain == "log-scan" {
-                let ts = entity_key(row, "timestamp_scan");
-                let emp = entity_key(row, "id_karyawan");
-                let kind = entity_key(row, "jenis_scan");
-                let tgl = entity_key(row, "tanggal_kerja");
-                let ref_id = entity_key(row, "id_referensi");
-                // Bersihkan baris log scan lokal sementara (id_log < 0) yang cocok sebelum memasukkan baris server
-                let _ = transaction.execute(
-                    "DELETE FROM log_scan WHERE id_log < 0 AND tanggal_kerja = ? AND id_karyawan = ? AND (jenis_scan = ? OR (id_referensi = ? AND id_referensi != '') OR timestamp_scan = ?);",
-                    params![tgl, emp, kind, ref_id, ts],
-                );
-            }
-
             let values = definition
                 .columns
                 .iter()
@@ -763,35 +750,6 @@ pub fn apply_snapshot_with_pulse(
                 )
                 .map_err(|_| CommandError::internal())?;
         }
-    }
-
-    // Bersihkan temporary local log_scan (id_log < 0) jika sudah ada baris server
-    // permanen yang cocok. Dijalankan juga ketika tidak ada baris baru: baris
-    // sementara bisa tertinggal dari siklus sebelumnya, misalnya ketika baris
-    // server-nya sempat dilewati karena outbox-nya masih pending.
-    // `id_log` adalah rowid, jadi penjagaan `id_log < 0` di bawah nyaris gratis.
-    let has_temporary_scan_logs = transaction
-        .query_row(
-            "SELECT EXISTS(SELECT 1 FROM log_scan WHERE id_log < 0);",
-            [],
-            |row| row.get::<_, bool>(0),
-        )
-        .unwrap_or(false);
-    if has_temporary_scan_logs {
-        let _ = transaction.execute(
-            r#"
-        DELETE FROM log_scan
-        WHERE id_log < 0
-          AND EXISTS (
-            SELECT 1 FROM log_scan s2
-            WHERE s2.id_log > 0
-              AND s2.tanggal_kerja = log_scan.tanggal_kerja
-              AND s2.id_karyawan = log_scan.id_karyawan
-              AND s2.jenis_scan = log_scan.jenis_scan
-          );
-        "#,
-            [],
-        );
     }
 
     transaction

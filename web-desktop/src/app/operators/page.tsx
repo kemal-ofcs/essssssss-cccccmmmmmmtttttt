@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import type { FormEvent, ReactNode } from "react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { FeedbackBanner } from "@/components/ui/FeedbackBanner";
 import { Icon } from "@/components/ui/Icon";
@@ -81,6 +81,9 @@ export default function MasterOperatorPage() {
   const [roles, setRoles] = useState<RoleRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  // Ref, bukan state `saving`: dua klik dalam satu tick sama-sama membaca state
+  // lama, dan membuat operator dua kali menghasilkan dua akun.
+  const isSubmittingRef = useRef(false);
   const [feedback, setFeedback] = useState<{
     tone: "success" | "error";
     message: string;
@@ -169,6 +172,8 @@ export default function MasterOperatorPage() {
   const submitOperator = async (event: FormEvent) => {
     event.preventDefault();
     if (!user) return;
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
     setSaving(true);
     setFeedback(null);
     try {
@@ -188,12 +193,15 @@ export default function MasterOperatorPage() {
     } catch (error) {
       setFeedback({ tone: "error", message: errorMessage(error) });
     } finally {
+      isSubmittingRef.current = false;
       setSaving(false);
     }
   };
 
   const resetOperatorTwoFactor = async (operator: OperatorRecord) => {
     if (!user) return;
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
     setSaving(true);
     setFeedback(null);
     try {
@@ -206,6 +214,7 @@ export default function MasterOperatorPage() {
     } catch (error) {
       setFeedback({ tone: "error", message: errorMessage(error) });
     } finally {
+      isSubmittingRef.current = false;
       setSaving(false);
     }
   };
@@ -237,6 +246,8 @@ export default function MasterOperatorPage() {
   const submitRole = async (event: FormEvent) => {
     event.preventDefault();
     if (!user) return;
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
     setSaving(true);
     setFeedback(null);
     try {
@@ -259,12 +270,15 @@ export default function MasterOperatorPage() {
     } catch (error) {
       setFeedback({ tone: "error", message: errorMessage(error) });
     } finally {
+      isSubmittingRef.current = false;
       setSaving(false);
     }
   };
 
   const confirmDelete = async () => {
     if (!user || !deleteTarget) return;
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
     setSaving(true);
     setFeedback(null);
     try {
@@ -280,6 +294,7 @@ export default function MasterOperatorPage() {
       setDeleteTarget(null);
       setFeedback({ tone: "error", message: errorMessage(error) });
     } finally {
+      isSubmittingRef.current = false;
       setSaving(false);
     }
   };

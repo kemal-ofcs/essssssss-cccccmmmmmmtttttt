@@ -94,6 +94,24 @@ const GATES: readonly Gate[] = [
 			"Dokumen mengklaim angka atau daftar yang tidak lagi cocok dengan kode, atau merujuk berkas yang sudah tidak ada. Dokumen yang bertentangan dengan kode menuntun orang berikutnya mengulang bug yang sudah diperbaiki.",
 	},
 	{
+		name: "Audit SQL",
+		cmd: ["bun", "scripts/audit-sql.ts"],
+		meaning:
+			"Ada query yang menyebut tabel atau kolom yang tidak ada di skema. Lint dan typecheck tidak pernah melihatnya karena bagi mereka itu hanya teks di dalam string.",
+	},
+	{
+		name: "Audit penjaga klik ganda",
+		cmd: ["bun", "scripts/audit-ui-guard.ts"],
+		meaning:
+			"Ada halaman yang memanggil gateway mutasi tanpa `isSubmittingRef`. Klik ganda mengirim mutasi yang sama dua kali.",
+	},
+	{
+		name: "Audit penjaga halaman",
+		cmd: ["bun", "scripts/audit-page-guard.ts"],
+		meaning:
+			"Ada halaman privat yang menolak tamu tetapi tidak menolak pengguna tanpa izin.",
+	},
+	{
 		name: "web-desktop: lint + typecheck + test",
 		cmd: ["bun", "run", "check:quick"],
 		cwd: "web-desktop",
