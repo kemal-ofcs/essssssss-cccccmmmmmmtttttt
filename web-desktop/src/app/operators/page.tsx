@@ -33,6 +33,7 @@ import {
 import type { RoleRecord } from "@/lib/rbac/types";
 
 type ActiveTab = "operators" | "roles";
+type RecordStatus = OperatorDraft["status"];
 
 const EMPTY_OPERATOR: OperatorDraft = {
   kodeOperator: "",
@@ -42,7 +43,7 @@ const EMPTY_OPERATOR: OperatorDraft = {
   noHp: "",
   password: "",
   roleId: 0,
-  status: "Aktif",
+  status: "Active",
 };
 
 const EDITABLE_PERMISSION_GROUPS = PERMISSION_CATALOG.filter(
@@ -61,14 +62,14 @@ const EDITABLE_PERMISSION_GROUPS = PERMISSION_CATALOG.filter(
 interface RoleFormState {
   name: string;
   description: string;
-  status: "Aktif" | "Nonaktif";
+  status: RecordStatus;
   requireTotp: boolean;
 }
 
 function errorMessage(error: unknown) {
-  if (!(error instanceof Error)) return "Operasi tidak dapat diselesaikan.";
+  if (!(error instanceof Error)) return "The operation could not be completed.";
   if (error.message.includes("UNIQUE")) {
-    return "Kode operator, username, atau nama role sudah digunakan.";
+    return "The operator code, username, or role name is already in use.";
   }
   return error.message;
 }
@@ -99,7 +100,7 @@ export default function MasterOperatorPage() {
   const [roleDraft, setRoleDraft] = useState<RoleFormState>({
     name: "",
     description: "",
-    status: "Aktif",
+    status: "Active",
     requireTotp: false,
   });
   const [selectedPermissions, setSelectedPermissions] = useState<
@@ -148,7 +149,7 @@ export default function MasterOperatorPage() {
   }, [loadData]);
 
   const openNewOperator = () => {
-    const firstRole = roles.find((role) => role.status === "Aktif");
+    const firstRole = roles.find((role) => role.status === "Active");
     setEditingOperator(null);
     setOperatorDraft({ ...EMPTY_OPERATOR, roleId: firstRole?.id ?? 0 });
     setOperatorModal(true);
@@ -186,9 +187,7 @@ export default function MasterOperatorPage() {
       await loadData();
       setFeedback({
         tone: "success",
-        message: editingOperator
-          ? "Operator berhasil diperbarui."
-          : "Operator berhasil ditambahkan.",
+        message: editingOperator ? "Operator updated." : "Operator added.",
       });
     } catch (error) {
       setFeedback({ tone: "error", message: errorMessage(error) });
@@ -208,7 +207,7 @@ export default function MasterOperatorPage() {
       await adminDisableTwoFactor(operator.id);
       setFeedback({
         tone: "success",
-        message: `Verifikasi dua langkah ${operator.name} dimatikan. Minta yang bersangkutan mengaktifkannya lagi dari Pengaturan.`,
+        message: `Two-step verification for ${operator.name} is off. Ask them to turn it on again from Settings.`,
       });
       await loadData();
     } catch (error) {
@@ -224,7 +223,7 @@ export default function MasterOperatorPage() {
     setRoleDraft({
       name: "",
       description: "",
-      status: "Aktif",
+      status: "Active",
       requireTotp: false,
     });
     setSelectedPermissions(new Set());
@@ -264,8 +263,8 @@ export default function MasterOperatorPage() {
       setFeedback({
         tone: "success",
         message: editingRole
-          ? "Role dan permission berhasil diperbarui."
-          : "Role baru berhasil dibuat.",
+          ? "Role and permissions updated."
+          : "Role created.",
       });
     } catch (error) {
       setFeedback({ tone: "error", message: errorMessage(error) });
@@ -289,7 +288,7 @@ export default function MasterOperatorPage() {
       }
       setDeleteTarget(null);
       await loadData();
-      setFeedback({ tone: "success", message: "Data berhasil dihapus." });
+      setFeedback({ tone: "success", message: "Deleted." });
     } catch (error) {
       setDeleteTarget(null);
       setFeedback({ tone: "error", message: errorMessage(error) });
@@ -300,20 +299,19 @@ export default function MasterOperatorPage() {
   };
 
   if (!isHydrated || authLoading)
-    return <div className="min-h-dvh bg-slate-950" />;
+    return <div className="min-h-dvh bg-background" />;
   if (!isAuthenticated) redirect("/login");
   if (!user?.isSuperadmin) redirect("/forbidden");
 
   return (
-    <AppShell contentClassName="mx-auto w-full max-w-7xl space-y-6 px-4 py-6 sm:px-6 lg:px-8 lg:py-9">
+    <AppShell>
       <PageHeader
-        eyebrow="Administrasi akses"
-        title="Master Operator"
-        description="Kelola akun, role dinamis, dan permission. Perubahan keamanan hanya dapat dilakukan Superadmin saat online."
+        title="Operators"
+        description="Manage accounts, dynamic roles, and permissions. Security changes can only be made by the Superadmin while online."
         actions={
           <StatusBadge tone="warning">
-            <Icon name="lock" className="size-3.5" />
-            Superadmin saja
+            <Icon name="lock" className="size-3" />
+            Superadmin only
           </StatusBadge>
         }
       />
@@ -327,22 +325,28 @@ export default function MasterOperatorPage() {
         </FeedbackBanner>
       ) : null}
 
-      <div className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/[0.04] p-2 sm:flex-row sm:items-center sm:justify-between">
-        <div className="grid grid-cols-2 gap-1 rounded-xl bg-slate-950/70 p-1">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div
+          role="tablist"
+          aria-label="Operators and roles"
+          className="inline-grid grid-cols-2 gap-1 rounded-md border border-surface-container bg-surface-container-low p-1"
+        >
           {(["operators", "roles"] as const).map((tab) => (
             <button
               key={tab}
               type="button"
+              role="tab"
+              aria-selected={activeTab === tab}
               onClick={() => setActiveTab(tab)}
-              className={`min-h-11 rounded-lg px-4 text-xs font-black transition ${
+              className={`min-h-9 rounded-md px-3 text-body-md font-semibold transition-colors ${
                 activeTab === tab
-                  ? "bg-sky-400 text-slate-950"
-                  : "text-slate-400 hover:text-white"
+                  ? "bg-surface-container-lowest text-on-surface shadow-[0_1px_2px_rgb(0_0_0/0.08)]"
+                  : "text-on-surface-variant hover:text-on-surface"
               }`}
             >
               {tab === "operators"
-                ? `Pengguna (${operators.length})`
-                : `Role & Akses (${roles.length})`}
+                ? `Users (${operators.length})`
+                : `Roles and access (${roles.length})`}
             </button>
           ))}
         </div>
@@ -350,15 +354,15 @@ export default function MasterOperatorPage() {
           type="button"
           onClick={activeTab === "operators" ? openNewOperator : openNewRole}
           disabled={loading}
-          className="min-h-11 rounded-xl bg-amber-300 px-4 text-xs font-black text-slate-950 transition hover:bg-amber-200 disabled:opacity-50"
+          className="app-btn app-btn-primary"
         >
-          {activeTab === "operators" ? "Tambah operator" : "Buat role baru"}
+          {activeTab === "operators" ? "Add operator" : "Create role"}
         </button>
       </div>
 
       {loading ? (
-        <div className="app-panel grid min-h-72 place-items-center rounded-3xl text-sm text-slate-400">
-          Memuat Master Operator...
+        <div className="app-panel grid min-h-60 place-items-center text-body-md text-on-surface-variant">
+          Loading operators...
         </div>
       ) : activeTab === "operators" ? (
         <OperatorTable
@@ -405,30 +409,30 @@ export default function MasterOperatorPage() {
 
       {deleteTarget ? (
         <Modal
-          title="Konfirmasi penghapusan"
+          title="Confirm deletion"
           titleId="delete-modal-title"
           onClose={() => setDeleteTarget(null)}
         >
-          <p className="text-sm leading-6 text-slate-300">
-            Hapus {deleteTarget.type === "operator" ? "operator" : "role"}{" "}
-            <strong className="text-white">{deleteTarget.item.name}</strong>?
-            Data dengan histori transaksi akan ditolak dan harus dinonaktifkan.
+          <p className="text-body-md text-on-surface">
+            Delete {deleteTarget.type === "operator" ? "operator" : "role"}{" "}
+            <strong>{deleteTarget.item.name}</strong>? Records with history are
+            rejected and must be set to inactive instead.
           </p>
-          <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+          <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
             <button
               type="button"
               onClick={() => setDeleteTarget(null)}
-              className="min-h-11 rounded-xl border border-white/10 px-4 text-sm font-bold text-slate-300"
+              className="app-btn app-btn-secondary"
             >
-              Batal
+              Cancel
             </button>
             <button
               type="button"
               onClick={confirmDelete}
               disabled={saving}
-              className="min-h-11 rounded-xl bg-rose-500 px-4 text-sm font-black text-white disabled:opacity-50"
+              className="app-btn app-btn-danger"
             >
-              {saving ? "Menghapus..." : "Hapus"}
+              {saving ? "Deleting..." : "Delete"}
             </button>
           </div>
         </Modal>
@@ -456,13 +460,13 @@ function OperatorFormModal({
 }) {
   return (
     <Modal
-      title={editingOperator ? "Edit operator" : "Tambah operator"}
+      title={editingOperator ? "Edit operator" : "Add operator"}
       titleId="operator-modal-title"
       onClose={onClose}
     >
       <form className="space-y-4" onSubmit={onSubmit}>
         <div className="grid gap-4 sm:grid-cols-2">
-          <FormField label="Kode operator" htmlFor="operator-code">
+          <FormField label="Operator code" htmlFor="operator-code">
             <input
               id="operator-code"
               required
@@ -470,7 +474,7 @@ function OperatorFormModal({
               onChange={(event) =>
                 onChange({ ...draft, kodeOperator: event.target.value })
               }
-              className="app-input"
+              className="app-input font-mono"
             />
           </FormField>
           <FormField label="Username" htmlFor="operator-username">
@@ -493,7 +497,7 @@ function OperatorFormModal({
               type="email"
               required
               autoComplete="email"
-              placeholder="operator@contoh.id"
+              placeholder="operator@company.co.id"
               value={draft.email}
               onChange={(event) =>
                 onChange({ ...draft, email: event.target.value })
@@ -501,7 +505,7 @@ function OperatorFormModal({
               className="app-input"
             />
           </FormField>
-          <FormField label="Nomor HP" htmlFor="operator-phone">
+          <FormField label="Phone number" htmlFor="operator-phone">
             <input
               id="operator-phone"
               type="tel"
@@ -517,12 +521,12 @@ function OperatorFormModal({
             />
           </FormField>
         </div>
-        <p className="text-xs text-slate-500">
-          Email dan nomor HP wajib diisi. Email dipakai untuk mengirim link
-          pemulihan pada fitur Lupa Password, jadi akun tanpa email tidak dapat
-          memulihkan passwordnya sendiri.
+        <p className="text-body-sm text-on-surface-variant">
+          Email and phone number are required. The email receives recovery links
+          for Forgot password, so an account without email cannot recover its
+          own password.
         </p>
-        <FormField label="Nama operator" htmlFor="operator-name">
+        <FormField label="Operator name" htmlFor="operator-name">
           <input
             id="operator-name"
             required
@@ -536,8 +540,8 @@ function OperatorFormModal({
         <FormField
           label={
             editingOperator
-              ? "Password baru (opsional, min. 8 karakter)"
-              : "Password (min. 8 karakter)"
+              ? "New password (optional, at least 8 characters)"
+              : "Password (at least 8 characters)"
           }
           htmlFor="operator-password"
         >
@@ -566,7 +570,8 @@ function OperatorFormModal({
             >
               {roles
                 .filter(
-                  (role) => role.status === "Aktif" || role.id === draft.roleId,
+                  (role) =>
+                    role.status === "Active" || role.id === draft.roleId,
                 )
                 .map((role) => (
                   <option key={role.id} value={role.id}>
@@ -582,13 +587,13 @@ function OperatorFormModal({
               onChange={(event) =>
                 onChange({
                   ...draft,
-                  status: event.target.value as "Aktif" | "Nonaktif",
+                  status: event.target.value as RecordStatus,
                 })
               }
               className="app-input"
             >
-              <option value="Aktif">Aktif</option>
-              <option value="Nonaktif">Nonaktif</option>
+              <option value="Active">Active</option>
+              <option value="Inactive">Inactive</option>
             </select>
           </FormField>
         </div>
@@ -619,12 +624,12 @@ function RoleFormModal({
 }) {
   return (
     <Modal
-      title={editingRole ? "Edit role & akses" : "Buat role baru"}
+      title={editingRole ? "Edit role and access" : "Create role"}
       titleId="role-modal-title"
       onClose={onClose}
     >
-      <form className="space-y-5" onSubmit={onSubmit}>
-        <FormField label="Nama role" htmlFor="role-name">
+      <form className="space-y-4" onSubmit={onSubmit}>
+        <FormField label="Role name" htmlFor="role-name">
           <input
             id="role-name"
             required
@@ -637,7 +642,7 @@ function RoleFormModal({
             className="app-input"
           />
         </FormField>
-        <FormField label="Deskripsi" htmlFor="role-description">
+        <FormField label="Description" htmlFor="role-description">
           <textarea
             id="role-description"
             rows={3}
@@ -646,26 +651,24 @@ function RoleFormModal({
             onChange={(event) =>
               onDraftChange({ ...draft, description: event.target.value })
             }
-            className="app-input py-3"
+            className="app-input py-2"
           />
         </FormField>
         {!editingRole?.isSuperadmin ? (
           <fieldset>
-            <legend className="text-xs font-black uppercase tracking-wider text-slate-300">
-              Permission role
-            </legend>
-            <div className="mt-3 max-h-72 space-y-4 overflow-y-auto rounded-2xl border border-white/10 bg-slate-950/60 p-4">
+            <legend className="app-label">Role permissions</legend>
+            <div className="mt-2 max-h-72 space-y-4 overflow-y-auto rounded-md border border-surface-container bg-surface-container-low p-3">
               {Object.entries(EDITABLE_PERMISSION_GROUPS).map(
                 ([group, groupPermissions]) => (
                   <div key={group}>
-                    <p className="mb-2 text-[10px] font-black uppercase tracking-[0.2em] text-sky-300">
+                    <p className="mb-2 font-mono text-label-caps uppercase text-on-surface-variant">
                       {group}
                     </p>
                     <div className="grid gap-2 sm:grid-cols-2">
                       {groupPermissions.map((permission) => (
                         <label
                           key={permission.key}
-                          className="flex min-h-11 cursor-pointer items-center gap-3 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-xs text-slate-200"
+                          className="flex min-h-11 cursor-pointer items-center gap-3 rounded-md border border-surface-container bg-surface-container-lowest px-3 text-body-md text-on-surface"
                         >
                           <input
                             type="checkbox"
@@ -677,7 +680,7 @@ function RoleFormModal({
                               else next.delete(permission.key);
                               onPermissionsChange(next);
                             }}
-                            className="size-4 accent-sky-400"
+                            className="size-4 accent-secondary"
                           />
                           {permission.name}
                         </label>
@@ -689,47 +692,47 @@ function RoleFormModal({
             </div>
           </fieldset>
         ) : (
-          <FeedbackBanner tone="success">
-            Superadmin selalu memiliki seluruh permission.
+          <FeedbackBanner tone="info">
+            The Superadmin always has every permission.
           </FeedbackBanner>
         )}
         {editingRole && !editingRole.isSuperadmin ? (
-          <FormField label="Status role" htmlFor="role-status">
+          <FormField label="Role status" htmlFor="role-status">
             <select
               id="role-status"
               value={draft.status}
               onChange={(event) =>
                 onDraftChange({
                   ...draft,
-                  status: event.target.value as "Aktif" | "Nonaktif",
+                  status: event.target.value as RecordStatus,
                 })
               }
               className="app-input"
             >
-              <option value="Aktif">Aktif</option>
-              <option value="Nonaktif">Nonaktif</option>
+              <option value="Active">Active</option>
+              <option value="Inactive">Inactive</option>
             </select>
           </FormField>
         ) : null}
         {!editingRole?.isSuperadmin ? (
-          <label className="flex items-start gap-3 rounded-2xl border border-white/10 bg-slate-950/50 p-3">
+          <label className="flex items-start gap-3 rounded-md border border-surface-container bg-surface-container-low p-3">
             <input
               type="checkbox"
               checked={draft.requireTotp}
               onChange={(event) =>
                 onDraftChange({ ...draft, requireTotp: event.target.checked })
               }
-              className="mt-0.5 size-4 shrink-0"
+              className="mt-0.5 size-4 shrink-0 accent-secondary"
             />
-            <span className="text-xs leading-5 text-slate-300">
-              <strong className="text-white">
-                Wajibkan verifikasi dua langkah
+            <span className="text-body-md text-on-surface-variant">
+              <strong className="text-on-surface">
+                Require two-step verification
               </strong>
               <br />
-              Operator dengan role ini tidak dapat login sampai mengaktifkan 2FA
-              di Pengaturan. Nyalakan hanya setelah mereka sempat
-              mendaftarkannya — bila tidak, mereka akan tertahan di layar login
-              dan perlu dibukakan Admin.
+              Operators with this role cannot sign in until they turn on 2FA in
+              Settings. Turn this on only after they have had a chance to
+              enroll; otherwise they will be stuck at sign-in until an admin
+              unlocks them.
             </span>
           </label>
         ) : null}
@@ -759,65 +762,71 @@ function OperatorTable({
   onResetTwoFactor: (operator: OperatorRecord) => void;
 }) {
   return (
-    <div className="overflow-hidden rounded-3xl border border-white/10 bg-slate-900/80">
+    <div className="app-panel overflow-hidden">
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[760px] text-left text-xs">
-          <thead className="border-b border-white/10 bg-slate-950/70 text-slate-400">
-            <tr>
-              <th className="p-4">Operator</th>
-              <th className="p-4">Kode / Username</th>
-              <th className="p-4">Role</th>
-              <th className="p-4">2FA</th>
-              <th className="p-4">Status</th>
-              <th className="p-4 text-right">Aksi</th>
+        <table className="w-full min-w-[760px] text-left text-body-md">
+          <thead className="border-b border-surface-container bg-surface-container-low">
+            <tr className="font-mono text-label-caps uppercase text-on-surface-variant">
+              <th className="px-3 py-2 font-semibold">Operator</th>
+              <th className="px-3 py-2 font-semibold">Code / username</th>
+              <th className="px-3 py-2 font-semibold">Role</th>
+              <th className="px-3 py-2 font-semibold">2FA</th>
+              <th className="px-3 py-2 font-semibold">Status</th>
+              <th className="px-3 py-2 text-right font-semibold">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-white/10">
+          <tbody className="divide-y divide-surface-container">
             {operators.map((operator) => (
-              <tr key={operator.id} className="text-slate-300">
-                <td className="p-4">
-                  <p className="font-bold text-white">{operator.name}</p>
+              <tr key={operator.id} className="text-on-surface">
+                <td className="px-3 py-2">
+                  <p className="font-semibold">{operator.name}</p>
                   {operator.id === currentUserId ? (
-                    <span className="text-[10px] text-sky-300">Akun aktif</span>
+                    <span className="text-body-sm text-secondary">
+                      Signed in
+                    </span>
                   ) : null}
                 </td>
-                <td className="p-4 font-mono">
-                  <p>{operator.kodeOperator}</p>
-                  <p className="text-slate-500">@{operator.username}</p>
-                  <p className="text-slate-500">
-                    {operator.email || "Email belum diisi"}
+                <td className="px-3 py-2">
+                  <p className="font-mono text-code-md">
+                    {operator.kodeOperator}
                   </p>
-                  <p className="text-slate-500">
-                    {operator.noHp || "Nomor HP belum diisi"}
+                  <p className="text-body-sm text-on-surface-variant">
+                    @{operator.username}
+                  </p>
+                  <p className="text-body-sm text-on-surface-variant">
+                    {operator.email || "No email yet"}
+                  </p>
+                  <p className="text-body-sm text-on-surface-variant">
+                    {operator.noHp || "No phone number yet"}
                   </p>
                 </td>
-                <td className="p-4">
+                <td className="px-3 py-2">
                   <StatusBadge
                     tone={operator.isSuperadmin ? "warning" : "info"}
                   >
                     {operator.roleName}
                   </StatusBadge>
                 </td>
-                <td className="p-4">
+                <td className="px-3 py-2">
                   <StatusBadge
                     tone={operator.totpEnabled ? "success" : "neutral"}
                   >
-                    {operator.totpEnabled ? "Aktif" : "Mati"}
+                    {operator.totpEnabled ? "On" : "Off"}
                   </StatusBadge>
                 </td>
-                <td className="p-4">
+                <td className="px-3 py-2">
                   <StatusBadge
-                    tone={operator.status === "Aktif" ? "success" : "neutral"}
+                    tone={operator.status === "Active" ? "success" : "neutral"}
                   >
                     {operator.status}
                   </StatusBadge>
                 </td>
-                <td className="p-4">
+                <td className="px-3 py-2">
                   <div className="flex justify-end gap-2">
                     <button
                       type="button"
                       onClick={() => onEdit(operator)}
-                      className="min-h-10 rounded-lg border border-sky-300/20 bg-sky-300/10 px-3 font-bold text-sky-200"
+                      className="app-btn app-btn-secondary"
                     >
                       Edit
                     </button>
@@ -826,8 +835,8 @@ function OperatorTable({
                         type="button"
                         onClick={() => onResetTwoFactor(operator)}
                         disabled={saving}
-                        title="Matikan verifikasi dua langkah operator ini"
-                        className="min-h-10 rounded-lg border border-violet-300/20 bg-violet-300/10 px-3 font-bold text-violet-200 disabled:opacity-40"
+                        title="Turn off this operator's two-step verification"
+                        className="app-btn app-btn-secondary"
                       >
                         Reset 2FA
                       </button>
@@ -836,9 +845,9 @@ function OperatorTable({
                       type="button"
                       onClick={() => onDelete(operator)}
                       disabled={operator.id === currentUserId}
-                      className="min-h-10 rounded-lg border border-rose-300/20 bg-rose-300/10 px-3 font-bold text-rose-200 disabled:cursor-not-allowed disabled:opacity-40"
+                      className="app-btn app-btn-secondary text-error"
                     >
-                      Hapus
+                      Delete
                     </button>
                   </div>
                 </td>
@@ -861,57 +870,65 @@ function RoleGrid({
   onDelete: (role: RoleRecord) => void;
 }) {
   return (
-    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
       {roles.map((role) => (
-        <article key={role.id} className="app-panel rounded-3xl p-5">
+        <article key={role.id} className="app-panel flex flex-col p-4">
           <div className="flex items-start justify-between gap-3">
-            <div>
+            <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
-                <h2 className="text-base font-black text-white">{role.name}</h2>
+                <h2 className="text-headline-md text-on-surface">
+                  {role.name}
+                </h2>
                 {role.isSystem ? (
-                  <StatusBadge tone="neutral">Sistem</StatusBadge>
+                  <StatusBadge tone="neutral">System</StatusBadge>
                 ) : null}
               </div>
-              <p className="mt-1 font-mono text-[10px] text-slate-500">
+              <p className="mt-0.5 font-mono text-code-sm text-on-surface-variant">
                 {role.roleKey}
               </p>
             </div>
-            <StatusBadge tone={role.status === "Aktif" ? "success" : "neutral"}>
+            <StatusBadge
+              tone={role.status === "Active" ? "success" : "neutral"}
+            >
               {role.status}
             </StatusBadge>
           </div>
-          <p className="mt-4 min-h-10 text-xs leading-5 text-slate-400">
-            {role.description || "Belum ada deskripsi role."}
+          <p className="mt-3 flex-1 text-body-md text-on-surface-variant">
+            {role.description || "No description yet."}
           </p>
-          <div className="mt-4 grid grid-cols-2 gap-2 rounded-2xl border border-white/10 bg-slate-950/50 p-3 text-center">
+          <dl className="mt-3 grid grid-cols-2 gap-2 border-t border-surface-container pt-3">
             <div>
-              <p className="text-lg font-black text-white">
+              <dt className="font-mono text-label-caps uppercase text-on-surface-variant">
+                Operators
+              </dt>
+              <dd className="font-mono text-headline-md tabular-nums text-on-surface">
                 {role.operatorCount}
-              </p>
-              <p className="text-[10px] text-slate-500">Operator</p>
+              </dd>
             </div>
             <div>
-              <p className="text-lg font-black text-sky-200">
-                {role.isSuperadmin ? "Semua" : role.permissions.length}
-              </p>
-              <p className="text-[10px] text-slate-500">Permission</p>
+              <dt className="font-mono text-label-caps uppercase text-on-surface-variant">
+                Permissions
+              </dt>
+              <dd className="font-mono text-headline-md tabular-nums text-on-surface">
+                {role.isSuperadmin ? "All" : role.permissions.length}
+              </dd>
             </div>
-          </div>
-          <div className="mt-4 flex gap-2">
+          </dl>
+          <div className="mt-3 flex gap-2">
             <button
               type="button"
               onClick={() => onEdit(role)}
-              className="min-h-10 flex-1 rounded-xl bg-sky-400/10 px-3 text-xs font-black text-sky-200"
+              className="app-btn app-btn-secondary flex-1"
             >
-              {role.isSuperadmin ? "Lihat" : "Atur akses"}
+              {role.isSuperadmin ? "View" : "Manage access"}
             </button>
             {!role.isSystem ? (
               <button
                 type="button"
                 onClick={() => onDelete(role)}
-                className="min-h-10 rounded-xl bg-rose-400/10 px-3 text-xs font-black text-rose-200"
+                className="app-btn app-btn-secondary text-error"
               >
-                Hapus
+                Delete
               </button>
             ) : null}
           </div>
@@ -932,10 +949,7 @@ function FormField({
 }) {
   return (
     <div>
-      <label
-        htmlFor={htmlFor}
-        className="mb-2 block text-xs font-bold text-slate-300"
-      >
+      <label htmlFor={htmlFor} className="app-label mb-1.5">
         {label}
       </label>
       {children}
@@ -951,20 +965,20 @@ function ModalActions({
   onCancel: () => void;
 }) {
   return (
-    <div className="flex flex-col-reverse gap-3 border-t border-white/10 pt-5 sm:flex-row sm:justify-end">
+    <div className="flex flex-col-reverse gap-2 border-t border-surface-container pt-4 sm:flex-row sm:justify-end">
       <button
         type="button"
         onClick={onCancel}
-        className="min-h-11 rounded-xl border border-white/10 px-4 text-sm font-bold text-slate-300"
+        className="app-btn app-btn-secondary"
       >
-        Batal
+        Cancel
       </button>
       <button
         type="submit"
         disabled={saving}
-        className="min-h-11 rounded-xl bg-sky-400 px-5 text-sm font-black text-slate-950 disabled:opacity-50"
+        className="app-btn app-btn-primary"
       >
-        {saving ? "Menyimpan..." : "Simpan"}
+        {saving ? "Saving..." : "Save"}
       </button>
     </div>
   );

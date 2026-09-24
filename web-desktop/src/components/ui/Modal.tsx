@@ -1,4 +1,5 @@
 import type { KeyboardEvent, ReactNode } from "react";
+import { Icon } from "./Icon";
 
 interface ModalProps {
   children: ReactNode;
@@ -12,6 +13,10 @@ function focusDialog(node: HTMLDivElement | null) {
   node?.focus();
 }
 
+/**
+ * Dipakai Web, Desktop, dan Mobile (disalin lewat `filesToCopy`). Pemanggil
+ * yang memutuskan kapan dirender; komponen ini tidak menyimpan state buka/tutup.
+ */
 export function Modal({
   children,
   descriptionId,
@@ -24,7 +29,7 @@ export function Modal({
   };
 
   return (
-    <div className="fixed inset-0 z-[80] grid place-items-center overflow-y-auto bg-slate-950/85 p-4 backdrop-blur-md">
+    <div className="fixed inset-0 z-[80] grid place-items-center overflow-y-auto bg-inverse-surface/40 p-3 backdrop-blur-sm sm:p-4">
       <div
         role="dialog"
         aria-modal="true"
@@ -33,19 +38,19 @@ export function Modal({
         tabIndex={-1}
         ref={focusDialog}
         onKeyDown={handleKeyDown}
-        className="my-auto max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto rounded-3xl border border-slate-800 bg-slate-900 p-5 shadow-2xl sm:p-6"
+        className="my-auto max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto overscroll-contain rounded-lg border border-surface-container bg-surface-container-lowest p-4 shadow-[0_8px_32px_rgb(11_28_48/0.16)] sm:p-5"
       >
-        <div className="mb-5 flex items-center justify-between gap-4 border-b border-slate-800 pb-3">
-          <h2 id={titleId} className="text-base font-bold text-white">
+        <div className="mb-4 flex items-center justify-between gap-3 border-b border-surface-container pb-3">
+          <h2 id={titleId} className="text-headline-md text-on-surface">
             {title}
           </h2>
           <button
             type="button"
             onClick={onClose}
-            aria-label="Tutup dialog"
-            className="grid size-11 shrink-0 place-items-center rounded-xl text-xl text-slate-400 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"
+            aria-label="Close dialog"
+            className="grid size-11 shrink-0 place-items-center rounded-md text-on-surface-variant hover:bg-surface-container-low"
           >
-            &times;
+            <Icon name="x" className="size-4" />
           </button>
         </div>
         {children}

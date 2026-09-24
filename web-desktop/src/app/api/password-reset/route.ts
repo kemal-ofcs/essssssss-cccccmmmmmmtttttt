@@ -90,7 +90,7 @@ function text(value: unknown, max = 120) {
 
 export async function POST(request: NextRequest) {
   if (!isSameOriginMutation(request)) {
-    return errorResponse("Origin permintaan tidak diizinkan.", 403);
+    return errorResponse("The request origin is not allowed.", 403);
   }
 
   let body: ResetBody;
@@ -100,12 +100,12 @@ export async function POST(request: NextRequest) {
     if (error instanceof JsonBodyError) {
       return errorResponse(
         error.status === 413
-          ? "Payload permintaan terlalu besar."
-          : "Payload permintaan tidak valid.",
+          ? "The request payload is too large."
+          : "Invalid request payload.",
         error.status,
       );
     }
-    return errorResponse("Payload permintaan tidak valid.", 400);
+    return errorResponse("Invalid request payload.", 400);
   }
 
   const step = text(body.step, 32) as ResetStep;
@@ -126,7 +126,7 @@ export async function POST(request: NextRequest) {
   );
   if (!rateLimit.allowed) {
     const response = errorResponse(
-      `Terlalu banyak percobaan. Coba lagi dalam ${rateLimit.retryAfterSeconds} detik.`,
+      `Too many attempts. Try again in ${rateLimit.retryAfterSeconds} seconds.`,
       429,
     );
     response.headers.set("Retry-After", String(rateLimit.retryAfterSeconds));
@@ -218,12 +218,11 @@ export async function POST(request: NextRequest) {
         await clearLoginFailures(database, clientAddress, rateIdentity);
         return okResponse({
           username: result.username,
-          pesan:
-            "Password berhasil diganti. Silakan login dengan password baru.",
+          pesan: "Password changed. Sign in with the new password.",
         });
       }
       default:
-        return errorResponse("Langkah pemulihan password tidak dikenal.", 400);
+        return errorResponse("Unknown password recovery step.", 400);
     }
   } catch (error) {
     if (error instanceof PasswordResetError) {
@@ -232,7 +231,7 @@ export async function POST(request: NextRequest) {
     const message =
       error instanceof Error
         ? error.message
-        : "Permintaan tidak dapat diproses.";
+        : "The request could not be processed.";
     return errorResponse(message, 400);
   }
 }

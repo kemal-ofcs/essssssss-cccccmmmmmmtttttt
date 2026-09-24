@@ -71,8 +71,8 @@ impl DatabaseProvider {
     pub fn label(self) -> &'static str {
         match self {
             Self::Turso => "Turso Cloud",
-            Self::SelfHosted => "Server Database Sendiri",
-            Self::LocalFile => "Database Lokal (Tanpa Server)",
+            Self::SelfHosted => "Your Own Database Server",
+            Self::LocalFile => "Local Database (No Server)",
         }
     }
 }
@@ -136,7 +136,7 @@ pub fn normalize_database_url(
     if trimmed.is_empty() {
         return Err(CommandError::new(
             "TURSO_URL_INVALID",
-            "URL database tidak boleh kosong.",
+            "The database URL cannot be empty.",
         ));
     }
 
@@ -157,10 +157,10 @@ pub fn normalize_database_url(
         CommandError::new(
             "TURSO_URL_INVALID",
             match provider {
-                DatabaseProvider::Turso => "Format URL database Turso tidak valid (contoh: libsql://db-name.turso.io atau https://db-name.turso.io).",
-                DatabaseProvider::SelfHosted => "Format URL server database tidak valid (contoh: http://192.168.1.10:8080 atau https://db.kantor-anda.com).",
+                DatabaseProvider::Turso => "Invalid Turso database URL format (for example: libsql://db-name.turso.io or https://db-name.turso.io).",
+                DatabaseProvider::SelfHosted => "Invalid database server URL format (for example: http://192.168.1.10:8080 or https://db.your-office.com).",
                 // Tidak terjangkau: mode lokal sudah kembali di awal fungsi.
-                DatabaseProvider::LocalFile => "Mode Database Lokal tidak memakai URL.",
+                DatabaseProvider::LocalFile => "Local Database Mode does not use a URL.",
             },
         )
     })?;
@@ -168,13 +168,13 @@ pub fn normalize_database_url(
     if !matches!(parsed.scheme(), "http" | "https") {
         return Err(CommandError::new(
             "TURSO_URL_INVALID",
-            "URL database harus memakai protokol libsql://, https://, atau http://.",
+            "The database URL must use the libsql://, https://, or http:// protocol.",
         ));
     }
     if parsed.host_str().is_none() || !parsed.username().is_empty() || parsed.password().is_some() {
         return Err(CommandError::new(
             "TURSO_URL_INVALID",
-            "URL database harus memiliki host dan tidak boleh memuat kredensial.",
+            "The database URL must have a host and cannot contain credentials.",
         ));
     }
 
@@ -195,12 +195,12 @@ pub fn normalize_database_url(
         if !allowed {
             let message = match provider {
                 DatabaseProvider::Turso => {
-                    "URL database Turso wajib memakai HTTPS. Kalau ini server database Anda sendiri, pilih mode \"Server Database Sendiri\" terlebih dahulu."
+                    "The Turso database URL must use HTTPS. If this is your own database server, choose \"Your Own Database Server\" first."
                 }
                 DatabaseProvider::SelfHosted => {
-                    "Alamat server ini berada di luar jaringan privat, sehingga HTTP polos akan mengirim Auth Token dan data operasional tanpa enkripsi. Pasang HTTPS di server (misalnya lewat Caddy/Nginx), pakai alamat LAN/VPN, atau centang \"Izinkan koneksi tanpa enkripsi\" bila Anda menerima risikonya."
+                    "This server address is outside a private network, so plain HTTP would send the Auth Token and operational data unencrypted. Set up HTTPS on the server (for example with Caddy/Nginx), use a LAN/VPN address, or check \"Allow an unencrypted connection\" if you accept the risk."
                 }
-                DatabaseProvider::LocalFile => "Mode Database Lokal tidak memakai URL.",
+                DatabaseProvider::LocalFile => "Local Database Mode does not use a URL.",
             };
             return Err(CommandError::new("TURSO_URL_INSECURE", message));
         }
@@ -284,7 +284,7 @@ impl TursoConfig {
         if trimmed.is_empty() {
             return Err(CommandError::new(
                 "LOCAL_DB_PATH_MISSING",
-                "Lokasi berkas database lokal belum ditentukan.",
+                "The local database file location is not set.",
             ));
         }
         Ok(std::path::PathBuf::from(trimmed))
@@ -389,6 +389,13 @@ impl BootstrapStatus {
         }
     }
 }
+
+/// Tabel lama yang CHECK-nya masih memakai nilai berbahasa Indonesia. Kata
+/// kunci diletakkan di dalam tanda kutip SQL supaya kalimat biasa tidak ikut
+/// cocok. WAJIB identik dengan `LEGACY_STORED_VALUES_SQL` di `db-schema.ts`.
+const LEGACY_STORED_VALUES_SQL: &str = "SELECT COUNT(*) AS total FROM sqlite_master WHERE type = 'table' AND name IN ('app_role', 'password_reset_request') AND (sql LIKE '%''Aktif''%' OR sql LIKE '%''Menunggu Verifikasi''%');";
+
+const LEGACY_STORED_VALUES_MESSAGE: &str = "This database was created by a pre-release build that stored values in Indonesian. It cannot be upgraded in place. Create a new database (or a new Local Database Mode file) and connect this device to it.";
 
 /// Tabel inti yang wajib ada agar database dianggap benar-benar database App Template.
 const DATABASE_CHECK_CORE_TABLES: [&str; 4] = [
@@ -686,13 +693,13 @@ impl TursoClient {
                 "TURSO_TOKEN_REQUIRED",
                 match config.provider {
                     DatabaseProvider::Turso => {
-                        "Auth Token database Turso wajib diisi untuk koneksi HTTPS."
+                        "A Turso database Auth Token is required for HTTPS connections."
                     }
                     DatabaseProvider::SelfHosted => {
-                        "Server database ini dapat dijangkau dari internet, jadi Auth Token wajib diisi."
+                        "This database server is reachable from the internet, so an Auth Token is required."
                     }
                     // Tidak terjangkau: mode lokal sudah kembali di atas.
-                    DatabaseProvider::LocalFile => "Mode Database Lokal tidak memakai Auth Token.",
+                    DatabaseProvider::LocalFile => "Local Database Mode does not use an Auth Token.",
                 },
             ));
         }
@@ -769,7 +776,7 @@ impl TursoClient {
             .map_err(|e| {
                 CommandError::new(
                     "TURSO_NETWORK_ERROR",
-                    format!("Gagal menghubungi database Turso: {e}"),
+                    format!("Could not reach the Turso database: {e}"),
                 )
             })?;
 
@@ -779,7 +786,7 @@ impl TursoClient {
             if status == StatusCode::UNAUTHORIZED || status == StatusCode::FORBIDDEN {
                 return Err(CommandError::new(
                     "TURSO_AUTH_FAILED",
-                    "Auth Token database Turso tidak valid atau kedaluwarsa.",
+                    "The Turso database Auth Token is invalid or expired.",
                 ));
             }
             return Err(CommandError::new(
@@ -794,7 +801,7 @@ impl TursoClient {
         let text = response.text().await.map_err(|e| {
             CommandError::new(
                 "TURSO_RESPONSE_INVALID",
-                format!("Gagal membaca data respon Turso: {e}"),
+                format!("Could not read the Turso response: {e}"),
             )
         })?;
 
@@ -802,7 +809,7 @@ impl TursoClient {
             let snippet = text.chars().take(250).collect::<String>();
             CommandError::new(
                 "TURSO_RESPONSE_INVALID",
-                format!("Format JSON respon Turso tidak valid: {e}. Data mentah: {snippet}"),
+                format!("Invalid Turso JSON response: {e}. Raw data: {snippet}"),
             )
         })?;
 
@@ -810,7 +817,7 @@ impl TursoClient {
             .get("results")
             .and_then(Value::as_array)
             .ok_or_else(|| {
-                CommandError::new("TURSO_RESPONSE_INVALID", "Format hasil pipeline kosong.")
+                CommandError::new("TURSO_RESPONSE_INVALID", "The pipeline result is empty.")
             })?;
 
         let mut query_results = Vec::new();
@@ -824,7 +831,7 @@ impl TursoClient {
                     .get("error")
                     .and_then(|e| e.get("message"))
                     .and_then(Value::as_str)
-                    .unwrap_or("Query SQL gagal dieksekusi di Turso.");
+                    .unwrap_or("The SQL query failed to run on Turso.");
                 return Err(CommandError::new("TURSO_SQL_ERROR", err_msg));
             }
 
@@ -914,21 +921,21 @@ impl TursoClient {
             .map_err(|error| {
                 CommandError::new(
                     "TURSO_NETWORK_ERROR",
-                    format!("Gagal menghubungi database Turso: {error}"),
+                    format!("Could not reach the Turso database: {error}"),
                 )
             })?;
         let status = response.status();
         let text = response.text().await.map_err(|error| {
             CommandError::new(
                 "TURSO_RESPONSE_INVALID",
-                format!("Gagal membaca data respon Turso: {error}"),
+                format!("Could not read the Turso response: {error}"),
             )
         })?;
         if !status.is_success() {
             if status == StatusCode::UNAUTHORIZED || status == StatusCode::FORBIDDEN {
                 return Err(CommandError::new(
                     "TURSO_AUTH_FAILED",
-                    "Auth Token database Turso tidak valid atau kedaluwarsa.",
+                    "The Turso database Auth Token is invalid or expired.",
                 ));
             }
             return Err(CommandError::new(
@@ -943,7 +950,7 @@ impl TursoClient {
             CommandError::new(
                 "TURSO_RESPONSE_INVALID",
                 format!(
-                    "Format JSON respon Turso tidak valid: {error}. Data mentah: {}",
+                    "Invalid Turso JSON response: {error}. Raw data: {}",
                     text.chars().take(250).collect::<String>()
                 ),
             )
@@ -959,7 +966,7 @@ impl TursoClient {
             .ok_or_else(|| {
                 CommandError::new(
                     "TURSO_RESPONSE_INVALID",
-                    "Format hasil transaksi batch Turso tidak valid.",
+                    "Invalid Turso batch transaction result.",
                 )
             })?;
         let step_errors = batch_result
@@ -968,7 +975,7 @@ impl TursoClient {
             .ok_or_else(|| {
                 CommandError::new(
                     "TURSO_RESPONSE_INVALID",
-                    "Daftar hasil transaksi batch Turso tidak tersedia.",
+                    "The Turso batch transaction result list is not available.",
                 )
             })?;
         if let Some(error) = step_errors
@@ -979,7 +986,7 @@ impl TursoClient {
             let message = error
                 .get("message")
                 .and_then(Value::as_str)
-                .unwrap_or("Transaksi database Turso gagal dan telah dibatalkan.");
+                .unwrap_or("The Turso database transaction failed and was cancelled.");
             return Err(CommandError::new("TURSO_SQL_ERROR", message));
         }
         let commit_succeeded = batch_result
@@ -990,7 +997,7 @@ impl TursoClient {
         if !commit_succeeded {
             return Err(CommandError::new(
                 "TURSO_TRANSACTION_ROLLED_BACK",
-                "Transaksi database Turso dibatalkan agar tidak meninggalkan data parsial.",
+                "The Turso database transaction was cancelled so no partial data is left.",
             ));
         }
         Ok(())
@@ -1005,7 +1012,7 @@ impl TursoClient {
         let mut results = self.execute_pipeline(vec![stmt]).await?;
         results
             .pop()
-            .ok_or_else(|| CommandError::new("TURSO_QUERY_EMPTY", "Hasil query kosong."))
+            .ok_or_else(|| CommandError::new("TURSO_QUERY_EMPTY", "The query result is empty."))
     }
 
     pub async fn ping(&self) -> Result<u64, CommandError> {
@@ -1036,6 +1043,7 @@ impl TursoClient {
     }
 
     pub async fn ensure_schema(&self) -> Result<(), CommandError> {
+        self.reject_legacy_stored_values().await?;
         let schema_stmts = vec![
             Statement::new(
                 r#"CREATE TABLE IF NOT EXISTS schema_migration (
@@ -1053,7 +1061,7 @@ impl TursoClient {
                     deskripsi TEXT,
                     is_system INTEGER NOT NULL DEFAULT 0 CHECK(is_system IN (0, 1)),
                     is_superadmin INTEGER NOT NULL DEFAULT 0 CHECK(is_superadmin IN (0, 1)),
-                    status TEXT NOT NULL DEFAULT 'Aktif' CHECK(status IN ('Aktif', 'Nonaktif')),
+                    status TEXT NOT NULL DEFAULT 'Active' CHECK(status IN ('Active', 'Inactive')),
                     require_totp INTEGER NOT NULL DEFAULT 0,
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL,
@@ -1102,7 +1110,7 @@ impl TursoClient {
                     totp_recovery_codes TEXT,
                     password_recovery_codes TEXT,
                     password_recovery_created_at TEXT,
-                    status TEXT DEFAULT 'Aktif',
+                    status TEXT DEFAULT 'Active',
                     created_at TEXT,
                     updated_at TEXT
                 );"#,
@@ -1132,7 +1140,7 @@ impl TursoClient {
             Statement::new(
                 r#"CREATE TABLE IF NOT EXISTS company_profile (
                     id TEXT PRIMARY KEY DEFAULT 'default_company',
-                    company_name TEXT NOT NULL DEFAULT 'Nama Perusahaan',
+                    company_name TEXT NOT NULL DEFAULT 'Company Name',
                     branch_name TEXT,
                     logo_url TEXT,
                     signature_url TEXT,
@@ -1235,9 +1243,9 @@ impl TursoClient {
                     challenge_hash TEXT NOT NULL,
                     challenge_sequence TEXT NOT NULL,
                     token_hash TEXT,
-                    status TEXT NOT NULL DEFAULT 'Menunggu Verifikasi'
+                    status TEXT NOT NULL DEFAULT 'Pending Verification'
                         CHECK(status IN (
-                            'Menunggu Verifikasi', 'Terkirim', 'Terpakai', 'Kedaluwarsa', 'Dibatalkan'
+                            'Pending Verification', 'Sent', 'Used', 'Expired', 'Cancelled'
                         )),
                     liveness_score REAL,
                     liveness_report TEXT,
@@ -1322,9 +1330,9 @@ impl TursoClient {
             // Seed Role bawaan
             Statement::new(
                 r#"INSERT OR IGNORE INTO app_role (id, role_key, nama_role, deskripsi, is_system, is_superadmin, status, created_at, updated_at) VALUES
-                (1, 'superadmin', 'Superadmin', 'Pemilik akses penuh dan pengelola role aplikasi.', 1, 1, 'Aktif', datetime('now'), datetime('now')),
-                (2, 'admin', 'Admin', 'Administrator operasional sesuai matriks permission.', 1, 0, 'Aktif', datetime('now'), datetime('now')),
-                (3, 'operator', 'Operator', 'Operator harian sesuai matriks permission.', 1, 0, 'Aktif', datetime('now'), datetime('now'));"#,
+                (1, 'superadmin', 'Superadmin', 'Full access owner who manages the app roles.', 1, 1, 'Active', datetime('now'), datetime('now')),
+                (2, 'admin', 'Admin', 'Operations administrator, per the permission matrix.', 1, 0, 'Active', datetime('now'), datetime('now')),
+                (3, 'operator', 'Operator', 'Daily operator, per the permission matrix.', 1, 0, 'Active', datetime('now'), datetime('now'));"#,
                 vec![],
             ),
             // Seed Permissions Catalog
@@ -1332,26 +1340,26 @@ impl TursoClient {
             // `src/lib/rbac/catalog.ts` — audit kontrak membandingkan keduanya.
             Statement::new(
                 r#"INSERT OR IGNORE INTO app_permission (permission_key, nama, grup, deskripsi, is_active, sort_order) VALUES
-                ('home.view', 'Akses Beranda & Navigasi', 'Navigasi', 'Melihat beranda dan menu aplikasi.', 1, 10),
-                ('dashboard.view', 'Akses Dashboard', 'Dashboard', 'Melihat ringkasan dan statistik.', 1, 20),
-                ('items.view', 'Lihat Master Item', 'Master Data', 'Melihat daftar item.', 1, 30),
-                ('items.manage', 'Kelola Master Item', 'Master Data', 'Menambah, mengubah, dan menonaktifkan item.', 1, 40),
-                ('activity.view', 'Lihat Log Aktivitas', 'Operasional', 'Melihat riwayat aktivitas.', 1, 50),
-                ('activity.record', 'Catat Aktivitas', 'Operasional', 'Mencatat aktivitas baru.', 1, 60),
-                ('password_reset.view', 'Lihat Riwayat Reset Password', 'Operator', 'Meninjau siapa yang pernah mengajukan pemulihan password beserta foto verifikasinya.', 1, 62),
-                ('password_reset.delete', 'Hapus Riwayat Reset Password', 'Operator', 'Menghapus jejak pengajuan pemulihan password beserta fotonya.', 1, 64),
-                ('two_factor.reset', 'Reset 2FA Operator Lain', 'Operator', 'Mematikan verifikasi dua langkah milik operator lain yang kehilangan ponselnya.', 1, 66),
-                ('password_reset.approve', 'Setujui Pemulihan Password', 'Sistem', 'Meninjau foto pemohon lalu menyerahkan kode pemulihan password.', 1, 65),
-                ('database_backup.export', 'Ekspor Cadangan Database', 'Sistem', 'Mengeluarkan seluruh isi database ke satu berkas cadangan.', 1, 66),
-                ('database_backup.restore', 'Pulihkan Database dari Cadangan', 'Sistem', 'Menimpa seluruh data perangkat dengan isi berkas cadangan.', 1, 67),
-                ('operators.view', 'Lihat Daftar Operator', 'Operator', 'Melihat data operator dan akun pengguna.', 1, 70),
-                ('operators.manage', 'Kelola Operator', 'Operator', 'Menambah dan mengubah data operator aplikasi.', 1, 80),
-                ('roles.manage', 'Kelola Hak Akses & Role', 'Role', 'Mengatur matriks permission setiap role.', 1, 90),
-                ('settings.view', 'Lihat Pengaturan Sistem', 'Pengaturan', 'Melihat konfigurasi aplikasi dan database.', 1, 100),
-                ('settings.manage', 'Kelola Pengaturan Sistem', 'Pengaturan', 'Mengubah konfigurasi aplikasi dan database.', 1, 110),
-                ('sync.view', 'Lihat Status Sinkronisasi', 'Sinkronisasi', 'Melihat indikator dan antrean sync.', 1, 120),
-                ('sync.retry', 'Kirim Ulang & Atasi Konflik', 'Sinkronisasi', 'Memicu sinkronisasi manual dan resolusi konflik.', 1, 130),
-                ('diagnostics.view', 'Lihat Diagnostik Sistem', 'Diagnostik', 'Melihat informasi runtime dan kesehatan database.', 1, 140);"#,
+                ('home.view', 'Home and navigation access', 'Navigation', 'View home and the app menu.', 1, 10),
+                ('dashboard.view', 'Dashboard access', 'Dashboard', 'View summaries and statistics.', 1, 20),
+                ('items.view', 'View items', 'Master data', 'View the item list.', 1, 30),
+                ('items.manage', 'Manage items', 'Master data', 'Add, edit, and deactivate items.', 1, 40),
+                ('activity.view', 'View activity log', 'Operations', 'View activity history.', 1, 50),
+                ('activity.record', 'Record activity', 'Operations', 'Record new activity.', 1, 60),
+                ('password_reset.view', 'View password reset history', 'Operators', 'Review who requested a password recovery, with their verification photo.', 1, 62),
+                ('password_reset.delete', 'Delete password reset history', 'Operators', 'Delete password recovery records and their photos.', 1, 64),
+                ('two_factor.reset', 'Reset another operator''s 2FA', 'Operators', 'Turn off two-step verification for another operator who lost their phone.', 1, 66),
+                ('password_reset.approve', 'Approve password recovery', 'System', 'Review the requester''s photo, then hand over a password recovery code.', 1, 65),
+                ('database_backup.export', 'Export database backup', 'System', 'Export the entire database into one backup file.', 1, 66),
+                ('database_backup.restore', 'Restore database from backup', 'System', 'Replace all device data with the contents of a backup file.', 1, 67),
+                ('operators.view', 'View operators', 'Operators', 'View operator and user account data.', 1, 70),
+                ('operators.manage', 'Manage operators', 'Operators', 'Add and edit app operators.', 1, 80),
+                ('roles.manage', 'Manage roles and access', 'Roles', 'Set the permission matrix of each role.', 1, 90),
+                ('settings.view', 'View system settings', 'Settings', 'View app and database settings.', 1, 100),
+                ('settings.manage', 'Manage system settings', 'Settings', 'Change app and database settings.', 1, 110),
+                ('sync.view', 'View sync status', 'Sync', 'View the sync indicator and queue.', 1, 120),
+                ('sync.retry', 'Retry sync and resolve conflicts', 'Sync', 'Trigger a manual sync and resolve conflicts.', 1, 130),
+                ('diagnostics.view', 'View system diagnostics', 'Diagnostics', 'View runtime information and database health.', 1, 140);"#,
                 vec![],
             ),
             // Seed Default Role Permissions untuk Role Superadmin (Role 1)
@@ -1366,7 +1374,8 @@ impl TursoClient {
                 SELECT 2, permission_key, 1, datetime('now'), 'system' FROM app_permission
                 WHERE permission_key NOT IN (
                     'roles.manage', 'operators.manage', 'operators.view', 'diagnostics.view',
-                    'password_reset.delete', 'two_factor.reset', 'items.manage', 'settings.manage'
+                    'password_reset.delete', 'two_factor.reset', 'password_reset.approve',
+                    'database_backup.restore', 'items.manage', 'settings.manage'
                 );"#,
                 vec![],
             ),
@@ -1410,8 +1419,8 @@ impl TursoClient {
                     harga INTEGER NOT NULL DEFAULT 0 CHECK (harga >= 0),
                     satuan TEXT,
                     catatan TEXT,
-                    status_aktif TEXT NOT NULL DEFAULT 'Aktif'
-                        CHECK (status_aktif IN ('Aktif', 'Nonaktif')),
+                    status_aktif TEXT NOT NULL DEFAULT 'Active'
+                        CHECK (status_aktif IN ('Active', 'Inactive')),
                     update_terakhir TEXT NOT NULL
                 );"#,
                 vec![],
@@ -1497,7 +1506,7 @@ impl TursoClient {
         for (table, column, sql) in [
             ("master_operator", "role_id", "ALTER TABLE master_operator ADD COLUMN role_id INTEGER REFERENCES app_role(id);"),
             ("master_operator", "role", "ALTER TABLE master_operator ADD COLUMN role TEXT NOT NULL DEFAULT 'Operator';"),
-            ("master_operator", "status", "ALTER TABLE master_operator ADD COLUMN status TEXT DEFAULT 'Aktif';"),
+            ("master_operator", "status", "ALTER TABLE master_operator ADD COLUMN status TEXT DEFAULT 'Active';"),
             ("master_operator", "created_at", "ALTER TABLE master_operator ADD COLUMN created_at TEXT;"),
             ("master_operator", "updated_at", "ALTER TABLE master_operator ADD COLUMN updated_at TEXT;"),
             // Kontak operator. NULL-able supaya baris operator lama tidak rusak;
@@ -1589,7 +1598,34 @@ impl TursoClient {
             vec![],
         )
         .await?;
+        self.query_one(
+            "INSERT OR IGNORE INTO schema_migration (version, name, applied_at) VALUES (-2010, 'english-stored-values-v1', datetime('now'));",
+            vec![],
+        )
+        .await?;
 
+        Ok(())
+    }
+
+    /// Menolak database pra-rilis yang dibuat sebelum nilai tersimpan diganti ke
+    /// bahasa Inggris (`'Aktif'` -> `'Active'`, `'Menunggu Verifikasi'` ->
+    /// `'Pending Verification'`, dst).
+    ///
+    /// SQLite tidak bisa mengubah CHECK constraint di tempat, jadi tabel lama
+    /// akan menolak nilai baru di tengah jalan: login gagal, operator tidak bisa
+    /// dibuat, dan pesan errornya menyesatkan. Lebih jujur berhenti di sini.
+    /// Padanan TS: `rejectLegacyStoredValues` di `db-schema.ts`.
+    async fn reject_legacy_stored_values(&self) -> Result<(), CommandError> {
+        let legacy = self
+            .count_scalar(LEGACY_STORED_VALUES_SQL)
+            .await
+            .unwrap_or(0);
+        if legacy > 0 {
+            return Err(CommandError::new(
+                "DATABASE_LEGACY_VALUES",
+                LEGACY_STORED_VALUES_MESSAGE,
+            ));
+        }
         Ok(())
     }
 
@@ -1733,7 +1769,7 @@ impl TursoClient {
             .query_one(
                 // Sentinel WAJIB dinaikkan setiap kali ensure_schema menambah
                 // tabel atau kolom — nilainya di sini dan pada INSERT harus sama.
-                "SELECT COUNT(*) AS total FROM schema_migration WHERE version = -2009;",
+                "SELECT COUNT(*) AS total FROM schema_migration WHERE version = -2010;",
                 vec![],
             )
             .await
@@ -1813,7 +1849,7 @@ impl TursoClient {
                     r#"SELECT m.username AS username
                        FROM master_operator m
                        JOIN app_role r ON r.id = m.role_id
-                       WHERE m.status = 'Aktif' AND r.is_superadmin = 1
+                       WHERE m.status = 'Active' AND r.is_superadmin = 1
                        ORDER BY m.id ASC;"#,
                     vec![],
                 )
@@ -1827,7 +1863,7 @@ impl TursoClient {
                 .and_then(Value::as_str)
                 .map(|username| username.to_owned());
             check.operator_count = self
-                .count_scalar("SELECT COUNT(*) AS total FROM master_operator WHERE status = 'Aktif';")
+                .count_scalar("SELECT COUNT(*) AS total FROM master_operator WHERE status = 'Active';")
                 .await?;
         }
         // Statistik domain contoh. Ganti dua blok ini dengan hitungan yang
@@ -1883,7 +1919,7 @@ impl TursoClient {
                 r#"SELECT COUNT(*) AS total
                    FROM master_operator m
                    JOIN app_role r ON r.id = m.role_id
-                   WHERE m.status = 'Aktif' AND r.is_superadmin = 1;"#,
+                   WHERE m.status = 'Active' AND r.is_superadmin = 1;"#,
                 vec![],
             )
             .await?;
@@ -1922,12 +1958,12 @@ impl TursoClient {
         if !self.bootstrap_status().await?.required {
             return Err(CommandError::new(
                 "TURSO_BOOTSTRAP_CLOSED",
-                "Bootstrap ditutup karena Superadmin aktif sudah tersedia.",
+                "Bootstrap is closed because an active Superadmin already exists.",
             ));
         }
         let superadmin_role_id = self
             .query_one(
-                "SELECT id FROM app_role WHERE role_key = 'superadmin' AND is_superadmin = 1 AND status = 'Aktif' LIMIT 1;",
+                "SELECT id FROM app_role WHERE role_key = 'superadmin' AND is_superadmin = 1 AND status = 'Active' LIMIT 1;",
                 vec![],
             )
             .await?
@@ -1944,7 +1980,7 @@ impl TursoClient {
             .ok_or_else(|| {
                 CommandError::new(
                     "TURSO_SCHEMA_INVALID",
-                    "Role Superadmin aktif tidak tersedia pada schema database cloud.",
+                    "No active Superadmin role exists in the cloud database schema.",
                 )
             })?;
         let password = Zeroizing::new(draft.password);
@@ -1958,7 +1994,7 @@ impl TursoClient {
                 r#"INSERT INTO master_operator (
                     kode_operator, nama_operator, username, password_hash,
                     role, role_id, status, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, 'Admin', ?, 'Aktif', datetime('now'), datetime('now'));"#,
+                ) VALUES (?, ?, ?, ?, 'Admin', ?, 'Active', datetime('now'), datetime('now'));"#,
                 vec![
                     json!(draft.kode_operator.trim().to_ascii_uppercase()),
                     json!(draft.nama_operator.trim()),
@@ -1972,7 +2008,7 @@ impl TursoClient {
             if error.message.contains("UNIQUE") || error.message.contains("bootstrap") {
                 CommandError::new(
                     "TURSO_BOOTSTRAP_CLOSED",
-                    "Bootstrap ditutup karena sudah pernah diklaim pada database ini.",
+                    "Bootstrap is closed because it was already claimed on this database.",
                 )
             } else {
                 error
@@ -1981,7 +2017,7 @@ impl TursoClient {
         if self.bootstrap_status().await?.required {
             return Err(CommandError::new(
                 "TURSO_BOOTSTRAP_FAILED",
-                "Superadmin awal belum berhasil dibuat.",
+                "The first Superadmin could not be created.",
             ));
         }
 
@@ -1998,7 +2034,7 @@ impl TursoClient {
             .ok_or_else(|| {
                 CommandError::new(
                     "TURSO_BOOTSTRAP_FAILED",
-                    "Superadmin awal tidak dapat dibaca kembali.",
+                    "The first Superadmin could not be read back.",
                 )
             })?;
 
@@ -2021,7 +2057,7 @@ impl TursoClient {
         .into_iter()
         .next()
         .and_then(|row| row.get("now").and_then(Value::as_i64))
-        .ok_or_else(|| CommandError::new("TURSO_QUERY_FAILED", "Jam database tidak dapat dibaca."))
+        .ok_or_else(|| CommandError::new("TURSO_QUERY_FAILED", "The database clock could not be read."))
     }
 
     /// Status 2FA satu operator.
@@ -2056,7 +2092,7 @@ impl TursoClient {
             .to_objects()
             .into_iter()
             .next()
-            .ok_or_else(|| CommandError::new("VALIDATION_ERROR", "Operator tidak ditemukan."))?;
+            .ok_or_else(|| CommandError::new("VALIDATION_ERROR", "Operator not found."))?;
         let text = |key: &str| {
             row.get(key)
                 .and_then(Value::as_str)
@@ -2082,7 +2118,7 @@ impl TursoClient {
         if row.enabled {
             return Err(CommandError::new(
                 "VALIDATION_ERROR",
-                "Verifikasi dua langkah sudah aktif. Nonaktifkan dulu sebelum mendaftarkan perangkat baru.",
+                "Two-step verification is already on. Turn it off before enrolling a new device.",
             ));
         }
         let secret = generate_totp_secret();
@@ -2119,20 +2155,20 @@ impl TursoClient {
         if row.enabled {
             return Err(CommandError::new(
                 "VALIDATION_ERROR",
-                "Verifikasi dua langkah sudah aktif.",
+                "Two-step verification is already on.",
             ));
         }
         if row.secret.is_empty() {
             return Err(CommandError::new(
                 "VALIDATION_ERROR",
-                "Pendaftaran belum dimulai. Buka kembali layar pengaturan 2FA.",
+                "Enrollment has not started. Open the 2FA settings screen again.",
             ));
         }
         let now = self.database_unix_seconds().await?;
         if !verify_totp(&row.secret, code, now, TOTP_WINDOW_ONLINE) {
             return Err(CommandError::new(
                 "VALIDATION_ERROR",
-                "Kode tidak cocok. Pastikan jam ponsel Anda otomatis dan kodenya belum berganti.",
+                "The code does not match. Make sure your phone clock is set automatically and the code has not changed.",
             ));
         }
         let recovery_codes = generate_recovery_codes(8);
@@ -2164,13 +2200,13 @@ impl TursoClient {
         if !row.enabled {
             return Err(CommandError::new(
                 "VALIDATION_ERROR",
-                "Verifikasi dua langkah memang belum aktif.",
+                "Two-step verification is not on.",
             ));
         }
         if require_proof && !self.consume_totp_or_recovery(operator_id, &row, code).await? {
             return Err(CommandError::new(
                 "FORBIDDEN",
-                "Kode verifikasi tidak cocok.",
+                "The verification code does not match.",
             ));
         }
         self.query_one(
@@ -2233,7 +2269,7 @@ impl TursoClient {
             FROM master_operator m
             JOIN app_role r ON r.id = m.role_id
             WHERE (m.username = ? COLLATE NOCASE OR m.kode_operator = ? COLLATE NOCASE)
-              AND m.status = 'Aktif' AND r.status = 'Aktif'
+              AND m.status = 'Active' AND r.status = 'Active'
             LIMIT 1;
         "#;
 
@@ -2245,7 +2281,7 @@ impl TursoClient {
         let row = objects.first().ok_or_else(|| {
             CommandError::new(
                 "LOGIN_REJECTED",
-                "Username atau password tidak sesuai atau akun nonaktif.",
+                "Wrong username or password, or the account is inactive.",
             )
         })?;
 
@@ -2257,7 +2293,7 @@ impl TursoClient {
         if !verify_password(password, stored_hash) {
             return Err(CommandError::new(
                 "LOGIN_REJECTED",
-                "Username atau password tidak sesuai.",
+                "Wrong username or password.",
             ));
         }
 
@@ -2280,19 +2316,19 @@ impl TursoClient {
             if code.is_empty() {
                 return Err(CommandError::new(
                     "TOTP_REQUIRED",
-                    "Masukkan kode 6 digit dari aplikasi autentikator Anda.",
+                    "Enter the 6-digit code from your authenticator app.",
                 ));
             }
             if !self.consume_totp_or_recovery(op_id, &totp, code).await? {
                 return Err(CommandError::new(
                     "TOTP_INVALID",
-                    "Kode verifikasi tidak cocok. Periksa kode terbaru di aplikasi autentikator.",
+                    "The verification code does not match. Check the latest code in your authenticator app.",
                 ));
             }
         } else if totp.require_totp {
             return Err(CommandError::new(
                 "TOTP_ENROLLMENT_REQUIRED",
-                "Role akun ini mewajibkan verifikasi dua langkah, tetapi akun Anda belum mendaftarkannya. Hubungi Admin untuk membuka pendaftaran 2FA.",
+                "This account's role requires two-step verification, but your account has not enrolled yet. Ask an Admin to open 2FA enrollment.",
             ));
         }
 
@@ -2420,7 +2456,7 @@ impl TursoClient {
                 m.role_id, r.role_key, r.nama_role, r.is_superadmin
             FROM master_operator m
             JOIN app_role r ON r.id = m.role_id
-            WHERE m.id = ? AND m.status = 'Aktif' AND r.status = 'Aktif'
+            WHERE m.id = ? AND m.status = 'Active' AND r.status = 'Active'
             LIMIT 1;
         "#;
         let result = self.query_one(sql, vec![json!(operator_id)]).await?;
@@ -2528,7 +2564,7 @@ impl TursoClient {
         if events.is_empty() || events.len() > 50 {
             return Err(CommandError::new(
                 "TURSO_SYNC_BATCH_INVALID",
-                "Batch sinkronisasi harus berisi 1 sampai 50 event.",
+                "A sync batch must contain 1 to 50 events.",
             ));
         }
         let mut push_results = Vec::new();
@@ -2657,7 +2693,7 @@ impl TursoClient {
             {
                 return Err(CommandError::new(
                     "TURSO_SYNC_EVENT_INVALID",
-                    "Event sinkronisasi tidak valid atau melampaui batas payload.",
+                    "The sync event is invalid or exceeds the payload limit.",
                 ));
             }
             let parsed_payload = serde_json::from_str::<Value>(&payload_json).map_err(|_| {
@@ -2669,12 +2705,12 @@ impl TursoClient {
             if !parsed_payload.is_object() {
                 return Err(CommandError::new(
                     "TURSO_SYNC_EVENT_INVALID",
-                    "Payload event sinkronisasi harus berupa objek JSON.",
+                    "The sync event payload must be a JSON object.",
                 ));
             }
             let Some((domain, operation)) = canonical_sync_route(raw_domain, raw_operation) else {
                 let message = format!(
-                    "Domain atau operasi sinkronisasi tidak dikenali: {raw_domain}/{raw_operation}."
+                    "Unknown sync domain or operation: {raw_domain}/{raw_operation}."
                 );
                 push_results.push(json!({
                     "eventId": event_id,
@@ -2704,7 +2740,7 @@ impl TursoClient {
                 if !same_event {
                     return Err(CommandError::new(
                         "TURSO_SYNC_EVENT_COLLISION",
-                        "Event ID pernah dipakai dengan isi yang berbeda.",
+                        "This event ID was already used with different contents.",
                     ));
                 }
                 let previous_revision = previous
@@ -2718,14 +2754,14 @@ impl TursoClient {
                     .ok_or_else(|| {
                         CommandError::new(
                             "TURSO_SYNC_REVISION_INVALID",
-                            "Revision event sinkronisasi tidak dapat ditentukan.",
+                            "The sync event revision could not be determined.",
                         )
                     })?;
                 if applied_receipts.contains(event_id) {
                     push_results.push(json!({
                         "eventId": event_id,
                         "status": "applied",
-                        "message": "Event sudah pernah diterapkan.",
+                        "message": "The event was already applied.",
                         "serverRevision": previous_revision
                     }));
                     continue;
@@ -2764,7 +2800,7 @@ impl TursoClient {
             let mutations = collector.finish()?;
             if mutations.is_empty() {
                 let message = format!(
-                    "Payload event tidak menghasilkan mutasi: {domain}/{operation} ({entity_key})."
+                    "The event payload produced no mutation: {domain}/{operation} ({entity_key})."
                 );
                 push_results.push(json!({
                     "eventId": event_id,
@@ -2852,7 +2888,7 @@ impl TursoClient {
                     None
                 };
                 let message = current_revision
-                    .map(|_| "Data server berubah setelah snapshot lokal dibuat.".to_owned())
+                    .map(|_| "Server data changed after the local snapshot was taken.".to_owned())
                     .unwrap_or(error.message);
                 push_results.push(json!({
                     "eventId": event_id,
@@ -2882,13 +2918,13 @@ impl TursoClient {
                 .ok_or_else(|| {
                     CommandError::new(
                         "TURSO_SYNC_REVISION_INVALID",
-                        "Revision event sinkronisasi tidak dapat ditentukan.",
+                        "The sync event revision could not be determined.",
                     )
                 })?;
             push_results.push(json!({
                 "eventId": event_id,
                 "status": "applied",
-                "message": "Event berhasil diterapkan secara atomik ke database Turso.",
+                "message": "The event was applied atomically to the Turso database.",
                 "serverRevision": server_revision
             }));
         }
@@ -2905,7 +2941,7 @@ impl TursoClient {
                 COALESCE(m.no_hp, '') AS no_hp,
                 COALESCE(m.totp_enabled, 0) AS totp_enabled,
                 COALESCE(m.role_id, 2) AS role_id,
-                COALESCE(m.status, 'Aktif') AS status,
+                COALESCE(m.status, 'Active') AS status,
                 COALESCE(r.nama_role, 'Admin') AS nama_role,
                 COALESCE(r.role_key, 'admin') AS role_key,
                 COALESCE(r.is_superadmin, 0) AS is_superadmin,
@@ -2945,7 +2981,7 @@ impl TursoClient {
         let status = draft
             .get("status")
             .and_then(Value::as_str)
-            .unwrap_or("Aktif");
+            .unwrap_or("Active");
         let email =
             normalize_operator_email(draft.get("email").and_then(Value::as_str).unwrap_or(""));
         let no_hp =
@@ -2958,7 +2994,7 @@ impl TursoClient {
         {
             return Err(CommandError::new(
                 "VALIDATION_ERROR",
-                "Data operator tidak lengkap.",
+                "The operator data is incomplete.",
             ));
         }
         validate_operator_contact(&email, &no_hp)?;
@@ -3031,18 +3067,18 @@ impl TursoClient {
             .to_objects()
             .into_iter()
             .next()
-            .ok_or_else(|| CommandError::new("VALIDATION_ERROR", "Operator tidak ditemukan."))?;
+            .ok_or_else(|| CommandError::new("VALIDATION_ERROR", "Operator not found."))?;
         if target.get("is_superadmin").and_then(Value::as_i64) == Some(1) {
-            if draft.get("status").and_then(Value::as_str) == Some("Nonaktif") {
+            if draft.get("status").and_then(Value::as_str) == Some("Inactive") {
                 return Err(CommandError::new(
                     "FORBIDDEN",
-                    "Superadmin aktif terakhir tidak dapat dinonaktifkan.",
+                    "The last active Superadmin cannot be deactivated.",
                 ));
             }
             if let Some(next_role_id) = draft.get("role_id").and_then(Value::as_i64) {
                 let next_is_superadmin = self
                     .query_one(
-                        "SELECT is_superadmin FROM app_role WHERE id = ? AND status = 'Aktif' LIMIT 1;",
+                        "SELECT is_superadmin FROM app_role WHERE id = ? AND status = 'Active' LIMIT 1;",
                         vec![json!(next_role_id)],
                     )
                     .await?
@@ -3054,7 +3090,7 @@ impl TursoClient {
                 if !next_is_superadmin {
                     return Err(CommandError::new(
                         "FORBIDDEN",
-                        "Superadmin aktif terakhir tidak dapat diturunkan rolenya.",
+                        "The last active Superadmin cannot be moved to another role.",
                     ));
                 }
             }
@@ -3162,7 +3198,7 @@ impl TursoClient {
             {
                 return Err(CommandError::new(
                     "FORBIDDEN",
-                    "Akun Superadmin utama tidak dapat dihapus.",
+                    "The main Superadmin account cannot be deleted.",
                 ));
             }
         }
@@ -3186,7 +3222,7 @@ impl TursoClient {
         if reset_history > 0 {
             return Err(CommandError::new(
                 "FORBIDDEN",
-                "Operator memiliki riwayat pengajuan reset password beserta foto verifikasinya. Hapus riwayat itu lebih dulu di halaman Riwayat Reset Password, atau nonaktifkan akun agar bukti audit tetap utuh.",
+                "This operator has password reset requests with verification photos. Delete that history first on the Password resets page, or deactivate the account so the audit evidence stays intact.",
             ));
         }
 
@@ -3251,7 +3287,7 @@ impl TursoClient {
         if role_key.is_empty() || nama_role.is_empty() {
             return Err(CommandError::new(
                 "VALIDATION_ERROR",
-                "Data role tidak lengkap.",
+                "The role data is incomplete.",
             ));
         }
         if role_key.len() > 64
@@ -3263,12 +3299,12 @@ impl TursoClient {
         {
             return Err(CommandError::new(
                 "VALIDATION_ERROR",
-                "Role key wajib memakai huruf kecil, angka, dan tanda minus.",
+                "The role key must use lowercase letters, numbers, and hyphens.",
             ));
         }
 
         let mut statements = vec![Statement::new(
-            "INSERT INTO app_role (role_key, nama_role, deskripsi, is_superadmin, status, created_at, updated_at) VALUES (?, ?, ?, 0, 'Aktif', datetime('now'), datetime('now'));",
+            "INSERT INTO app_role (role_key, nama_role, deskripsi, is_superadmin, status, created_at, updated_at) VALUES (?, ?, ?, 0, 'Active', datetime('now'), datetime('now'));",
             vec![json!(role_key), json!(nama_role), json!(deskripsi)],
         )];
         if let Some(perms) = draft.get("permissions").and_then(Value::as_array) {
@@ -3300,7 +3336,7 @@ impl TursoClient {
             .ok_or_else(|| {
                 CommandError::new(
                     "TURSO_ROLE_CREATE_FAILED",
-                    "Role baru tidak ditemukan setelah transaksi.",
+                    "The new role was not found after the transaction.",
                 )
             })?;
         Ok(json!({ "sukses": true, "role_id": role_id }))
@@ -3316,11 +3352,11 @@ impl TursoClient {
             .to_objects()
             .into_iter()
             .next()
-            .ok_or_else(|| CommandError::new("VALIDATION_ERROR", "Role tidak ditemukan."))?;
+            .ok_or_else(|| CommandError::new("VALIDATION_ERROR", "Role not found."))?;
         if target.get("is_superadmin").and_then(Value::as_i64) == Some(1) {
             return Err(CommandError::new(
                 "FORBIDDEN",
-                "Role Superadmin tidak dapat diubah atau dinonaktifkan.",
+                "The Superadmin role cannot be changed or deactivated.",
             ));
         }
         let mut updates = Vec::new();
@@ -3363,11 +3399,11 @@ impl TursoClient {
             .to_objects()
             .into_iter()
             .next()
-            .ok_or_else(|| CommandError::new("VALIDATION_ERROR", "Role tidak ditemukan."))?;
+            .ok_or_else(|| CommandError::new("VALIDATION_ERROR", "Role not found."))?;
         if target.get("is_superadmin").and_then(Value::as_i64) == Some(1) {
             return Err(CommandError::new(
                 "FORBIDDEN",
-                "Permission Superadmin selalu mengikuti katalog aktif dan tidak dapat dikurangi.",
+                "Superadmin permissions always follow the active catalog and cannot be reduced.",
             ));
         }
         let available: HashSet<String> = self
@@ -3390,7 +3426,7 @@ impl TursoClient {
         {
             return Err(CommandError::new(
                 "VALIDATION_ERROR",
-                "Daftar permission memuat key yang tidak aktif atau tidak dikenal.",
+                "The permission list contains inactive or unknown keys.",
             ));
         }
         let mut stmts = vec![Statement::new(
@@ -3433,7 +3469,7 @@ impl TursoClient {
             if protected {
                 return Err(CommandError::new(
                     "FORBIDDEN",
-                    "Role sistem atau role yang masih dipakai operator tidak dapat dihapus.",
+                    "System roles and roles still used by operators cannot be deleted.",
                 ));
             }
         }
@@ -3509,7 +3545,7 @@ async fn apply_event_to_turso(
     if !payload.is_object() {
         return Err(CommandError::new(
             "TURSO_SYNC_PAYLOAD_INVALID",
-            "Payload event sinkronisasi harus berupa objek JSON.",
+            "The sync event payload must be a JSON object.",
         ));
     }
 
@@ -3546,8 +3582,8 @@ async fn apply_event_to_turso(
                 ));
             }
             let status = match text("status_aktif").as_str() {
-                "Nonaktif" => "Nonaktif",
-                _ => "Aktif",
+                "Inactive" => "Inactive",
+                _ => "Active",
             };
             turso
                 .query_one(
@@ -3634,7 +3670,7 @@ async fn apply_event_to_turso(
             if entity_key.is_empty() {
                 return Err(CommandError::new(
                     "TURSO_SYNC_PAYLOAD_INVALID",
-                    "Pengaturan wajib menyertakan kunci.",
+                    "A setting must include a key.",
                 ));
             }
             turso
@@ -3654,7 +3690,7 @@ async fn apply_event_to_turso(
             if company_name.trim().is_empty() {
                 return Err(CommandError::new(
                     "TURSO_SYNC_PAYLOAD_INVALID",
-                    "Nama perusahaan wajib diisi.",
+                    "The company name is required.",
                 ));
             }
             let optional = |key: &str| -> Value {
@@ -3715,7 +3751,7 @@ async fn apply_event_to_turso(
         _ => {
             return Err(CommandError::new(
                 "TURSO_SYNC_ROUTE_UNSUPPORTED",
-                format!("Route sinkronisasi belum didukung: {domain}/{operation}."),
+                format!("Unsupported sync route: {domain}/{operation}."),
             ));
         }
     }
@@ -3789,13 +3825,13 @@ pub fn validate_operator_contact(email: &str, phone: &str) -> Result<(), Command
     if !is_valid_operator_email(email) {
         return Err(CommandError::new(
             "VALIDATION_ERROR",
-            "Email operator wajib diisi dengan format yang valid.",
+            "Enter a valid operator email.",
         ));
     }
     if !is_valid_operator_phone(phone) {
         return Err(CommandError::new(
             "VALIDATION_ERROR",
-            "Nomor HP operator wajib diisi. Gunakan format 08xxxxxxxxxx atau +62xxxxxxxxxx.",
+            "The operator phone number is required. Use the format 08xxxxxxxxxx or +62xxxxxxxxxx.",
         ));
     }
     Ok(())
@@ -4138,15 +4174,15 @@ fn reset_error(message: impl Into<String>) -> CommandError {
 /// `src/lib/auth/password.ts` supaya aturan yang sama berlaku di kedua jalur.
 fn validate_new_password(password: &str) -> Result<(), CommandError> {
     if password.chars().count() < 12 {
-        return Err(reset_error("Password minimal 12 karakter."));
+        return Err(reset_error("The password needs at least 12 characters."));
     }
     if !password.chars().any(char::is_lowercase) || !password.chars().any(char::is_uppercase) {
         return Err(reset_error(
-            "Password harus memiliki huruf kecil dan huruf besar.",
+            "The password must have lowercase and uppercase letters.",
         ));
     }
     if !password.chars().any(|item| item.is_ascii_digit()) {
-        return Err(reset_error("Password harus memiliki angka."));
+        return Err(reset_error("The password must have a number."));
     }
     Ok(())
 }
@@ -4172,7 +4208,7 @@ impl TursoClient {
                 OR m.kode_operator = ? COLLATE NOCASE
                 OR LOWER(COALESCE(m.email, '')) = ?
             )
-            AND m.status = 'Aktif' AND r.status = 'Aktif'
+            AND m.status = 'Active' AND r.status = 'Active'
             LIMIT 1;
         "#;
         Ok(self
@@ -4187,7 +4223,7 @@ impl TursoClient {
         operator: Option<HashMap<String, Value>>,
     ) -> Result<HashMap<String, Value>, CommandError> {
         let row = operator.ok_or_else(|| {
-            reset_error("Akun dengan username atau email tersebut tidak ditemukan.")
+            reset_error("No account with that username or email was found.")
         })?;
         let email = row
             .get("email")
@@ -4197,7 +4233,7 @@ impl TursoClient {
             .to_string();
         if email.is_empty() {
             return Err(reset_error(
-                "Akun ini belum memiliki email terdaftar sehingga link reset tidak dapat dikirim. Hubungi Admin untuk melengkapi data akun.",
+                "This account has no registered email, so a reset link cannot be sent. Ask an Admin to complete the account details.",
             ));
         }
         Ok(row)
@@ -4219,7 +4255,7 @@ impl TursoClient {
         let mut conditions: Vec<String> = Vec::new();
         let mut args: Vec<Value> = Vec::new();
 
-        if !status.is_empty() && status != "SEMUA" {
+        if !status.is_empty() && status != "ALL" {
             conditions.push("p.status = ?".to_string());
             args.push(json!(status));
         }
@@ -4300,7 +4336,7 @@ impl TursoClient {
         if id.is_empty() || id.len() > 64 {
             return Err(CommandError::new(
                 "VALIDATION_ERROR",
-                "ID permintaan tidak valid.",
+                "Invalid request ID.",
             ));
         }
         let row = self
@@ -4312,7 +4348,7 @@ impl TursoClient {
             .to_objects()
             .into_iter()
             .next()
-            .ok_or_else(|| CommandError::new("NOT_FOUND", "Permintaan tidak ditemukan."))?;
+            .ok_or_else(|| CommandError::new("NOT_FOUND", "Request not found."))?;
         let base64 = row
             .get("photo_base64")
             .and_then(Value::as_str)
@@ -4322,7 +4358,7 @@ impl TursoClient {
         if base64.is_empty() {
             return Err(CommandError::new(
                 "NOT_FOUND",
-                "Permintaan ini tidak menyimpan foto verifikasi.",
+                "This request has no verification photo.",
             ));
         }
         let mime = row
@@ -4347,7 +4383,7 @@ impl TursoClient {
         if id.is_empty() || id.len() > 64 {
             return Err(CommandError::new(
                 "VALIDATION_ERROR",
-                "ID permintaan tidak valid.",
+                "Invalid request ID.",
             ));
         }
         let result = self
@@ -4359,7 +4395,7 @@ impl TursoClient {
         if result.rows_affected == 0 {
             return Err(CommandError::new(
                 "NOT_FOUND",
-                "Riwayat tidak ditemukan atau sudah dihapus.",
+                "The history was not found or has already been deleted.",
             ));
         }
         Ok(json!({ "sukses": true, "deleted": 1 }))
@@ -4374,12 +4410,12 @@ impl TursoClient {
         if !(1..=3650).contains(&days) {
             return Err(CommandError::new(
                 "VALIDATION_ERROR",
-                "Rentang hari pembersihan tidak valid.",
+                "Invalid cleanup day range.",
             ));
         }
         let result = self
             .query_one(
-                "DELETE FROM password_reset_request WHERE status IN ('Terpakai', 'Kedaluwarsa', 'Dibatalkan') AND requested_at <= datetime('now', ?);",
+                "DELETE FROM password_reset_request WHERE status IN ('Used', 'Expired', 'Cancelled') AND requested_at <= datetime('now', ?);",
                 vec![json!(format!("-{days} days"))],
             )
             .await?;
@@ -4425,7 +4461,7 @@ impl TursoClient {
             == Some(operator_id);
         if !matches {
             return Err(reset_error(
-                "Konfirmasi username atau email tidak cocok dengan akun yang dipilih.",
+                "The confirmed username or email does not match the selected account.",
             ));
         }
         let email = row
@@ -4437,7 +4473,7 @@ impl TursoClient {
         // Satu akun hanya boleh punya satu permintaan hidup, supaya token lama
         // tidak ikut berlaku setelah permintaan baru dibuat.
         self.query_one(
-            "UPDATE password_reset_request SET status = 'Dibatalkan' WHERE operator_id = ? AND status IN ('Menunggu Verifikasi', 'Terkirim');",
+            "UPDATE password_reset_request SET status = 'Cancelled' WHERE operator_id = ? AND status IN ('Pending Verification', 'Sent');",
             vec![json!(operator_id)],
         )
         .await?;
@@ -4449,7 +4485,7 @@ impl TursoClient {
             r#"INSERT INTO password_reset_request (
                 id, operator_id, identifier_used, contact_channel, contact_target,
                 challenge_hash, challenge_sequence, status, requested_at, expires_at
-            ) VALUES (?, ?, ?, 'email', ?, ?, ?, 'Menunggu Verifikasi', datetime('now'), datetime('now', '+{RESET_CHALLENGE_TTL_MINUTES} minutes'));"#
+            ) VALUES (?, ?, ?, 'email', ?, ?, ?, 'Pending Verification', datetime('now'), datetime('now', '+{RESET_CHALLENGE_TTL_MINUTES} minutes'));"#
         );
         self.query_one(
             sql,
@@ -4514,16 +4550,16 @@ impl TursoClient {
             .to_objects()
             .into_iter()
             .next()
-            .ok_or_else(|| reset_error("Sesi verifikasi tidak ditemukan."))?;
+            .ok_or_else(|| reset_error("Verification session not found."))?;
 
-        if row.get("status").and_then(Value::as_str) != Some("Menunggu Verifikasi") {
+        if row.get("status").and_then(Value::as_str) != Some("Pending Verification") {
             return Err(reset_error(
-                "Sesi verifikasi ini sudah tidak berlaku. Ulangi dari awal.",
+                "This verification session is no longer valid. Start over.",
             ));
         }
         if row.get("is_expired").and_then(Value::as_i64) == Some(1) {
             return Err(reset_error(
-                "Waktu verifikasi habis. Ulangi permintaan dari awal.",
+                "Verification time ran out. Start the request over.",
             ));
         }
 
@@ -4534,7 +4570,7 @@ impl TursoClient {
         )
         .unwrap_or_default();
         if step_index < 0 || step_index as usize >= challenges.len() {
-            return Err(reset_error("Langkah tantangan tidak dikenal."));
+            return Err(reset_error("Unknown challenge step."));
         }
 
         let report: Value = serde_json::from_str(
@@ -4547,7 +4583,7 @@ impl TursoClient {
         let swaps = report.get("swaps").and_then(Value::as_i64).unwrap_or(0);
         if swaps >= RESET_MAX_CHALLENGE_SWAPS {
             return Err(reset_error(format!(
-                "Penggantian tantangan sudah mencapai batas ({RESET_MAX_CHALLENGE_SWAPS}). Ulangi permintaan dari awal di tempat yang lebih terang."
+                "The challenge swap limit ({RESET_MAX_CHALLENGE_SWAPS}) was reached. Start the request over somewhere brighter."
             )));
         }
 
@@ -4563,7 +4599,7 @@ impl TursoClient {
         .map(str::to_string)
         .collect();
         if alternatives.is_empty() {
-            return Err(reset_error("Tidak ada tantangan pengganti yang tersisa."));
+            return Err(reset_error("No replacement challenges are left."));
         }
         let pick = {
             use rand_core::{OsRng, RngCore};
@@ -4572,7 +4608,7 @@ impl TursoClient {
         challenges[step_index as usize] = alternatives[pick].clone();
 
         self.query_one(
-            "UPDATE password_reset_request SET challenge_sequence = ?, liveness_report = ? WHERE id = ? AND status = 'Menunggu Verifikasi';",
+            "UPDATE password_reset_request SET challenge_sequence = ?, liveness_report = ? WHERE id = ? AND status = 'Pending Verification';",
             vec![
                 json!(serde_json::to_string(&challenges).unwrap_or_else(|_| "[]".to_string())),
                 json!(json!({ "attempts": attempts, "swaps": swaps + 1 }).to_string()),
@@ -4663,13 +4699,13 @@ impl TursoClient {
         if identifier.is_empty() {
             return Err(CommandError::new(
                 "RECOVERY_REJECTED",
-                "Username atau kode operator wajib diisi.",
+                "Enter a username or operator code.",
             ));
         }
         if new_password.chars().count() < 8 {
             return Err(CommandError::new(
                 "RECOVERY_PASSWORD_WEAK",
-                "Password baru minimal 8 karakter.",
+                "The new password needs at least 8 characters.",
             ));
         }
 
@@ -4677,7 +4713,7 @@ impl TursoClient {
         if normalized.is_empty() {
             return Err(CommandError::new(
                 "RECOVERY_REJECTED",
-                "Kode pemulihan wajib diisi.",
+                "Enter a recovery code.",
             ));
         }
 
@@ -4688,7 +4724,7 @@ impl TursoClient {
                    FROM master_operator m
                    JOIN app_role r ON r.id = m.role_id
                    WHERE (m.username = ? COLLATE NOCASE OR m.kode_operator = ? COLLATE NOCASE)
-                     AND m.status = 'Aktif' AND r.status = 'Aktif'
+                     AND m.status = 'Active' AND r.status = 'Active'
                    LIMIT 1;"#,
                 vec![json!(identifier), json!(identifier)],
             )
@@ -4702,7 +4738,7 @@ impl TursoClient {
         let ditolak = || {
             CommandError::new(
                 "RECOVERY_REJECTED",
-                "Kode pemulihan tidak sesuai, atau sudah pernah dipakai.",
+                "The recovery code is wrong, or it has already been used.",
             )
         };
 
@@ -4834,20 +4870,20 @@ impl TursoClient {
             .ok_or_else(|| {
                 CommandError::new(
                     "RESET_REQUEST_NOT_FOUND",
-                    "Permintaan pemulihan tidak ditemukan.",
+                    "Recovery request not found.",
                 )
             })?;
 
-        if existing.get("status").and_then(Value::as_str) != Some("Menunggu Verifikasi") {
+        if existing.get("status").and_then(Value::as_str) != Some("Pending Verification") {
             return Err(CommandError::new(
                 "RESET_REQUEST_NOT_PENDING",
-                "Permintaan ini sudah diproses sebelumnya.",
+                "This request was already processed.",
             ));
         }
-        if existing.get("delivery_status").and_then(Value::as_str) != Some("Menunggu Persetujuan") {
+        if existing.get("delivery_status").and_then(Value::as_str) != Some("Awaiting Approval") {
             return Err(CommandError::new(
                 "RESET_REQUEST_NOT_PENDING",
-                "Permintaan ini tidak menunggu persetujuan.",
+                "This request is not awaiting approval.",
             ));
         }
         if existing
@@ -4857,23 +4893,23 @@ impl TursoClient {
             == 1
         {
             self.query_one(
-                "UPDATE password_reset_request SET status = 'Kedaluwarsa' WHERE id = ?;",
+                "UPDATE password_reset_request SET status = 'Expired' WHERE id = ?;",
                 vec![json!(request_id)],
             )
             .await?;
             return Err(CommandError::new(
                 "RESET_REQUEST_EXPIRED",
-                "Permintaan ini sudah kedaluwarsa. Minta pemohon mengulang dari awal.",
+                "This request has expired. Ask the requester to start over.",
             ));
         }
 
         let reset_token = random_reset_token();
         let update_sql = format!(
             r#"UPDATE password_reset_request
-               SET token_hash = ?, status = 'Terkirim', delivery_status = 'Disetujui',
+               SET token_hash = ?, status = 'Sent', delivery_status = 'Approved',
                    delivery_error = NULL, sent_at = datetime('now'),
                    expires_at = datetime('now', '+{RESET_TOKEN_TTL_MINUTES} minutes')
-               WHERE id = ? AND status = 'Menunggu Verifikasi';"#
+               WHERE id = ? AND status = 'Pending Verification';"#
         );
         let applied = self
             .query_one(
@@ -4884,7 +4920,7 @@ impl TursoClient {
         if applied.rows_affected == 0 {
             return Err(CommandError::new(
                 "RESET_REQUEST_NOT_PENDING",
-                "Permintaan ini sudah diproses oleh orang lain.",
+                "This request was already processed by someone else.",
             ));
         }
 
@@ -4909,7 +4945,7 @@ impl TursoClient {
         let photo = photo_base64.trim();
         if photo.is_empty() || photo.len() > RESET_PHOTO_MAX_LEN {
             return Err(reset_error(
-                "Foto verifikasi tidak valid atau terlalu besar.",
+                "The verification photo is invalid or too large.",
             ));
         }
 
@@ -4927,21 +4963,21 @@ impl TursoClient {
             .to_objects()
             .into_iter()
             .next()
-            .ok_or_else(|| reset_error("Sesi verifikasi tidak ditemukan."))?;
+            .ok_or_else(|| reset_error("Verification session not found."))?;
 
-        if row.get("status").and_then(Value::as_str) != Some("Menunggu Verifikasi") {
+        if row.get("status").and_then(Value::as_str) != Some("Pending Verification") {
             return Err(reset_error(
-                "Sesi verifikasi ini sudah tidak berlaku. Ulangi dari awal.",
+                "This verification session is no longer valid. Start over.",
             ));
         }
         if row.get("is_expired").and_then(Value::as_i64) == Some(1) {
             self.query_one(
-                "UPDATE password_reset_request SET status = 'Kedaluwarsa' WHERE id = ?;",
+                "UPDATE password_reset_request SET status = 'Expired' WHERE id = ?;",
                 vec![json!(request_id)],
             )
             .await?;
             return Err(reset_error(
-                "Waktu verifikasi habis. Ulangi permintaan dari awal.",
+                "Verification time ran out. Start the request over.",
             ));
         }
 
@@ -4963,7 +4999,7 @@ impl TursoClient {
             .unwrap_or_default();
         if expected.is_empty() || expected != reported {
             return Err(reset_error(
-                "Urutan tantangan tidak sesuai. Ulangi verifikasi.",
+                "The challenge order does not match. Repeat the verification.",
             ));
         }
 
@@ -4973,9 +5009,9 @@ impl TursoClient {
             let reason = verdict
                 .get("reason")
                 .and_then(Value::as_str)
-                .unwrap_or("Verifikasi wajah gagal.");
+                .unwrap_or("Face verification failed.");
             self.query_one(
-                "UPDATE password_reset_request SET liveness_score = ?, liveness_report = ?, photo_mime = ?, photo_base64 = ?, status = 'Dibatalkan' WHERE id = ?;",
+                "UPDATE password_reset_request SET liveness_score = ?, liveness_report = ?, photo_mime = ?, photo_base64 = ?, status = 'Cancelled' WHERE id = ?;",
                 vec![
                     json!(score),
                     json!(verdict.to_string()),
@@ -4990,16 +5026,16 @@ impl TursoClient {
 
         // Jalur persetujuan di aplikasi: tidak ada token yang dibuat di sini,
         // dan tidak ada yang dikirim ke mana pun. Permintaannya tetap
-        // "Menunggu Verifikasi" sampai seorang Superadmin melihat foto wajahnya
+        // "Pending Verification" sampai seorang Superadmin melihat foto wajahnya
         // dan menyetujui — barulah token dibuat, sekali, di layar peninjau.
         if self.password_reset_route().await? != "email" {
             let update_sql = format!(
                 r#"UPDATE password_reset_request
                    SET liveness_score = ?, liveness_report = ?, photo_mime = ?, photo_base64 = ?,
-                       contact_channel = 'in_app', delivery_status = 'Menunggu Persetujuan',
+                       contact_channel = 'in_app', delivery_status = 'Awaiting Approval',
                        delivery_error = NULL, verified_at = datetime('now'),
                        expires_at = datetime('now', '+{RESET_TOKEN_TTL_MINUTES} minutes')
-                   WHERE id = ? AND status = 'Menunggu Verifikasi';"#
+                   WHERE id = ? AND status = 'Pending Verification';"#
             );
             self.query_one(
                 update_sql,
@@ -5018,7 +5054,7 @@ impl TursoClient {
                     "delivered": false,
                     "mode": "in_app",
                     "message": format!(
-                        "Permintaan Anda sudah tercatat dan menunggu persetujuan Superadmin. Hubungi Superadmin untuk meninjau, lalu minta kode pemulihan yang berlaku {RESET_TOKEN_TTL_MINUTES} menit."
+                        "Your request was recorded and is awaiting Superadmin approval. Ask the Superadmin to review it, then ask for the recovery code, which is valid for {RESET_TOKEN_TTL_MINUTES} minutes."
                     ),
                     "score": score,
                 }
@@ -5028,10 +5064,10 @@ impl TursoClient {
         let reset_token = random_reset_token();
         let update_sql = format!(
             r#"UPDATE password_reset_request
-               SET token_hash = ?, status = 'Terkirim', liveness_score = ?, liveness_report = ?,
+               SET token_hash = ?, status = 'Sent', liveness_score = ?, liveness_report = ?,
                    photo_mime = ?, photo_base64 = ?, verified_at = datetime('now'),
                    expires_at = datetime('now', '+{RESET_TOKEN_TTL_MINUTES} minutes')
-               WHERE id = ? AND status = 'Menunggu Verifikasi';"#
+               WHERE id = ? AND status = 'Pending Verification';"#
         );
         self.query_one(
             update_sql,
@@ -5063,7 +5099,7 @@ impl TursoClient {
         match delivery {
             Ok(()) => {
                 self.query_one(
-                    "UPDATE password_reset_request SET delivery_status = 'Terkirim', delivery_error = NULL, sent_at = datetime('now') WHERE id = ?;",
+                    "UPDATE password_reset_request SET delivery_status = 'Sent', delivery_error = NULL, sent_at = datetime('now') WHERE id = ?;",
                     vec![json!(request_id)],
                 )
                 .await?;
@@ -5072,7 +5108,7 @@ impl TursoClient {
                         "delivered": true,
                         "masked_email": mask_operator_email(&contact),
                         "message": format!(
-                            "Link reset password sudah dikirim ke {}. Berlaku {} menit.",
+                            "A password reset link was sent to {}. It is valid for {} minutes.",
                             mask_operator_email(&contact),
                             RESET_TOKEN_TTL_MINUTES
                         ),
@@ -5087,7 +5123,7 @@ impl TursoClient {
                 // itulah satu-satunya petunjuk yang bisa dibaca Admin nanti di
                 // halaman Riwayat Reset Password.
                 self.query_one(
-                    "UPDATE password_reset_request SET delivery_status = 'Gagal', delivery_error = ?, status = 'Dibatalkan' WHERE id = ?;",
+                    "UPDATE password_reset_request SET delivery_status = 'Failed', delivery_error = ?, status = 'Cancelled' WHERE id = ?;",
                     vec![
                         json!(if failure.detail.is_empty() {
                             failure.message.clone()
@@ -5126,7 +5162,7 @@ impl TursoClient {
     async fn load_reset_token(&self, token: &str) -> Result<HashMap<String, Value>, CommandError> {
         let clean = token.trim();
         if clean.len() < 16 || clean.len() > 256 {
-            return Err(reset_error("Token reset tidak valid."));
+            return Err(reset_error("Invalid reset token."));
         }
         let row = self
             .query_one(
@@ -5142,24 +5178,24 @@ impl TursoClient {
             .to_objects()
             .into_iter()
             .next()
-            .ok_or_else(|| reset_error("Token reset tidak dikenal atau sudah dipakai."))?;
+            .ok_or_else(|| reset_error("Unknown reset token, or it was already used."))?;
 
         match row.get("status").and_then(Value::as_str) {
-            Some("Terpakai") => {
-                return Err(reset_error("Token reset ini sudah pernah dipakai."));
+            Some("Used") => {
+                return Err(reset_error("This reset token was already used."));
             }
-            Some("Terkirim") => {}
-            _ => return Err(reset_error("Token reset sudah tidak berlaku.")),
+            Some("Sent") => {}
+            _ => return Err(reset_error("The reset token is no longer valid.")),
         }
         if row.get("is_expired").and_then(Value::as_i64) == Some(1) {
             let id = row.get("id").cloned().unwrap_or(Value::Null);
             self.query_one(
-                "UPDATE password_reset_request SET status = 'Kedaluwarsa' WHERE id = ?;",
+                "UPDATE password_reset_request SET status = 'Expired' WHERE id = ?;",
                 vec![id],
             )
             .await?;
             return Err(reset_error(
-                "Token reset sudah kedaluwarsa. Ulangi permintaan dari awal.",
+                "The reset token has expired. Start the request over.",
             ));
         }
         Ok(row)
@@ -5181,12 +5217,12 @@ impl TursoClient {
         // sama tidak boleh sama-sama sempat menulis password.
         let consumed = self
             .query_one(
-                "UPDATE password_reset_request SET status = 'Terpakai', used_at = datetime('now') WHERE id = ? AND status = 'Terkirim';",
+                "UPDATE password_reset_request SET status = 'Used', used_at = datetime('now') WHERE id = ? AND status = 'Sent';",
                 vec![request_id.clone()],
             )
             .await?;
         if consumed.rows_affected == 0 {
-            return Err(reset_error("Token reset ini sudah pernah dipakai."));
+            return Err(reset_error("This reset token was already used."));
         }
 
         let password_hash = hash_password_pbkdf2(password);
@@ -5281,13 +5317,13 @@ impl TursoClient {
             if api_key.is_empty() && stored.trim().is_empty() {
                 return Err(CommandError::new(
                     "VALIDATION_ERROR",
-                    "Kunci API penyedia email wajib diisi.",
+                    "The email provider API key is required.",
                 ));
             }
             if !is_valid_operator_email(&sender_email) {
                 return Err(CommandError::new(
                     "VALIDATION_ERROR",
-                    "Email pengirim wajib diisi dengan format yang valid.",
+                    "Enter a valid sender email.",
                 ));
             }
             if sender_name.chars().count() < 2 {
@@ -5361,7 +5397,7 @@ impl TursoClient {
             return Ok(json!({
                 "test": {
                     "delivered": false,
-                    "message": "Akun Anda belum punya email terdaftar. Lengkapi email akun Anda di Master Operator lebih dulu.",
+                    "message": "Your account has no registered email. Add your account email on the Operators page first.",
                     "detail": "",
                     "to": "",
                 }
@@ -5373,7 +5409,7 @@ impl TursoClient {
             .unwrap_or("Admin")
             .to_string();
         let body = format!(
-            "Halo {name},\n\nEmail ini dikirim dari menu Pengaturan > Email Sistem untuk menguji konfigurasi pengirim.\nBila email ini sampai, fitur Lupa Password sudah siap dipakai.\n\nApp Template"
+            "Hello {name},\n\nThis email was sent from Settings > System email to test the sender settings.\nIf it arrived, Forgot password is ready to use.\n\nApp Template"
         );
         match self
             .deliver_mail(&to, "Uji Kirim Email Sistem App Template", &body)
@@ -5412,7 +5448,7 @@ impl TursoClient {
             )
             .await
             .map_err(|error| MailFailure {
-                message: "Konfigurasi email tidak dapat dibaca dari database.".to_string(),
+                message: "The email settings could not be read from the database.".to_string(),
                 detail: error.message,
             })?
             .to_objects()
@@ -5432,8 +5468,8 @@ impl TursoClient {
             || sender_email.is_empty()
         {
             return Err(MailFailure {
-                message: "Pengiriman email belum dikonfigurasi. Minta Admin mengisi Pengaturan > Email Sistem.".to_string(),
-                detail: "Konfigurasi email nonaktif, kunci API kosong, atau email pengirim belum diisi.".to_string(),
+                message: "Email sending is not configured. Ask an Admin to fill in Settings > System email.".to_string(),
+                detail: "Email settings are off, the API key is empty, or the sender email is not set.".to_string(),
             });
         }
         let sender_name = if text("sender_name").is_empty() {
@@ -5466,11 +5502,11 @@ impl TursoClient {
         };
 
         let response = request.send().await.map_err(|error| MailFailure {
-            message: "Email gagal dikirim karena jaringan tidak tersedia. Coba lagi setelah perangkat terhubung internet.".to_string(),
+            message: "The email could not be sent because no network is available. Try again once the device is online.".to_string(),
             // Penyebab teknisnya disimpan terpisah: "tidak ada internet" yang
             // muncul padahal internet menyala hampir selalu berarti DNS, TLS,
             // atau proxy — bukan kabel terputus.
-            detail: format!("Permintaan ke {provider} gagal: {error}"),
+            detail: format!("Request to {provider} failed: {error}"),
         })?;
         let status = response.status();
         if !status.is_success() {
@@ -5478,7 +5514,7 @@ impl TursoClient {
             return Err(MailFailure {
                 message: format!("Penyedia email menolak pengiriman (HTTP {}).", status.as_u16()),
                 detail: format!(
-                    "HTTP {} dari {provider}: {}",
+                    "HTTP {} from {provider}: {}",
                     status.as_u16(),
                     body.split_whitespace().collect::<Vec<_>>().join(" ").chars().take(400).collect::<String>()
                 ),
@@ -5516,7 +5552,7 @@ impl TursoClient {
         } else {
             format!(
                 "Buka tautan berikut untuk membuat password baru:
-{base_url}/lupa-password/reset?token={reset_token}"
+{base_url}/forgot-password/reset?token={reset_token}"
             )
         };
         let body_text = format!(
@@ -5540,7 +5576,7 @@ impl TursoClient {
 \
              App Template"
         );
-        self.deliver_mail(to, "Pemulihan Password App Template", &body_text)
+        self.deliver_mail(to, "App Template password recovery", &body_text)
             .await
     }
 }
@@ -5553,13 +5589,13 @@ fn validate_bootstrap_draft(draft: &BootstrapSuperadminDraft) -> Result<(), Comm
     if code != "SPD001" {
         return Err(CommandError::new(
             "TURSO_BOOTSTRAP_INVALID",
-            "Kode bootstrap Superadmin wajib SPD001.",
+            "The Superadmin bootstrap code must be SPD001.",
         ));
     }
     if !(3..=120).contains(&name.chars().count()) {
         return Err(CommandError::new(
             "TURSO_BOOTSTRAP_INVALID",
-            "Nama Superadmin harus terdiri dari 3-120 karakter.",
+            "The Superadmin name must be 3-120 characters.",
         ));
     }
     if !(3..=64).contains(&username.len())
@@ -5569,7 +5605,7 @@ fn validate_bootstrap_draft(draft: &BootstrapSuperadminDraft) -> Result<(), Comm
     {
         return Err(CommandError::new(
             "TURSO_BOOTSTRAP_INVALID",
-            "Username harus terdiri dari 3-64 karakter huruf, angka, titik, garis bawah, atau tanda minus.",
+            "The username must be 3-64 characters of letters, numbers, dots, underscores, or hyphens.",
         ));
     }
     let has_upper = password.chars().any(char::is_uppercase);
@@ -5587,7 +5623,7 @@ fn validate_bootstrap_draft(draft: &BootstrapSuperadminDraft) -> Result<(), Comm
     {
         return Err(CommandError::new(
             "TURSO_BOOTSTRAP_PASSWORD_WEAK",
-            "Password minimal 12 karakter dan wajib memuat huruf besar, huruf kecil, angka, simbol, serta tidak memuat username.",
+            "The password needs at least 12 characters with uppercase, lowercase, a number, and a symbol, and must not contain the username.",
         ));
     }
     Ok(())

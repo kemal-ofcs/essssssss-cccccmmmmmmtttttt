@@ -20,7 +20,7 @@ export async function requireWebSession(request: NextRequest) {
   const token = request.cookies.get(WEB_SESSION_COOKIE)?.value ?? "";
   const actor = await readWebSession(token);
   if (!actor) {
-    throw new AuthorizationError("Sesi login tidak ditemukan.", 401);
+    throw new AuthorizationError("Sign-in session not found.", 401);
   }
   return actor;
 }

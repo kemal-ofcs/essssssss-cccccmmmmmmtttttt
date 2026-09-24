@@ -41,7 +41,7 @@ function errorResponse(message: string, status: number) {
 
 export async function POST(request: NextRequest) {
   if (!isSameOriginMutation(request)) {
-    return errorResponse("Origin permintaan tidak diizinkan.", 403);
+    return errorResponse("The request origin is not allowed.", 403);
   }
   let body: LoginBody;
   try {
@@ -50,20 +50,20 @@ export async function POST(request: NextRequest) {
     if (error instanceof JsonBodyError) {
       const message =
         error.status === 413
-          ? "Payload login terlalu besar."
+          ? "The sign-in payload is too large."
           : error.status === 415
-            ? "Content-Type harus application/json."
-            : "Payload login tidak valid.";
+            ? "Content-Type must be application/json."
+            : "Invalid sign-in payload.";
       return errorResponse(message, error.status);
     }
-    return errorResponse("Payload login tidak valid.", 400);
+    return errorResponse("Invalid sign-in payload.", 400);
   }
 
   const username =
     typeof body.username === "string" ? body.username.trim() : "";
   const password = typeof body.password === "string" ? body.password : "";
   if (username.length < 3 || username.length > 64 || password.length > 256) {
-    return errorResponse("Username atau password tidak sesuai.", 401);
+    return errorResponse("Wrong username or password.", 401);
   }
 
   await ensureServerDatabaseInitialized();
@@ -79,10 +79,10 @@ export async function POST(request: NextRequest) {
     const seconds = rateLimit.retryAfterSeconds % 60;
     const timeStr =
       minutes > 0
-        ? `${minutes} menit${seconds > 0 ? ` ${seconds} detik` : ""}`
-        : `${seconds} detik`;
+        ? `${minutes} minutes${seconds > 0 ? ` ${seconds} seconds` : ""}`
+        : `${seconds} seconds`;
     const response = errorResponse(
-      `Terlalu banyak percobaan login. Akun dikunci sementara untuk keamanan. Silakan tunggu ${timeStr} lagi sebelum mencoba kembali.`,
+      `Too many sign-in attempts. The account is temporarily locked for security. Wait ${timeStr} before trying again.`,
       429,
     );
     response.headers.set("Retry-After", String(rateLimit.retryAfterSeconds));
@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
 
   const operator = await authenticateWebOperator(username, password);
   if (!operator) {
-    return errorResponse("Username atau password tidak sesuai.", 401);
+    return errorResponse("Wrong username or password.", 401);
   }
 
   // Gerbang 2FA dijalankan SETELAH password terbukti benar, supaya layar login
@@ -104,8 +104,8 @@ export async function POST(request: NextRequest) {
   if (gate.outcome === "code_required" || gate.outcome === "code_invalid") {
     const pesan =
       gate.outcome === "code_required"
-        ? "Masukkan kode 6 digit dari aplikasi autentikator Anda."
-        : "Kode verifikasi tidak cocok. Periksa kode terbaru di aplikasi autentikator.";
+        ? "Enter the 6-digit code from your authenticator app."
+        : "The verification code does not match. Check the latest code in your authenticator app.";
     // Penanda `requiresTotp` yang membuat form login menampilkan kolom kode;
     // password sudah benar, jadi memberitahukannya di sini tidak membocorkan
     // apa pun yang belum diketahui pemanggil.
@@ -116,7 +116,7 @@ export async function POST(request: NextRequest) {
   }
   if (gate.outcome === "enrollment_required") {
     return errorResponse(
-      "Role akun ini mewajibkan verifikasi dua langkah, tetapi akun Anda belum mendaftarkannya. Hubungi Admin untuk membuka pendaftaran 2FA.",
+      "This account's role requires two-step verification, but your account has not enrolled yet. Ask an Admin to open 2FA enrollment.",
       403,
     );
   }
@@ -128,7 +128,7 @@ export async function POST(request: NextRequest) {
     request.headers.get("user-agent"),
   );
   const response = NextResponse.json(
-    { sukses: true, pesan: "Login berhasil.", operator },
+    { sukses: true, pesan: "Signed in.", operator },
     { headers: { "Cache-Control": "no-store" } },
   );
   response.cookies.set(

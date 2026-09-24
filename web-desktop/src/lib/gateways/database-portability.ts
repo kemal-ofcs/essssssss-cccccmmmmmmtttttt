@@ -77,14 +77,14 @@ export async function exportDatabaseToDevice(
     );
   }
   throw new Error(
-    "Simpan ke perangkat hanya tersedia pada aplikasi Android. Di Desktop, berkas cadangan langsung tersimpan di folder Unduhan.",
+    "Saving to the device is only available in the Android app. On Desktop, the backup file is saved straight to the Downloads folder.",
   );
 }
 
 function assertTauriRuntime(): void {
   if (!isDesktopRuntime()) {
     throw new Error(
-      "Ekspor dan pemulihan database hanya tersedia di aplikasi Desktop dan Mobile. Pada Web, data berada di database remote — cadangkan dari penyedia database Anda.",
+      "Database export and restore are only available in the Desktop and Mobile apps. On the Web, data lives in the remote database: back it up from your database provider.",
     );
   }
 }

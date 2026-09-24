@@ -69,7 +69,28 @@ export async function isDatabaseSchemaReady(client: Client) {
   }
 }
 
+/**
+ * Database pra-rilis yang dibuat sebelum nilai tersimpan diganti ke bahasa
+ * Inggris masih membawa CHECK lama (`'Aktif'`, `'Menunggu Verifikasi'`). SQLite
+ * tidak bisa mengubah CHECK di tempat, jadi database itu ditolak dengan pesan
+ * yang jelas alih-alih gagal di tengah login. WAJIB identik dengan
+ * `LEGACY_STORED_VALUES_SQL` di `turso.rs`.
+ */
+export const LEGACY_STORED_VALUES_SQL =
+  "SELECT COUNT(*) AS total FROM sqlite_master WHERE type = 'table' AND name IN ('app_role', 'password_reset_request') AND (sql LIKE '%''Aktif''%' OR sql LIKE '%''Menunggu Verifikasi''%');";
+
+export const LEGACY_STORED_VALUES_MESSAGE =
+  "This database was created by a pre-release build that stored values in Indonesian. It cannot be upgraded in place. Create a new database (or a new Local Database Mode file) and connect this device to it.";
+
+async function rejectLegacyStoredValues(client: Client) {
+  const result = await client.execute(LEGACY_STORED_VALUES_SQL);
+  if (Number(result.rows[0]?.total ?? 0) > 0) {
+    throw new Error(LEGACY_STORED_VALUES_MESSAGE);
+  }
+}
+
 export async function initDatabaseSchema(client: Client) {
+  await rejectLegacyStoredValues(client);
   if (await isDatabaseSchemaReady(client)) return;
 
   const statements = [
@@ -85,7 +106,7 @@ export async function initDatabaseSchema(client: Client) {
       deskripsi TEXT,
       is_system INTEGER NOT NULL DEFAULT 0 CHECK(is_system IN (0, 1)),
       is_superadmin INTEGER NOT NULL DEFAULT 0 CHECK(is_superadmin IN (0, 1)),
-      status TEXT NOT NULL DEFAULT 'Aktif' CHECK(status IN ('Aktif', 'Nonaktif')),
+      status TEXT NOT NULL DEFAULT 'Active' CHECK(status IN ('Active', 'Inactive')),
       require_totp INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
@@ -133,7 +154,7 @@ export async function initDatabaseSchema(client: Client) {
       totp_enabled INTEGER NOT NULL DEFAULT 0,
       totp_confirmed_at TEXT,
       totp_recovery_codes TEXT,
-      status TEXT DEFAULT 'Aktif',
+      status TEXT DEFAULT 'Active',
       created_at TEXT,
       updated_at TEXT
       );`,
@@ -170,9 +191,9 @@ export async function initDatabaseSchema(client: Client) {
       challenge_hash TEXT NOT NULL,
       challenge_sequence TEXT NOT NULL,
       token_hash TEXT,
-      status TEXT NOT NULL DEFAULT 'Menunggu Verifikasi'
+      status TEXT NOT NULL DEFAULT 'Pending Verification'
         CHECK(status IN (
-          'Menunggu Verifikasi', 'Terkirim', 'Terpakai', 'Kedaluwarsa', 'Dibatalkan'
+          'Pending Verification', 'Sent', 'Used', 'Expired', 'Cancelled'
         )),
       liveness_score REAL,
       liveness_report TEXT,
@@ -247,7 +268,7 @@ export async function initDatabaseSchema(client: Client) {
     // secara permanen.
     `CREATE TABLE IF NOT EXISTS company_profile (
       id TEXT PRIMARY KEY DEFAULT 'default_company',
-      company_name TEXT NOT NULL DEFAULT 'Nama Perusahaan',
+      company_name TEXT NOT NULL DEFAULT 'Company Name',
       branch_name TEXT,
       logo_url TEXT,
       signature_url TEXT,
@@ -275,8 +296,8 @@ export async function initDatabaseSchema(client: Client) {
       harga INTEGER NOT NULL DEFAULT 0 CHECK (harga >= 0),
       satuan TEXT,
       catatan TEXT,
-      status_aktif TEXT NOT NULL DEFAULT 'Aktif'
-      CHECK (status_aktif IN ('Aktif', 'Nonaktif')),
+      status_aktif TEXT NOT NULL DEFAULT 'Active'
+      CHECK (status_aktif IN ('Active', 'Inactive')),
       update_terakhir TEXT NOT NULL
       );`,
     `CREATE TABLE IF NOT EXISTS log_aktivitas (
@@ -299,30 +320,33 @@ export async function initDatabaseSchema(client: Client) {
     // lewat provisioning sekali-pakai, sehingga tidak ada kredensial default
     // yang seragam di semua instalasi.
     `INSERT OR IGNORE INTO app_role (id, role_key, nama_role, deskripsi, is_system, is_superadmin, status, created_at, updated_at) VALUES
-      (1, 'superadmin', 'Superadmin', 'Pemilik akses penuh dan pengelola role aplikasi.', 1, 1, 'Aktif', datetime('now'), datetime('now')),
-      (2, 'admin', 'Admin', 'Administrator operasional sesuai matriks permission.', 1, 0, 'Aktif', datetime('now'), datetime('now')),
-      (3, 'operator', 'Operator', 'Operator harian sesuai matriks permission.', 1, 0, 'Aktif', datetime('now'), datetime('now'));`,
+      (1, 'superadmin', 'Superadmin', 'Full access owner who manages the app roles.', 1, 1, 'Active', datetime('now'), datetime('now')),
+      (2, 'admin', 'Admin', 'Operations administrator, per the permission matrix.', 1, 0, 'Active', datetime('now'), datetime('now')),
+      (3, 'operator', 'Operator', 'Daily operator, per the permission matrix.', 1, 0, 'Active', datetime('now'), datetime('now'));`,
 
     // Katalog permission. WAJIB identik dengan seed di `turso.rs` dan daftar di
     // `src/lib/rbac/catalog.ts`.
     `INSERT OR IGNORE INTO app_permission (permission_key, nama, grup, deskripsi, is_active, sort_order) VALUES
-      ('home.view', 'Akses Beranda & Navigasi', 'Navigasi', 'Melihat beranda dan menu aplikasi.', 1, 10),
-      ('dashboard.view', 'Akses Dashboard', 'Dashboard', 'Melihat ringkasan dan statistik.', 1, 20),
-      ('items.view', 'Lihat Master Item', 'Master Data', 'Melihat daftar item.', 1, 30),
-      ('items.manage', 'Kelola Master Item', 'Master Data', 'Menambah, mengubah, dan menonaktifkan item.', 1, 40),
-      ('activity.view', 'Lihat Log Aktivitas', 'Operasional', 'Melihat riwayat aktivitas.', 1, 50),
-      ('activity.record', 'Catat Aktivitas', 'Operasional', 'Mencatat aktivitas baru.', 1, 60),
-      ('password_reset.view', 'Lihat Riwayat Reset Password', 'Operator', 'Meninjau siapa yang pernah mengajukan pemulihan password beserta foto verifikasinya.', 1, 62),
-      ('password_reset.delete', 'Hapus Riwayat Reset Password', 'Operator', 'Menghapus jejak pengajuan pemulihan password beserta fotonya.', 1, 64),
-      ('two_factor.reset', 'Reset 2FA Operator Lain', 'Operator', 'Mematikan verifikasi dua langkah milik operator lain yang kehilangan ponselnya.', 1, 66),
-      ('operators.view', 'Lihat Daftar Operator', 'Operator', 'Melihat data operator dan akun pengguna.', 1, 70),
-      ('operators.manage', 'Kelola Operator', 'Operator', 'Menambah dan mengubah data operator aplikasi.', 1, 80),
-      ('roles.manage', 'Kelola Hak Akses & Role', 'Role', 'Mengatur matriks permission setiap role.', 1, 90),
-      ('settings.view', 'Lihat Pengaturan Sistem', 'Pengaturan', 'Melihat konfigurasi aplikasi dan database.', 1, 100),
-      ('settings.manage', 'Kelola Pengaturan Sistem', 'Pengaturan', 'Mengubah konfigurasi aplikasi dan database.', 1, 110),
-      ('sync.view', 'Lihat Status Sinkronisasi', 'Sinkronisasi', 'Melihat indikator dan antrean sync.', 1, 120),
-      ('sync.retry', 'Kirim Ulang & Atasi Konflik', 'Sinkronisasi', 'Memicu sinkronisasi manual dan resolusi konflik.', 1, 130),
-      ('diagnostics.view', 'Lihat Diagnostik Sistem', 'Diagnostik', 'Melihat informasi runtime dan kesehatan database.', 1, 140);`,
+      ('home.view', 'Home and navigation access', 'Navigation', 'View home and the app menu.', 1, 10),
+      ('dashboard.view', 'Dashboard access', 'Dashboard', 'View summaries and statistics.', 1, 20),
+      ('items.view', 'View items', 'Master data', 'View the item list.', 1, 30),
+      ('items.manage', 'Manage items', 'Master data', 'Add, edit, and deactivate items.', 1, 40),
+      ('activity.view', 'View activity log', 'Operations', 'View activity history.', 1, 50),
+      ('activity.record', 'Record activity', 'Operations', 'Record new activity.', 1, 60),
+      ('password_reset.view', 'View password reset history', 'Operators', 'Review who requested a password recovery, with their verification photo.', 1, 62),
+      ('password_reset.delete', 'Delete password reset history', 'Operators', 'Delete password recovery records and their photos.', 1, 64),
+      ('two_factor.reset', 'Reset another operator''s 2FA', 'Operators', 'Turn off two-step verification for another operator who lost their phone.', 1, 66),
+      ('password_reset.approve', 'Approve password recovery', 'System', 'Review the requester''s photo, then hand over a password recovery code.', 1, 65),
+      ('database_backup.export', 'Export database backup', 'System', 'Export the entire database into one backup file.', 1, 66),
+      ('database_backup.restore', 'Restore database from backup', 'System', 'Replace all device data with the contents of a backup file.', 1, 67),
+      ('operators.view', 'View operators', 'Operators', 'View operator and user account data.', 1, 70),
+      ('operators.manage', 'Manage operators', 'Operators', 'Add and edit app operators.', 1, 80),
+      ('roles.manage', 'Manage roles and access', 'Roles', 'Set the permission matrix of each role.', 1, 90),
+      ('settings.view', 'View system settings', 'Settings', 'View app and database settings.', 1, 100),
+      ('settings.manage', 'Manage system settings', 'Settings', 'Change app and database settings.', 1, 110),
+      ('sync.view', 'View sync status', 'Sync', 'View the sync indicator and queue.', 1, 120),
+      ('sync.retry', 'Retry sync and resolve conflicts', 'Sync', 'Trigger a manual sync and resolve conflicts.', 1, 130),
+      ('diagnostics.view', 'View system diagnostics', 'Diagnostics', 'View runtime information and database health.', 1, 140);`,
 
     `INSERT OR IGNORE INTO role_permission (role_id, permission_key, is_allowed, updated_at, updated_by)
       SELECT 1, permission_key, 1, datetime('now'), 'system' FROM app_permission;`,
@@ -330,7 +354,8 @@ export async function initDatabaseSchema(client: Client) {
       SELECT 2, permission_key, 1, datetime('now'), 'system' FROM app_permission
       WHERE permission_key NOT IN (
         'roles.manage', 'operators.manage', 'operators.view', 'diagnostics.view',
-        'password_reset.delete', 'two_factor.reset', 'items.manage', 'settings.manage'
+        'password_reset.delete', 'two_factor.reset', 'password_reset.approve',
+        'database_backup.restore', 'items.manage', 'settings.manage'
       );`,
 
     // `rbac_revision` WAJIB ada: nilainya yang dipakai Web dan perangkat untuk

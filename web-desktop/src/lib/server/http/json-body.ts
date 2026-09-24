@@ -11,7 +11,7 @@ export class JsonBodyError extends Error {
 async function readBoundedBody(request: Request, maxBytes: number) {
   const declaredLength = Number(request.headers.get("content-length"));
   if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
-    throw new JsonBodyError("Payload terlalu besar.", 413);
+    throw new JsonBodyError("The payload is too large.", 413);
   }
 
   if (!request.body) return new Uint8Array();
@@ -26,7 +26,7 @@ async function readBoundedBody(request: Request, maxBytes: number) {
       totalBytes += chunk.value.byteLength;
       if (totalBytes > maxBytes) {
         await reader.cancel().catch(() => undefined);
-        throw new JsonBodyError("Payload terlalu besar.", 413);
+        throw new JsonBodyError("The payload is too large.", 413);
       }
       chunks.push(chunk.value);
     }
@@ -49,10 +49,10 @@ export async function readBoundedJsonBody<T>(
 ): Promise<T> {
   const contentType = request.headers.get("content-type")?.toLowerCase() ?? "";
   if (!contentType.startsWith("application/json")) {
-    throw new JsonBodyError("Content-Type harus application/json.", 415);
+    throw new JsonBodyError("Content-Type must be application/json.", 415);
   }
   if (!Number.isSafeInteger(maxBytes) || maxBytes < 1) {
-    throw new Error("Batas payload JSON tidak valid.");
+    throw new Error("Invalid JSON payload limit.");
   }
 
   const bytes = await readBoundedBody(request, maxBytes);
@@ -61,6 +61,6 @@ export async function readBoundedJsonBody<T>(
     return JSON.parse(text) as T;
   } catch (error) {
     if (error instanceof JsonBodyError) throw error;
-    throw new JsonBodyError("Payload JSON tidak valid.", 400);
+    throw new JsonBodyError("Invalid JSON payload.", 400);
   }
 }

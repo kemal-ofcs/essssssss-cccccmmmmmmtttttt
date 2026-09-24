@@ -7,7 +7,7 @@ export interface RoleRecord {
   description: string;
   isSystem: boolean;
   isSuperadmin: boolean;
-  status: "Aktif" | "Nonaktif";
+  status: "Active" | "Inactive";
   /**
    * Operator dengan role ini tidak boleh login sampai mendaftarkan 2FA.
    * Dinilai evaluateTwoFactorGate SETELAH password terbukti benar.
@@ -20,6 +20,6 @@ export interface RoleRecord {
 export interface RoleDraft {
   name: string;
   description?: string;
-  status?: "Aktif" | "Nonaktif";
+  status?: "Active" | "Inactive";
   requireTotp?: boolean;
 }

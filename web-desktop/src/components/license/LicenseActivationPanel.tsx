@@ -16,11 +16,11 @@ import {
 } from "@/lib/gateways/license";
 
 const TITLES: Record<LicenseState, string> = {
-  missing: "Aktifkan lisensi aplikasi",
-  invalid: "Lisensi tidak sah",
-  device_not_listed: "Perangkat ini belum terdaftar",
-  read_only: "Aktifkan lisensi baru",
-  active: "Ganti lisensi",
+  missing: "Activate the app license",
+  invalid: "Invalid license",
+  device_not_listed: "This device is not registered",
+  read_only: "Activate a new license",
+  active: "Replace license",
 };
 
 /** Batas berkas yang wajar untuk satu lisensi (200 kode perangkat ≈ 7 KB). */
@@ -29,7 +29,7 @@ const MAX_LICENSE_FILE_BYTES = 20_000;
 type Props = {
   status: LicenseStatus;
   onInstalled: (status: LicenseStatus) => void;
-  /** Tombol sekunder, mis. "Lanjut dalam mode baca-saja". */
+  /** Tombol sekunder, mis. "Continue in read-only mode". */
   onDismiss?: () => void;
   dismissLabel?: string;
 };
@@ -60,7 +60,7 @@ export function LicenseActivationPanel({
       setCopied(true);
     } catch {
       setError(
-        "Kode tidak bisa disalin otomatis. Tekan lama kodenya lalu salin manual.",
+        "The code could not be copied automatically. Press and hold it, then copy it manually.",
       );
     }
   };
@@ -70,7 +70,7 @@ export function LicenseActivationPanel({
     event.target.value = "";
     if (!file) return;
     if (file.size > MAX_LICENSE_FILE_BYTES) {
-      setError("Berkas itu terlalu besar untuk sebuah lisensi.");
+      setError("That file is too large to be a license.");
       return;
     }
     setText((await file.text()).trim());
@@ -81,7 +81,7 @@ export function LicenseActivationPanel({
     event.preventDefault();
     if (isSubmittingRef.current) return;
     if (!text.trim()) {
-      setError("Tempel teks lisensi atau pilih berkas .lic terlebih dahulu.");
+      setError("Paste the license text or choose a .lic file first.");
       return;
     }
     isSubmittingRef.current = true;
@@ -92,7 +92,11 @@ export function LicenseActivationPanel({
       setText("");
       onInstalled(next);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Lisensi gagal dipasang.");
+      setError(
+        err instanceof Error
+          ? err.message
+          : "The license could not be installed.",
+      );
     } finally {
       isSubmittingRef.current = false;
       setIsSubmitting(false);
@@ -102,55 +106,54 @@ export function LicenseActivationPanel({
   const license = status.license;
   const tone =
     status.state === "read_only" || status.state === "missing"
-      ? "p-3.5 bg-amber-950/50 border border-white/10 rounded-2xl text-amber-100 text-xs"
-      : "p-3.5 bg-rose-950/60 border border-rose-800/80 rounded-2xl text-rose-300 text-xs";
+      ? "border-tertiary-fixed-dim bg-tertiary-fixed text-on-tertiary-fixed"
+      : "border-error/30 bg-error-container text-on-error-container";
 
   return (
     <form onSubmit={submit} className="space-y-4">
       <div className="space-y-1">
-        <h2 className="text-base font-bold text-white">
+        <h2 className="text-headline-md text-on-surface">
           {TITLES[status.state]}
         </h2>
         {license ? (
-          <p className="text-xs text-slate-400">
-            Lisensi {LICENSE_KIND_LABEL[license.kind]} untuk{" "}
-            <span className="font-semibold text-slate-300">
+          <p className="text-body-md text-on-surface-variant">
+            {LICENSE_KIND_LABEL[license.kind]} license for{" "}
+            <span className="font-semibold text-on-surface">
               {license.holder}
             </span>
           </p>
         ) : null}
       </div>
 
-      {status.message ? <p className={tone}>{status.message}</p> : null}
+      {status.message ? (
+        <p className={`rounded-md border p-3 text-body-md ${tone}`}>
+          {status.message}
+        </p>
+      ) : null}
 
       <div className="space-y-1.5">
-        <p className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
-          Kode perangkat ini
-        </p>
+        <p className="app-label">This device code</p>
         <div className="flex items-center gap-2">
-          <code className="flex-1 select-all rounded-xl border border-slate-800 bg-slate-950/90 px-3 py-2.5 text-center font-mono text-sm font-bold tracking-wider text-white">
+          <code className="flex-1 select-all rounded-md border border-outline-variant bg-surface-container-low px-3 py-2.5 text-center text-code-lg font-bold text-on-surface">
             {status.deviceCode}
           </code>
           <button
             type="button"
             onClick={copyDeviceCode}
-            className="min-h-10 rounded-xl border border-slate-700 bg-slate-800/80 px-3 text-xs font-bold text-slate-300 transition hover:bg-slate-700"
+            className="app-btn app-btn-secondary"
           >
-            {copied ? "Tersalin" : "Salin"}
+            {copied ? "Copied" : "Copy"}
           </button>
         </div>
-        <p className="text-[11px] text-slate-500">
-          Kirim kode ini kepada {LICENSE_ISSUER} saat meminta atau memperpanjang
-          lisensi.
+        <p className="text-body-sm text-on-surface-variant">
+          Send this code to {LICENSE_ISSUER} when requesting or renewing a
+          license.
         </p>
       </div>
 
       <div className="space-y-1.5">
-        <label
-          htmlFor={textId}
-          className="text-xs font-semibold text-slate-300 uppercase tracking-wider block"
-        >
-          Teks lisensi
+        <label htmlFor={textId} className="app-label">
+          License text
         </label>
         <textarea
           id={textId}
@@ -160,13 +163,13 @@ export function LicenseActivationPanel({
           spellCheck={false}
           autoComplete="off"
           placeholder="LIS1.…"
-          className="w-full resize-y rounded-xl border border-slate-800 bg-slate-950/90 px-3 py-2.5 font-mono text-[11px] text-white outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 break-all"
+          className="app-input resize-y break-all py-2 font-mono text-code-sm"
         />
         <label
           htmlFor={fileId}
-          className="inline-flex min-h-10 cursor-pointer items-center rounded-xl border border-slate-700 bg-slate-800/80 px-3 text-xs font-bold text-slate-300 transition hover:bg-slate-700"
+          className="app-btn app-btn-secondary cursor-pointer"
         >
-          Pilih berkas .lic
+          Choose a .lic file
         </label>
         <input
           id={fileId}
@@ -180,7 +183,7 @@ export function LicenseActivationPanel({
       {error ? (
         <p
           role="alert"
-          className="p-3.5 bg-rose-950/60 border border-rose-800/80 rounded-2xl text-rose-300 text-xs"
+          className="rounded-md border border-error/30 bg-error-container p-3 text-body-md text-on-error-container"
         >
           {error}
         </p>
@@ -190,22 +193,22 @@ export function LicenseActivationPanel({
         <button
           type="submit"
           disabled={isSubmitting}
-          className="flex-1 min-h-11 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 px-4 text-sm font-bold text-white shadow-lg shadow-emerald-950/50 transition hover:from-emerald-500 hover:to-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
+          className="app-btn app-btn-primary flex-1"
         >
-          {isSubmitting ? "Memeriksa lisensi…" : "Aktifkan lisensi"}
+          {isSubmitting ? "Checking license…" : "Activate license"}
         </button>
         {onDismiss ? (
           <button
             type="button"
             onClick={onDismiss}
-            className="flex-1 min-h-11 rounded-xl border border-slate-700 bg-slate-800/80 px-4 text-sm font-bold text-slate-300 transition hover:bg-slate-700"
+            className="app-btn app-btn-secondary flex-1"
           >
-            {dismissLabel ?? "Nanti saja"}
+            {dismissLabel ?? "Not now"}
           </button>
         ) : null}
       </div>
 
-      <p className="text-center text-[10px] font-mono text-slate-600">
+      <p className="text-center font-mono text-code-sm text-on-surface-variant">
         Build {status.buildDate}
       </p>
     </form>

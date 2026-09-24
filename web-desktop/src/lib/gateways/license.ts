@@ -49,8 +49,8 @@ export type LicenseStatus = {
 export const LICENSE_ISSUER = "Kemal Office Studio";
 
 export const LICENSE_KIND_LABEL: Record<LicenseKind, string> = {
-  beli_putus: "Beli putus",
-  sewa: "Sewa",
+  beli_putus: "Perpetual",
+  sewa: "Rental",
 };
 
 /** Status yang tidak mengizinkan login sama sekali. */
@@ -71,7 +71,7 @@ export async function getLicenseStatus(): Promise<LicenseStatus | null> {
  */
 export async function installLicense(license: string): Promise<LicenseStatus> {
   if (!isDesktopRuntime()) {
-    throw new Error("Lisensi hanya dipasang di aplikasi Desktop/Mobile.");
+    throw new Error("Licenses are only installed in the Desktop/Mobile app.");
   }
   return invokeDesktop<LicenseStatus>("desktop_install_license", {
     license: license.trim(),

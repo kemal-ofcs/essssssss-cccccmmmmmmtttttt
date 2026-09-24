@@ -1,6 +1,20 @@
 import type { Metadata } from "next";
+import { JetBrains_Mono, Plus_Jakarta_Sans } from "next/font/google";
 import { AuthProvider } from "@/lib/context/AuthContext";
 import "./globals.css";
+
+// Diunduh sekali saat build lalu disajikan dari aplikasi sendiri: tidak ada
+// request ke Google saat aplikasi berjalan (aturan 15).
+const plusJakarta = Plus_Jakarta_Sans({
+  subsets: ["latin"],
+  variable: "--font-plus-jakarta",
+  display: "swap",
+});
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  variable: "--font-jetbrains-mono",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: {
@@ -8,7 +22,7 @@ export const metadata: Metadata = {
     template: "%s · App Template",
   },
   description:
-    "Sistem operasional operasional CONTOH untuk Web dan Desktop dengan dukungan online dan offline.",
+    "Offline-first operations system for Web and Desktop, online and offline.",
   applicationName: "App Template",
 };
 
@@ -18,7 +32,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="id">
+    <html
+      lang="en"
+      className={`${plusJakarta.variable} ${jetbrainsMono.variable}`}
+    >
       <body>
         <AuthProvider>{children}</AuthProvider>
       </body>

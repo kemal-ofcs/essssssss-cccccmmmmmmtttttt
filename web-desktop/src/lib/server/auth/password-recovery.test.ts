@@ -56,7 +56,7 @@ beforeAll(async () => {
     noHp: "081200000001",
     password: "PasswordLamaKuat1",
     roleId: Number(roles.rows[0]?.id),
-    status: "Aktif",
+    status: "Active",
   });
   operatorId = result.id;
 });
@@ -100,7 +100,7 @@ async function pendingApproval(id = "req-uji") {
         requested_at, verified_at, expires_at
       ) VALUES (
         ?, ?, 'operator01', 'in_app', 'operator01@contoh.id',
-        'hash-tantangan', '["KEDIP"]', 'Menunggu Verifikasi', 'Menunggu Persetujuan',
+        'hash-tantangan', '["KEDIP"]', 'Pending Verification', 'Awaiting Approval',
         datetime('now'), datetime('now'), datetime('now', '+30 minutes')
       );
     `,
@@ -154,8 +154,8 @@ describe("approvePasswordReset", () => {
     // Database hanya boleh memegang hash-nya.
     expect(row.rows[0]?.token_hash).toBe(await hashSessionToken(hasil.token));
     expect(String(row.rows[0]?.token_hash)).not.toContain(hasil.token);
-    expect(row.rows[0]?.status).toBe("Terkirim");
-    expect(row.rows[0]?.delivery_status).toBe("Disetujui");
+    expect(row.rows[0]?.status).toBe("Sent");
+    expect(row.rows[0]?.delivery_status).toBe("Approved");
   });
 
   test("persetujuan kedua ditolak, sehingga tidak ada dua token hidup", async () => {
@@ -174,17 +174,17 @@ describe("approvePasswordReset", () => {
     });
     await expect(
       approvePasswordReset(client, operatorId, requestId),
-    ).rejects.toThrow("kedaluwarsa");
+    ).rejects.toThrow("has expired");
     const row = await client.execute(
       "SELECT status FROM password_reset_request;",
     );
-    expect(row.rows[0]?.status).toBe("Kedaluwarsa");
+    expect(row.rows[0]?.status).toBe("Expired");
   });
 
   test("permintaan yang tidak ada ditolak", async () => {
     await expect(
       approvePasswordReset(client, operatorId, "req-tidak-ada"),
-    ).rejects.toThrow("tidak ditemukan");
+    ).rejects.toThrow("not found");
   });
 });
 
@@ -254,7 +254,7 @@ describe("issuePasswordRecoveryCodes & recoverWithRecoveryCode", () => {
         code: codes[0] as string,
         newPassword: "PasswordLainKuat8",
       }),
-    ).rejects.toThrow("sudah pernah dipakai");
+    ).rejects.toThrow("already been used");
   });
 
   test("pemisah apa pun diterima, sesuai normalisasi Rust", async () => {
@@ -321,6 +321,6 @@ describe("issuePasswordRecoveryCodes & recoverWithRecoveryCode", () => {
         code: lama[0] as string,
         newPassword: "PasswordPulihKuat7",
       }),
-    ).rejects.toThrow("sudah pernah dipakai");
+    ).rejects.toThrow("already been used");
   });
 });

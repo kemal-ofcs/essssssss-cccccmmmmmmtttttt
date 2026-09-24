@@ -31,7 +31,7 @@ export function PasswordRecoveryCard() {
       setError(
         caught instanceof Error
           ? caught.message
-          : "Kode pemulihan tidak dapat diterbitkan.",
+          : "Recovery codes could not be issued.",
       );
     } finally {
       setBusy(false);
@@ -39,71 +39,71 @@ export function PasswordRecoveryCard() {
   };
 
   return (
-    <section className="app-panel rounded-3xl p-5 sm:p-7">
-      <div className="flex items-start gap-4">
-        <span className="grid size-11 shrink-0 place-items-center rounded-2xl border border-amber-300/20 bg-amber-300/10 text-amber-200">
+    <section className="app-panel p-4 sm:p-5">
+      <div className="flex items-start gap-3">
+        <span className="grid size-10 shrink-0 place-items-center rounded-md bg-surface-container-low text-on-surface-variant">
           <Icon name="lock" className="size-5" />
         </span>
         <div className="min-w-0">
-          <h2 className="text-base font-black text-white">
-            Kode pemulihan password
+          <h2 className="text-headline-md text-on-surface">
+            Password recovery codes
           </h2>
-          <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-400">
-            Dipakai untuk masuk kembali bila password akun ini terlupa dan tidak
-            ada siapa pun yang bisa menyetujui pemulihan. Bekerja tanpa
-            internet, dan hanya berlaku untuk akun Anda sendiri.
+          <p className="mt-1 max-w-2xl text-body-md text-on-surface-variant">
+            Use one to sign back in if you forget this account's password and
+            nobody can approve a recovery. Works without internet, and only for
+            your own account.
           </p>
         </div>
       </div>
 
       {codes ? (
-        <div className="mt-5 space-y-3">
+        <div className="mt-4 space-y-3">
           <ul className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {codes.map((code) => (
               <li
                 key={code}
-                className="recovery-code-pill select-all rounded-xl border border-amber-400/25 bg-amber-400/10 px-2 py-2.5 text-center font-mono text-xs font-black tracking-wider text-amber-100"
+                className="select-all rounded-md border border-outline-variant bg-surface-container-low px-2 py-2.5 text-center font-mono text-code-md font-bold text-on-surface"
               >
                 {code}
               </li>
             ))}
           </ul>
-          <p className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-[11px] font-bold leading-4 text-rose-200">
-            Cetak atau salin sekarang. Kode ini tidak tersimpan dalam bentuk
-            aslinya dan tidak dapat ditampilkan ulang. Seluruh kode lama sudah
-            tidak berlaku — buang kertas lamanya.
+          <p className="rounded-md border border-error/30 bg-error-container p-3 text-body-md font-semibold text-on-error-container">
+            Print or copy them now. These codes are not stored in readable form
+            and cannot be shown again. All previous codes no longer work, so
+            throw away the old sheet.
           </p>
           <button
             type="button"
             onClick={() => setCodes(null)}
-            className="recovery-code-btn min-h-11 w-full rounded-xl bg-white/10 text-xs font-black text-slate-200 transition hover:bg-white/20"
+            className="app-btn app-btn-secondary w-full"
           >
-            Saya sudah menyimpannya
+            I have saved them
           </button>
         </div>
       ) : confirming ? (
-        <div className="mt-5 space-y-3">
-          <p className="rounded-xl border border-amber-400/30 bg-amber-400/10 p-3 text-[11px] font-bold leading-4 text-amber-100">
-            Menerbitkan kode baru membuat seluruh kode lama tidak berlaku,
-            termasuk yang sudah tercetak. Lanjutkan hanya bila kertas lamanya
-            hilang, habis, atau pernah dilihat orang lain.
+        <div className="mt-4 space-y-3">
+          <p className="rounded-md border border-tertiary-fixed-dim bg-tertiary-fixed p-3 text-body-md text-on-tertiary-fixed">
+            Issuing new codes invalidates every old code, including printed
+            ones. Continue only if the old sheet is lost, used up, or has been
+            seen by someone else.
           </p>
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
               onClick={() => void issue()}
               disabled={busy}
-              className="min-h-11 rounded-xl bg-amber-400 px-5 text-xs font-black text-slate-950 transition hover:bg-amber-300 disabled:opacity-50"
+              className="app-btn app-btn-primary"
             >
-              {busy ? "Menerbitkan..." : "Ya, terbitkan kode baru"}
+              {busy ? "Issuing..." : "Yes, issue new codes"}
             </button>
             <button
               type="button"
               onClick={() => setConfirming(false)}
               disabled={busy}
-              className="min-h-11 rounded-xl border border-white/15 px-4 text-xs font-bold text-slate-300 transition hover:bg-white/5 disabled:opacity-50"
+              className="app-btn app-btn-secondary"
             >
-              Batal
+              Cancel
             </button>
           </div>
         </div>
@@ -111,14 +111,17 @@ export function PasswordRecoveryCard() {
         <button
           type="button"
           onClick={() => setConfirming(true)}
-          className="mt-5 min-h-11 rounded-xl border border-amber-400/40 bg-amber-400/10 px-4 text-xs font-black text-amber-200 transition hover:bg-amber-400/20"
+          className="app-btn app-btn-secondary mt-4"
         >
-          Terbitkan kode pemulihan baru
+          Issue new recovery codes
         </button>
       )}
 
       {error ? (
-        <p className="mt-4 rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-[11px] font-bold leading-4 text-rose-200">
+        <p
+          role="alert"
+          className="mt-3 rounded-md border border-error/30 bg-error-container p-3 text-body-md text-on-error-container"
+        >
           {error}
         </p>
       ) : null}

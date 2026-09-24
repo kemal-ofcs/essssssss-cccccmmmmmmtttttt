@@ -54,11 +54,11 @@ export const LIVENESS_CHALLENGE_LABEL: Record<LivenessChallenge, string> = {
   // Satu kedipan, bukan dua. Dua kedipan dalam jendela perekaman yang pendek
   // menggandakan peluang gagal tanpa menambah bukti apa pun — yang dinilai
   // tetap satu penurunan-lalu-pulih pada pita mata.
-  KEDIP: "Kedipkan mata satu kali",
-  TENGOK_KIRI: "Tengokkan kepala ke kiri",
-  TENGOK_KANAN: "Tengokkan kepala ke kanan",
-  DEKATKAN_WAJAH: "Dekatkan wajah ke kamera",
-  JAUHKAN_WAJAH: "Jauhkan wajah dari kamera",
+  KEDIP: "Blink once",
+  TENGOK_KIRI: "Turn your head to the left",
+  TENGOK_KANAN: "Turn your head to the right",
+  DEKATKAN_WAJAH: "Move your face closer to the camera",
+  JAUHKAN_WAJAH: "Move your face away from the camera",
 };
 
 export function isLivenessChallenge(
@@ -320,7 +320,7 @@ function verdictFor(
       challenge,
       passed: false,
       score: 0,
-      reason: "Wajah tidak terdeteksi cukup lama pada tantangan ini.",
+      reason: "Your face was not detected long enough for this challenge.",
     };
   }
   const baseline = usable[0] as FrameSignals;
@@ -349,7 +349,7 @@ function verdictFor(
         passed: false,
         score: 0,
         reason:
-          "Mata belum terbaca kamera. Tambah cahaya di depan wajah, lepas kacamata bila memantul, dan dekatkan wajah ke kamera.",
+          "The camera cannot read your eyes yet. Add light in front of your face, remove glasses if they reflect, and move closer to the camera.",
       };
     }
 
@@ -367,8 +367,8 @@ function verdictFor(
       reason: passed
         ? "Kedipan terdeteksi."
         : drop >= threshold
-          ? "Mata terbaca menutup tetapi tidak terbuka lagi. Tahan wajah tetap di bingkai lalu kedip sekali."
-          : "Kedipan belum terbaca. Kedip sekali dengan tegas sambil menatap kamera, jangan menunduk.",
+          ? "Your eyes were read as closing but not opening again. Keep your face in the frame and blink once."
+          : "The blink was not captured. Blink once clearly while looking at the camera, without looking down.",
     };
   }
 
@@ -386,7 +386,7 @@ function verdictFor(
       score: clamp01(magnitude / 0.05) * (passed ? 1 : 0.4),
       reason: passed
         ? "Gerakan kepala sesuai arah yang diminta."
-        : "Gerakan kepala tidak terbaca. Tengokkan kepala lebih jelas.",
+        : "The head movement was not captured. Turn your head more clearly.",
     };
   }
 
@@ -401,7 +401,7 @@ function verdictFor(
       score: clamp01(growth / 0.18) * (passed ? 1 : 0.4),
       reason: passed
         ? "Wajah mendekat sesuai instruksi."
-        : "Wajah tidak terlihat mendekat ke kamera.",
+        : "Your face did not appear to move closer to the camera.",
     };
   }
 
@@ -413,7 +413,7 @@ function verdictFor(
     score: clamp01(shrink / 0.15) * (passed ? 1 : 0.4),
     reason: passed
       ? "Wajah menjauh sesuai instruksi."
-      : "Wajah tidak terlihat menjauh dari kamera.",
+      : "Your face did not appear to move away from the camera.",
   };
 }
 
@@ -461,7 +461,7 @@ export function evaluateChallengeSignals(
       challenge,
       passed: false,
       score: 0,
-      reason: "Rekaman belum cukup panjang untuk dinilai.",
+      reason: "The recording is not long enough to be assessed yet.",
     };
   }
   return verdictFor(challenge, signals);
@@ -486,9 +486,11 @@ export function evaluateLivenessSession(
     motion: 0,
   });
 
-  if (expected.length === 0) return fail("Tantangan liveness tidak tersedia.");
+  if (expected.length === 0) return fail("No liveness challenge is available.");
   if (frames.length < expected.length * LIVENESS_MIN_FRAMES_PER_CHALLENGE) {
-    return fail("Rekaman verifikasi terlalu pendek. Ulangi proses foto.");
+    return fail(
+      "The verification recording is too short. Repeat the photo step.",
+    );
   }
   for (const frame of frames) {
     if (
@@ -496,7 +498,7 @@ export function evaluateLivenessSession(
       frame.height !== LIVENESS_FRAME_HEIGHT ||
       frame.rgb.length !== LIVENESS_FRAME_WIDTH * LIVENESS_FRAME_HEIGHT * 3
     ) {
-      return fail("Format rekaman verifikasi tidak valid.");
+      return fail("Invalid verification recording format.");
     }
   }
   // Urutan tantangan pada rekaman wajib sama persis dengan yang diterbitkan
@@ -512,7 +514,7 @@ export function evaluateLivenessSession(
     observedOrder.length !== expected.length ||
     observedOrder.some((challenge, index) => challenge !== expected[index])
   ) {
-    return fail("Urutan tantangan tidak sesuai. Ulangi verifikasi.");
+    return fail("The challenge order does not match. Repeat the verification.");
   }
 
   const signals = frames.map(analyzeFrame);
@@ -540,7 +542,7 @@ export function evaluateLivenessSession(
       passed: false,
       score: 0,
       reason:
-        "Wajah tidak terdeteksi pada sebagian besar rekaman. Pastikan pencahayaan cukup.",
+        "Your face was not detected in most of the recording. Make sure there is enough light.",
       challenges,
       faceRatio,
       motion,
@@ -553,7 +555,7 @@ export function evaluateLivenessSession(
       passed: false,
       score: 0,
       reason:
-        "Tidak ada gerakan alami yang terdeteksi. Verifikasi menolak foto atau layar diam.",
+        "No natural movement was detected. Verification rejects photos and still screens.",
       challenges,
       faceRatio,
       motion,
@@ -563,7 +565,7 @@ export function evaluateLivenessSession(
     return {
       passed: false,
       score: 0,
-      reason: "Gambar terlalu tidak stabil. Tahan perangkat lebih diam.",
+      reason: "The image is too unstable. Hold the device more still.",
       challenges,
       faceRatio,
       motion,
@@ -581,8 +583,8 @@ export function evaluateLivenessSession(
     reason: failed
       ? failed.reason
       : score >= LIVENESS_MIN_SCORE
-        ? "Verifikasi wajah berhasil."
-        : "Kualitas verifikasi belum mencukupi. Ulangi di tempat yang lebih terang.",
+        ? "Face verification passed."
+        : "The verification quality is not good enough yet. Repeat it somewhere brighter.",
     challenges,
     faceRatio,
     motion,

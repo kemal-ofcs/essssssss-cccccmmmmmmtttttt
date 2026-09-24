@@ -102,7 +102,7 @@ fn bind_arguments(
         result.map_err(|error| {
             CommandError::new(
                 "LOCAL_SQL_ERROR",
-                format!("Argumen ke-{position} tidak dapat dipasang: {error}"),
+                format!("Argument {position} could not be bound: {error}"),
             )
         })?;
     }
@@ -135,13 +135,13 @@ impl LocalTransport {
         let connection = Connection::open(&self.path).map_err(|error| {
             CommandError::new(
                 "LOCAL_DB_UNAVAILABLE",
-                format!("Berkas database lokal tidak dapat dibuka: {error}"),
+                format!("The local database file could not be opened: {error}"),
             )
         })?;
         connection.execute_batch(LOCAL_PRAGMAS).map_err(|error| {
             CommandError::new(
                 "LOCAL_DB_UNAVAILABLE",
-                format!("Database lokal tidak dapat disiapkan: {error}"),
+                format!("The local database could not be prepared: {error}"),
             )
         })?;
         Ok(connection)
@@ -179,7 +179,7 @@ impl LocalTransport {
         connection.execute_batch("BEGIN IMMEDIATE;").map_err(|error| {
             CommandError::new(
                 "LOCAL_SQL_ERROR",
-                format!("Transaksi database lokal tidak dapat dimulai: {error}"),
+                format!("The local database transaction could not start: {error}"),
             )
         })?;
 
@@ -194,7 +194,7 @@ impl LocalTransport {
             let _ = connection.execute_batch("ROLLBACK;");
             CommandError::new(
                 "LOCAL_TRANSACTION_ROLLED_BACK",
-                format!("Transaksi database lokal dibatalkan agar tidak meninggalkan data parsial: {error}"),
+                format!("The local database transaction was cancelled so no partial data is left: {error}"),
             )
         })?;
 

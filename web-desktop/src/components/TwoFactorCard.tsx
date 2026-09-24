@@ -59,7 +59,7 @@ export function TwoFactorCard() {
       setCode("");
       setMode("setup");
     } catch (error) {
-      fail(error, "Pendaftaran 2FA tidak dapat dimulai.");
+      fail(error, "Two-step verification setup could not start.");
     } finally {
       setBusy(false);
     }
@@ -75,7 +75,7 @@ export function TwoFactorCard() {
       setMode("recovery");
       await refresh();
     } catch (error) {
-      fail(error, "Kode tidak dapat diverifikasi.");
+      fail(error, "The code could not be verified.");
     } finally {
       setBusy(false);
     }
@@ -90,64 +90,66 @@ export function TwoFactorCard() {
       setMode("idle");
       setFeedback({
         tone: "success",
-        text: "Verifikasi dua langkah dimatikan.",
+        text: "Two-step verification is turned off.",
       });
       await refresh();
     } catch (error) {
-      fail(error, "Verifikasi dua langkah tidak dapat dimatikan.");
+      fail(error, "Two-step verification could not be turned off.");
     } finally {
       setBusy(false);
     }
   };
 
+  const feedbackClass =
+    feedback?.tone === "success"
+      ? "border-success/30 bg-success-container text-on-success-container"
+      : "border-error/30 bg-error-container text-on-error-container";
+
   return (
-    <section className="app-panel rounded-3xl p-5 sm:p-7">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="flex items-start gap-4">
-          <span className="grid size-11 shrink-0 place-items-center rounded-2xl border border-violet-300/20 bg-violet-300/10 text-violet-200">
+    <section className="app-panel p-4 sm:p-5">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex items-start gap-3">
+          <span className="grid size-10 shrink-0 place-items-center rounded-md bg-surface-container-low text-on-surface-variant">
             <Icon name="lock" className="size-5" />
           </span>
           <div>
-            <h2 className="text-base font-black text-white">
-              Verifikasi Dua Langkah (2FA)
+            <h2 className="text-headline-md text-on-surface">
+              Two-step verification (2FA)
             </h2>
-            <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-400">
-              Kode 6 digit dari aplikasi autentikator, diminta setiap login
-              setelah password benar. Kodenya dihitung dari waktu, bukan dari
-              jaringan — jadi tetap bekerja di lokasi tanpa sinyal.
+            <p className="mt-1 max-w-2xl text-body-md text-on-surface-variant">
+              A 6-digit code from an authenticator app, asked at every sign-in
+              after the password. The code is computed from time, not the
+              network, so it works where there is no signal.
             </p>
           </div>
         </div>
         <StatusBadge tone={status?.enabled ? "success" : "warning"}>
-          {status === null ? "Memuat" : status.enabled ? "Aktif" : "Nonaktif"}
+          {status === null ? "Loading" : status.enabled ? "On" : "Off"}
         </StatusBadge>
       </div>
 
       {status?.requiredByRole && !status.enabled ? (
-        <p className="mt-4 rounded-xl border border-amber-400/30 bg-amber-400/10 p-3 text-sm text-amber-100">
-          Role akun Anda mewajibkan verifikasi dua langkah. Aktifkan sekarang —
-          tanpa itu Anda tidak akan bisa login lagi setelah keluar.
+        <p className="mt-4 rounded-md border border-tertiary-fixed-dim bg-tertiary-fixed p-3 text-body-md text-on-tertiary-fixed">
+          Your role requires two-step verification. Turn it on now: without it
+          you will not be able to sign in again after signing out.
         </p>
       ) : null}
 
       {feedback ? (
         <p
-          className={`mt-4 rounded-xl border p-3 text-sm ${
-            feedback.tone === "success"
-              ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-200"
-              : "border-rose-500/30 bg-rose-500/10 text-rose-200"
-          }`}
+          role={feedback.tone === "error" ? "alert" : "status"}
+          className={`mt-4 rounded-md border p-3 text-body-md ${feedbackClass}`}
         >
           {feedback.text}
         </p>
       ) : null}
 
       {mode === "idle" ? (
-        <div className="mt-5 space-y-3">
+        <div className="mt-4 space-y-3">
           {status?.enabled ? (
             <>
-              <p className="text-sm text-slate-400">
-                Sisa kode cadangan: {status.recoveryRemaining} dari 8.
+              <p className="text-body-md text-on-surface-variant">
+                Backup codes left: {status.recoveryRemaining} of 8.
               </p>
               <button
                 type="button"
@@ -156,9 +158,9 @@ export function TwoFactorCard() {
                   setFeedback(null);
                   setMode("disable");
                 }}
-                className="min-h-11 rounded-xl border border-rose-400/30 px-4 text-sm font-black text-rose-200"
+                className="app-btn app-btn-secondary text-error"
               >
-                Matikan 2FA
+                Turn off 2FA
               </button>
             </>
           ) : (
@@ -166,39 +168,38 @@ export function TwoFactorCard() {
               type="button"
               onClick={() => void startSetup()}
               disabled={busy}
-              className="min-h-11 rounded-xl bg-violet-500 px-5 text-sm font-black text-white disabled:opacity-50"
+              className="app-btn app-btn-primary"
             >
-              {busy ? "Menyiapkan..." : "Aktifkan 2FA"}
+              {busy ? "Preparing..." : "Turn on 2FA"}
             </button>
           )}
         </div>
       ) : null}
 
       {mode === "setup" && setup ? (
-        <div className="mt-5 space-y-4">
-          <ol className="space-y-2 text-sm leading-6 text-slate-300">
+        <div className="mt-4 space-y-4">
+          <ol className="list-decimal space-y-1 pl-5 text-body-md text-on-surface">
             <li>
-              1. Buka Google Authenticator, Authy, atau aplikasi autentikator
-              lain.
+              Open Google Authenticator, Authy, or another authenticator app.
             </li>
-            <li>2. Pilih tambah akun, lalu masukkan kunci di bawah ini.</li>
-            <li>3. Ketik kode 6 digit yang muncul untuk membuktikannya.</li>
+            <li>Choose to add an account, then enter the key below.</li>
+            <li>Type the 6-digit code it shows to confirm.</li>
           </ol>
 
           {/* Kunci ditampilkan sebagai teks, bukan QR: menggambar QR butuh
               pustaka tambahan, sementara semua aplikasi autentikator menerima
               entri manual. Dikelompokkan empat-empat supaya mudah disalin. */}
-          <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-4">
-            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-              Kunci akun (entri manual)
+          <div className="rounded-md border border-surface-container bg-surface-container-low p-3">
+            <p className="font-mono text-label-caps uppercase text-on-surface-variant">
+              Account key (manual entry)
             </p>
-            <p className="mt-1 break-all font-mono text-lg font-black tracking-widest text-white">
+            <p className="mt-1 select-all break-all font-mono text-headline-md tracking-widest text-on-surface">
               {(setup.secret.match(/.{1,4}/g) ?? []).join(" ")}
             </p>
           </div>
 
-          <label className="grid gap-1.5 text-xs font-bold text-slate-300">
-            Kode 6 digit dari aplikasi autentikator
+          <label className="app-label grid gap-1.5">
+            6-digit code from the authenticator app
             <input
               inputMode="numeric"
               autoComplete="one-time-code"
@@ -206,7 +207,7 @@ export function TwoFactorCard() {
               value={code}
               onChange={(event) => setCode(event.target.value)}
               placeholder="123456"
-              className="app-input font-mono text-lg tracking-[0.4em]"
+              className="app-input font-mono text-headline-md font-normal tracking-[0.4em]"
             />
           </label>
 
@@ -215,37 +216,39 @@ export function TwoFactorCard() {
               type="button"
               onClick={() => void confirmSetup()}
               disabled={busy}
-              className="min-h-11 rounded-xl bg-violet-500 px-5 text-sm font-black text-white disabled:opacity-50"
+              className="app-btn app-btn-primary"
             >
-              {busy ? "Memeriksa..." : "Aktifkan sekarang"}
+              {busy ? "Checking..." : "Turn on now"}
             </button>
             <button
               type="button"
               onClick={() => setMode("idle")}
-              className="min-h-11 rounded-xl border border-white/15 px-4 text-sm font-bold text-slate-300"
+              className="app-btn app-btn-secondary"
             >
-              Batal
+              Cancel
             </button>
           </div>
         </div>
       ) : null}
 
       {mode === "recovery" ? (
-        <div className="mt-5 space-y-4">
-          <p className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-200">
-            2FA aktif. Simpan kode cadangan di bawah ini sekarang juga.
-          </p>
+        <div className="mt-4 space-y-4">
+          <output className="block rounded-md border border-success/30 bg-success-container p-3 text-body-md text-on-success-container">
+            2FA is on. Save the backup codes below right now.
+          </output>
           {/* Ditampilkan sekali seumur pendaftaran: yang tersimpan di database
               hanya hash-nya, jadi tidak ada cara menampilkannya lagi nanti. */}
-          <div className="grid grid-cols-2 gap-2 rounded-2xl border border-white/10 bg-slate-950/60 p-4 font-mono text-sm text-white sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-2 rounded-md border border-surface-container bg-surface-container-low p-3 font-mono text-code-lg text-on-surface sm:grid-cols-4">
             {recoveryCodes.map((item) => (
-              <span key={item}>{item}</span>
+              <span key={item} className="select-all">
+                {item}
+              </span>
             ))}
           </div>
-          <p className="text-xs leading-5 text-slate-400">
-            Setiap kode hanya bisa dipakai satu kali, sebagai pengganti kode
-            autentikator bila ponsel Anda hilang. Catat di tempat aman — halaman
-            ini tidak akan menampilkannya lagi.
+          <p className="text-body-md text-on-surface-variant">
+            Each code works once, in place of the authenticator code if your
+            phone is lost. Keep them somewhere safe: this page will not show
+            them again.
           </p>
           <button
             type="button"
@@ -253,28 +256,28 @@ export function TwoFactorCard() {
               setRecoveryCodes([]);
               setMode("idle");
             }}
-            className="min-h-11 rounded-xl bg-emerald-500 px-5 text-sm font-black text-slate-950"
+            className="app-btn app-btn-primary"
           >
-            Saya sudah menyimpannya
+            I have saved them
           </button>
         </div>
       ) : null}
 
       {mode === "disable" ? (
-        <div className="mt-5 space-y-4">
-          <p className="text-sm leading-6 text-slate-300">
-            Masukkan kode dari aplikasi autentikator, atau salah satu kode
-            cadangan, untuk mematikan 2FA.
+        <div className="mt-4 space-y-4">
+          <p className="text-body-md text-on-surface">
+            Enter a code from the authenticator app, or one of your backup
+            codes, to turn off 2FA.
           </p>
-          <label className="grid gap-1.5 text-xs font-bold text-slate-300">
-            Kode verifikasi
+          <label className="app-label grid gap-1.5">
+            Verification code
             <input
               autoComplete="one-time-code"
               maxLength={16}
               value={code}
               onChange={(event) => setCode(event.target.value)}
-              placeholder="123456 atau ABCD-EFGH"
-              className="app-input font-mono"
+              placeholder="123456 or ABCD-EFGH"
+              className="app-input font-mono font-normal"
             />
           </label>
           <div className="flex flex-wrap gap-2">
@@ -282,16 +285,16 @@ export function TwoFactorCard() {
               type="button"
               onClick={() => void turnOff()}
               disabled={busy}
-              className="min-h-11 rounded-xl bg-rose-500 px-5 text-sm font-black text-white disabled:opacity-50"
+              className="app-btn app-btn-danger"
             >
-              {busy ? "Memproses..." : "Matikan 2FA"}
+              {busy ? "Processing..." : "Turn off 2FA"}
             </button>
             <button
               type="button"
               onClick={() => setMode("idle")}
-              className="min-h-11 rounded-xl border border-white/15 px-4 text-sm font-bold text-slate-300"
+              className="app-btn app-btn-secondary"
             >
-              Batal
+              Cancel
             </button>
           </div>
         </div>

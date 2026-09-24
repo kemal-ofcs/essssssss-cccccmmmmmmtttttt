@@ -96,10 +96,10 @@ export async function loginDesktopSession(
     // Rust menandai keadaan 2FA lewat kode error, bukan lewat balasan sukses,
     // karena sesi memang belum boleh terbentuk sampai kodenya terbukti benar.
     const message =
-      error instanceof Error ? error.message : "Login Desktop tidak berhasil.";
+      error instanceof Error ? error.message : "Desktop sign-in failed.";
     const requiresTotp =
       message.includes("aplikasi autentikator") ||
-      message.includes("kode 6 digit");
+      message.includes("6-digit code");
     emit({ user: null, isLoading: false, mode: null });
     return { sukses: false, pesan: message, requiresTotp };
   }
@@ -107,7 +107,7 @@ export async function loginDesktopSession(
     emit({ user: null, isLoading: false, mode: null });
     return {
       sukses: false,
-      pesan: result.pesan || "Login Desktop tidak berhasil.",
+      pesan: result.pesan || "Desktop sign-in failed.",
     };
   }
   clearForcedLogoutMarker();

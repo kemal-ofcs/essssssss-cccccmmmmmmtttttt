@@ -67,31 +67,31 @@ export function encodeLivenessFrames(
  */
 export function decodeLivenessFrames(value: unknown): LivenessFrame[] {
   if (!Array.isArray(value) || value.length === 0) {
-    throw new Error("Rekaman verifikasi wajah tidak ditemukan.");
+    throw new Error("The face verification recording was not found.");
   }
   if (value.length > LIVENESS_MAX_FRAMES) {
-    throw new Error("Rekaman verifikasi wajah terlalu panjang.");
+    throw new Error("The face verification recording is too long.");
   }
   return value.map((item) => {
     const entry = (item ?? {}) as Partial<LivenessFramePayload>;
     if (!isLivenessChallenge(entry.challenge)) {
-      throw new Error("Tantangan verifikasi tidak dikenal.");
+      throw new Error("Unknown verification challenge.");
     }
     if (
       entry.width !== LIVENESS_FRAME_WIDTH ||
       entry.height !== LIVENESS_FRAME_HEIGHT ||
       typeof entry.rgb !== "string"
     ) {
-      throw new Error("Format rekaman verifikasi tidak valid.");
+      throw new Error("Invalid verification recording format.");
     }
     let rgb: Uint8Array;
     try {
       rgb = decodeFrameBytes(entry.rgb);
     } catch {
-      throw new Error("Rekaman verifikasi tidak dapat dibaca.");
+      throw new Error("The verification recording could not be read.");
     }
     if (rgb.length !== FRAME_BYTES) {
-      throw new Error("Ukuran rekaman verifikasi tidak sesuai.");
+      throw new Error("The verification recording size does not match.");
     }
     return {
       challenge: entry.challenge,

@@ -26,16 +26,16 @@ export default function HomePage() {
   if (!ready || target) {
     return (
       <AppShell>
-        <p className="text-sm text-slate-400">Memuat...</p>
+        <p className="text-body-md text-on-surface-variant">Loading...</p>
       </AppShell>
     );
   }
 
   return (
     <AppShell>
-      <p className="rounded-2xl border border-white/10 bg-slate-950/60 p-4 text-xs leading-5 text-slate-400">
-        Akun Anda belum memiliki hak akses ke modul mana pun. Hubungi Superadmin
-        untuk penyesuaian role.
+      <p className="app-panel p-4 text-body-md text-on-surface-variant">
+        Your account does not have access to any module yet. Ask the Superadmin
+        to adjust your role.
       </p>
     </AppShell>
   );

@@ -45,7 +45,7 @@ export async function listRoles(client: Client): Promise<RoleRecord[]> {
     description: String(row.deskripsi ?? ""),
     isSystem: Number(row.is_system) === 1,
     isSuperadmin: Number(row.is_superadmin) === 1,
-    status: String(row.status) === "Nonaktif" ? "Nonaktif" : "Aktif",
+    status: String(row.status) === "Inactive" ? "Inactive" : "Active",
     requireTotp: Number(row.require_totp) === 1,
     operatorCount: Number(row.operator_count),
     permissions: permissionsByRole.get(Number(row.id)) ?? [],
@@ -56,9 +56,9 @@ function validateRoleDraft(draft: RoleDraft) {
   const name = draft.name.trim();
   const roleKey = normalizeRoleKey(name);
   if (name.length < 3) throw new Error("Nama role minimal 3 karakter.");
-  if (!roleKey) throw new Error("Nama role tidak menghasilkan key yang valid.");
-  if (draft.status && !["Aktif", "Nonaktif"].includes(draft.status)) {
-    throw new Error("Status role tidak valid.");
+  if (!roleKey) throw new Error("The role name does not produce a valid key.");
+  if (draft.status && !["Active", "Inactive"].includes(draft.status)) {
+    throw new Error("Invalid role status.");
   }
   return { name, roleKey };
 }
@@ -68,7 +68,7 @@ async function getActorCode(client: Client, actorId: number) {
     sql: "SELECT kode_operator FROM master_operator WHERE id = ? LIMIT 1;",
     args: [actorId],
   });
-  if (!actor.rows[0]) throw new Error("Actor perubahan tidak ditemukan.");
+  if (!actor.rows[0]) throw new Error("The acting user was not found.");
   return String(actor.rows[0].kode_operator);
 }
 
@@ -86,7 +86,7 @@ export async function insertRole(
       INSERT INTO app_role (
         role_key, nama_role, deskripsi, is_system, is_superadmin,
         status, created_at, updated_at, created_by
-      ) VALUES (?, ?, ?, 0, 0, 'Aktif', ?, ?, ?);
+      ) VALUES (?, ?, ?, 0, 0, 'Active', ?, ?, ?);
     `,
     args: [roleKey, name, draft.description?.trim() ?? "", now, now, actorCode],
   });
@@ -112,9 +112,9 @@ export async function editRole(
     sql: "SELECT is_superadmin FROM app_role WHERE id = ? LIMIT 1;",
     args: [roleId],
   });
-  if (target.rows.length === 0) throw new Error("Role tidak ditemukan.");
+  if (target.rows.length === 0) throw new Error("Role not found.");
   if (Number(target.rows[0]?.is_superadmin) === 1) {
-    throw new Error("Role Superadmin tidak dapat diubah atau dinonaktifkan.");
+    throw new Error("The Superadmin role cannot be changed or deactivated.");
   }
 
   const { name } = validateRoleDraft(draft);
@@ -127,7 +127,7 @@ export async function editRole(
     args: [
       name,
       draft.description?.trim() ?? "",
-      draft.status ?? "Aktif",
+      draft.status ?? "Active",
       draft.requireTotp ? 1 : 0,
       new Date().toISOString(),
       roleId,
@@ -152,11 +152,9 @@ export async function removeRole(client: Client, roleId: number) {
     `,
     args: [roleId],
   });
-  if (target.rows.length === 0) throw new Error("Role tidak ditemukan.");
+  if (target.rows.length === 0) throw new Error("Role not found.");
   if (Number(target.rows[0]?.is_system) === 1) {
-    throw new Error(
-      "Role sistem tidak dapat dihapus. Nonaktifkan bila diperlukan.",
-    );
+    throw new Error("System roles cannot be deleted. Deactivate it if needed.");
   }
   if (Number(target.rows[0]?.operator_count) > 0) {
     throw new Error(
@@ -165,7 +163,7 @@ export async function removeRole(client: Client, roleId: number) {
   }
   if (Number(target.rows[0]?.audit_count) > 0) {
     throw new Error(
-      "Role memiliki histori audit. Nonaktifkan agar audit tetap utuh.",
+      "This role has audit history. Deactivate it so the audit trail stays intact.",
     );
   }
   await client.execute({
@@ -185,10 +183,10 @@ export async function replaceRolePermissions(
     sql: "SELECT is_superadmin FROM app_role WHERE id = ? LIMIT 1;",
     args: [roleId],
   });
-  if (target.rows.length === 0) throw new Error("Role tidak ditemukan.");
+  if (target.rows.length === 0) throw new Error("Role not found.");
   if (Number(target.rows[0]?.is_superadmin) === 1) {
     throw new Error(
-      "Permission Superadmin selalu penuh dan tidak dapat diubah.",
+      "Superadmin permissions are always complete and cannot be changed.",
     );
   }
 

@@ -12,31 +12,25 @@ export default function ForbiddenPage() {
   const { isAuthenticated, isLoading } = useAuth();
 
   if (!isHydrated || isLoading) {
-    return <div className="min-h-dvh bg-slate-950" />;
+    return <div className="min-h-dvh bg-background" />;
   }
   if (!isAuthenticated) redirect("/login");
 
   return (
     <AppShell contentClassName="grid place-items-center px-4 py-10">
-      <section className="app-panel w-full max-w-xl rounded-3xl p-7 text-center sm:p-10">
-        <span className="mx-auto grid size-16 place-items-center rounded-2xl border border-amber-300/25 bg-amber-300/10 text-amber-200">
+      <section className="app-panel w-full max-w-xl p-6 text-center sm:p-8">
+        <span className="mx-auto grid size-14 place-items-center rounded-md bg-surface-container-low text-on-surface-variant">
           <Icon name="lock" className="size-7" />
         </span>
-        <p className="mt-6 text-xs font-black uppercase tracking-[0.24em] text-amber-300">
-          Akses dibatasi
-        </p>
-        <h1 className="mt-3 text-2xl font-black text-white">
-          Role kamu belum memiliki permission
+        <h1 className="mt-4 text-headline-xl text-on-surface">
+          Your role does not have permission for this page
         </h1>
-        <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-slate-400">
-          Hubungi Superadmin bila fitur ini dibutuhkan untuk pekerjaanmu. Tidak
-          ada data yang diubah.
+        <p className="mx-auto mt-2 max-w-md text-body-md text-on-surface-variant">
+          Ask the Superadmin if you need this feature for your work. No data was
+          changed.
         </p>
-        <Link
-          href="/"
-          className="mt-7 inline-flex min-h-11 items-center justify-center rounded-xl bg-sky-400 px-5 text-sm font-black text-slate-950 transition hover:bg-sky-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-200"
-        >
-          Kembali ke Home
+        <Link href="/" className="app-btn app-btn-primary mt-6">
+          Back to home
         </Link>
       </section>
     </AppShell>

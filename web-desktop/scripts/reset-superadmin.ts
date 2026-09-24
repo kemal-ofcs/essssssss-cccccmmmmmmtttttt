@@ -95,7 +95,7 @@ async function main() {
 
       const passwordHash = await hashPassword(newPassword);
       const updateResult = await client.execute({
-        sql: "UPDATE master_operator SET password_hash = ?, status = 'Aktif' WHERE username = ?;",
+        sql: "UPDATE master_operator SET password_hash = ?, status = 'Active' WHERE username = ?;",
         args: [passwordHash, username],
       });
 

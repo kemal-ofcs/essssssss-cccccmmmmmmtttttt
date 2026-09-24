@@ -28,26 +28,32 @@ function formatCount(total: number) {
 
 function buildFacts(check: DatabaseCheckResult): DatabaseCheckFact[] {
   const facts: DatabaseCheckFact[] = [
-    { label: "Origin database", value: check.serverOrigin || "-" },
+    { label: "Database origin", value: check.serverOrigin || "-" },
     {
-      label: "Latensi",
+      label: "Latency",
       value:
         check.latencyMs === null ? "-" : `${formatCount(check.latencyMs)} ms`,
     },
     {
-      label: "Profil perusahaan",
-      value: check.companyName ?? "Belum diisi",
+      label: "Company profile",
+      value: check.companyName ?? "Not set",
     },
     {
-      label: "Superadmin aktif",
+      label: "Active Superadmin",
       value: check.superadminExists
-        ? `${formatCount(check.superadminCount)} akun (${check.superadminUsername ?? "-"})`
-        : "Belum ada",
+        ? `${formatCount(check.superadminCount)} accounts (${check.superadminUsername ?? "-"})`
+        : "None yet",
     },
-    { label: "Operator aktif", value: formatCount(check.operatorCount) },
-    { label: "Data karyawan", value: formatCount(check.karyawanCount) },
-    { label: "Rekap operasional", value: formatCount(check.attendanceCount) },
-    { label: "Tabel terdeteksi", value: formatCount(check.tableCount) },
+    { label: "Active operators", value: formatCount(check.operatorCount) },
+    {
+      label: "Items (example domain)",
+      value: formatCount(check.karyawanCount),
+    },
+    {
+      label: "Activity log entries",
+      value: formatCount(check.attendanceCount),
+    },
+    { label: "Tables found", value: formatCount(check.tableCount) },
   ];
   return facts;
 }
@@ -62,15 +68,15 @@ export function summarizeDatabaseCheck(
   if (!check.reachable) {
     return {
       tone: "danger",
-      title: "Database tidak dapat dihubungi",
+      title: "The database cannot be reached",
       detail:
         check.errorMessage ??
-        "Periksa kembali URL database Turso, Auth Token, dan koneksi internet perangkat.",
+        "Check the Turso database URL, the Auth Token, and the device's internet connection.",
       canCreateSuperadmin: false,
       canUseExisting: false,
       requiresConfirmation: false,
       facts: check.serverOrigin
-        ? [{ label: "Origin database", value: check.serverOrigin }]
+        ? [{ label: "Database origin", value: check.serverOrigin }]
         : [],
     };
   }
@@ -80,8 +86,8 @@ export function summarizeDatabaseCheck(
   if (check.superadminExists) {
     return {
       tone: "success",
-      title: "Superadmin sudah tersedia di database ini",
-      detail: `Akun "${check.superadminUsername ?? "superadmin"}" masih aktif, jadi tidak perlu membuat Superadmin baru. Gunakan database ini lalu login dengan akun tersebut.`,
+      title: "A Superadmin already exists in this database",
+      detail: `The account "${check.superadminUsername ?? "superadmin"}" is still active, so there is no need to create a new Superadmin. Use this database and sign in with that account.`,
       canCreateSuperadmin: false,
       canUseExisting: true,
       requiresConfirmation: false,
@@ -92,9 +98,9 @@ export function summarizeDatabaseCheck(
   if (check.emptyDatabase) {
     return {
       tone: "warning",
-      title: "Database masih kosong",
+      title: "The database is empty",
       detail:
-        "Belum ada tabel sama sekali. Skema App Template akan dibuat otomatis saat Superadmin pertama diaktifkan. Pastikan URL ini memang database baru milik Anda.",
+        "There are no tables at all. The App Template schema is created automatically when the first Superadmin is set up. Make sure this URL really is your new database.",
       canCreateSuperadmin: true,
       canUseExisting: false,
       requiresConfirmation: false,
@@ -105,8 +111,8 @@ export function summarizeDatabaseCheck(
   if (!check.schemaReady) {
     return {
       tone: "danger",
-      title: "Database terhubung, tetapi bukan skema App Template",
-      detail: `Tabel inti yang hilang: ${check.missingTables.join(", ")}. Besar kemungkinan URL database salah. Periksa ulang sebelum melanjutkan agar database milik aplikasi lain tidak ikut diubah.`,
+      title: "Connected, but this is not an App Template schema",
+      detail: `Missing core tables: ${check.missingTables.join(", ")}. The database URL is most likely wrong. Check it again before continuing so the database of another app is not changed.`,
       canCreateSuperadmin: true,
       canUseExisting: false,
       requiresConfirmation: true,
@@ -117,9 +123,9 @@ export function summarizeDatabaseCheck(
   if (check.bootstrapClaimed) {
     return {
       tone: "danger",
-      title: "Klaim bootstrap sudah pernah dipakai",
+      title: "The bootstrap claim was already used",
       detail:
-        "Skema App Template terdeteksi, namun klaim Superadmin pada database ini sudah pernah digunakan sementara tidak ada Superadmin aktif. Aktifkan kembali akun Superadmin lama, atau gunakan database lain.",
+        "An App Template schema was found, but the Superadmin claim on this database was already used and there is no active Superadmin. Reactivate the old Superadmin account, or use another database.",
       canCreateSuperadmin: true,
       canUseExisting: false,
       requiresConfirmation: true,
@@ -129,9 +135,9 @@ export function summarizeDatabaseCheck(
 
   return {
     tone: "success",
-    title: "Database App Template siap diprovisioning",
+    title: "This App Template database is ready to provision",
     detail:
-      "Skema sudah lengkap dan belum memiliki Superadmin aktif. Silakan lanjutkan pembuatan akun Superadmin pertama.",
+      "The schema is complete and has no active Superadmin yet. Continue creating the first Superadmin account.",
     canCreateSuperadmin: true,
     canUseExisting: false,
     requiresConfirmation: false,

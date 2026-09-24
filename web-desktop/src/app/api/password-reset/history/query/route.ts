@@ -39,10 +39,7 @@ interface HistoryQueryBody {
 export async function POST(request: NextRequest) {
   try {
     if (!isSameOriginMutation(request)) {
-      return noStoreJson(
-        { sukses: false, pesan: "Origin tidak diizinkan." },
-        403,
-      );
+      return noStoreJson({ sukses: false, pesan: "Origin not allowed." }, 403);
     }
     await ensureServerDatabaseInitialized();
     await requireWebPermission(request, "password_reset.view");
@@ -57,7 +54,7 @@ export async function POST(request: NextRequest) {
     }
 
     const filter: ResetHistoryFilter = {
-      status: isResetHistoryStatus(body.status) ? body.status : "SEMUA",
+      status: isResetHistoryStatus(body.status) ? body.status : "ALL",
       search: typeof body.search === "string" ? body.search : "",
       limit: Number.isFinite(Number(body.limit))
         ? Number(body.limit)

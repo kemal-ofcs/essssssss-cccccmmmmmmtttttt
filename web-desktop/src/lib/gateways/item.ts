@@ -20,7 +20,7 @@ export interface ItemRecord {
   harga: number;
   satuan: string | null;
   catatan: string | null;
-  status_aktif: "Aktif" | "Nonaktif";
+  status_aktif: "Active" | "Inactive";
   update_terakhir: string;
 }
 

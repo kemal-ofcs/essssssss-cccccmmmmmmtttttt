@@ -53,7 +53,7 @@ async function databaseUnixSeconds(client: Client) {
   );
   const seconds = Number(result.rows[0]?.now);
   if (!Number.isFinite(seconds)) {
-    throw new TwoFactorError("Jam database tidak dapat dibaca.", 409);
+    throw new TwoFactorError("The database clock could not be read.", 409);
   }
   return seconds;
 }
@@ -86,7 +86,7 @@ async function readOperatorTotp(
     args: [operatorId],
   });
   const row = result.rows[0];
-  if (!row) throw new TwoFactorError("Operator tidak ditemukan.", 404);
+  if (!row) throw new TwoFactorError("Operator not found.", 404);
 
   let recoveryCodes: string[] = [];
   try {
@@ -142,7 +142,7 @@ export async function beginTwoFactorSetup(
   const row = await readOperatorTotp(client, operatorId);
   if (row.enabled) {
     throw new TwoFactorError(
-      "Verifikasi dua langkah sudah aktif. Nonaktifkan dulu sebelum mendaftarkan perangkat baru.",
+      "Two-step verification is already on. Turn it off before enrolling a new device.",
       409,
     );
   }
@@ -180,18 +180,18 @@ export async function confirmTwoFactorSetup(
 ) {
   const row = await readOperatorTotp(client, operatorId);
   if (row.enabled) {
-    throw new TwoFactorError("Verifikasi dua langkah sudah aktif.", 409);
+    throw new TwoFactorError("Two-step verification is already on.", 409);
   }
   if (!row.secret) {
     throw new TwoFactorError(
-      "Pendaftaran belum dimulai. Buka kembali layar pengaturan 2FA.",
+      "Enrollment has not started. Open the 2FA settings screen again.",
       409,
     );
   }
   const now = await databaseUnixSeconds(client);
   if (!(await verifyTotp(row.secret, code, now, TOTP_WINDOW_ONLINE))) {
     throw new TwoFactorError(
-      "Kode tidak cocok. Pastikan jam ponsel Anda otomatis dan kodenya belum berganti.",
+      "The code does not match. Make sure your phone clock is set automatically and the code has not changed.",
     );
   }
 
@@ -226,7 +226,7 @@ export async function disableTwoFactor(
 ) {
   const row = await readOperatorTotp(client, operatorId);
   if (!row.enabled) {
-    throw new TwoFactorError("Verifikasi dua langkah memang belum aktif.", 409);
+    throw new TwoFactorError("Two-step verification is not on.", 409);
   }
   if (options.requireProof) {
     const accepted = await consumeTotpOrRecovery(
@@ -236,7 +236,7 @@ export async function disableTwoFactor(
       options.code ?? "",
     );
     if (!accepted) {
-      throw new TwoFactorError("Kode verifikasi tidak cocok.", 403);
+      throw new TwoFactorError("The verification code does not match.", 403);
     }
   }
   await client.execute({

@@ -20,14 +20,16 @@ import {
 } from "@/lib/gateways/password-reset-history";
 import { useHydrated } from "@/lib/hooks/useHydrated";
 import {
+  RESET_DELIVERY_AWAITING_APPROVAL,
   RESET_HISTORY_STATUS_HINT,
   RESET_HISTORY_STATUS_TONE,
   RESET_HISTORY_STATUSES,
   type ResetHistoryEntry,
   type ResetHistoryStatus,
 } from "@/lib/operators/password-reset-history";
+import { formatDateTime } from "@/lib/utils/format";
 
-type StatusFilter = ResetHistoryStatus | "SEMUA";
+type StatusFilter = ResetHistoryStatus | "ALL";
 
 const PURGE_DAYS = 90;
 
@@ -40,12 +42,12 @@ const PURGE_DAYS = 90;
  * data pribadi, aksesnya diatur dua izin terpisah: `password_reset.view` untuk
  * melihat dan `password_reset.delete` untuk menghapus.
  */
-export default function RiwayatResetPasswordPage() {
+export default function PasswordResetHistoryPage() {
   const isHydrated = useHydrated();
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
 
   const [entries, setEntries] = useState<ResetHistoryEntry[]>([]);
-  const [status, setStatus] = useState<StatusFilter>("SEMUA");
+  const [status, setStatus] = useState<StatusFilter>("ALL");
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -90,7 +92,7 @@ export default function RiwayatResetPasswordPage() {
         message:
           caught instanceof Error
             ? caught.message
-            : "Permintaan tidak dapat disetujui.",
+            : "The request could not be approved.",
       });
     } finally {
       isSubmittingRef.current = false;
@@ -108,7 +110,7 @@ export default function RiwayatResetPasswordPage() {
         message:
           error instanceof Error
             ? error.message
-            : "Riwayat tidak dapat dimuat.",
+            : "History could not be loaded.",
       });
     } finally {
       setLoading(false);
@@ -133,7 +135,9 @@ export default function RiwayatResetPasswordPage() {
       setFeedback({
         tone: "error",
         message:
-          error instanceof Error ? error.message : "Foto tidak dapat dibuka.",
+          error instanceof Error
+            ? error.message
+            : "The photo could not be opened.",
       });
     } finally {
       setBusy(false);
@@ -149,7 +153,7 @@ export default function RiwayatResetPasswordPage() {
       setDeleteTarget(null);
       setFeedback({
         tone: "success",
-        message: `Riwayat pengajuan ${deleteTarget.operatorName} berhasil dihapus.`,
+        message: `Request history of ${deleteTarget.operatorName} deleted.`,
       });
       await load();
     } catch (error) {
@@ -158,7 +162,7 @@ export default function RiwayatResetPasswordPage() {
         message:
           error instanceof Error
             ? error.message
-            : "Riwayat tidak dapat dihapus.",
+            : "History could not be deleted.",
       });
     } finally {
       isSubmittingRef.current = false;
@@ -177,15 +181,15 @@ export default function RiwayatResetPasswordPage() {
         tone: result.deleted > 0 ? "success" : "warning",
         message:
           result.deleted > 0
-            ? `${result.deleted} riwayat lama berhasil dibersihkan.`
-            : `Tidak ada riwayat selesai yang lebih tua dari ${PURGE_DAYS} hari.`,
+            ? `${result.deleted} old requests cleared.`
+            : `No finished requests are older than ${PURGE_DAYS} days.`,
       });
       await load();
     } catch (error) {
       setFeedback({
         tone: "error",
         message:
-          error instanceof Error ? error.message : "Pembersihan riwayat gagal.",
+          error instanceof Error ? error.message : "Clearing history failed.",
       });
     } finally {
       isSubmittingRef.current = false;
@@ -194,22 +198,21 @@ export default function RiwayatResetPasswordPage() {
   };
 
   if (!isHydrated || authLoading)
-    return <div className="min-h-dvh bg-slate-950" />;
+    return <div className="min-h-dvh bg-background" />;
   if (!isAuthenticated) redirect("/login");
   if (!canAccessArea(user, "password_reset")) redirect("/forbidden");
 
   const withPhoto = entries.filter((entry) => entry.hasPhoto).length;
 
   return (
-    <AppShell contentClassName="mx-auto w-full max-w-7xl space-y-6 px-4 py-6 sm:px-6 lg:px-8 lg:py-9">
+    <AppShell>
       <PageHeader
-        eyebrow="Keamanan akun"
-        title="Riwayat Reset Password"
-        description="Setiap pengajuan Lupa Password tercatat di sini lengkap dengan foto verifikasi wajah pemohon, hasil uji liveness, dan status pengiriman link."
+        title="Password resets"
+        description="Every Forgot password request is recorded here with the requester's face verification photo, liveness result, and link delivery status."
         actions={
           <StatusBadge tone={canDelete ? "warning" : "info"}>
-            <Icon name={canDelete ? "tools" : "lock"} className="size-3.5" />
-            {canDelete ? "Boleh hapus riwayat" : "Hanya baca"}
+            <Icon name={canDelete ? "tools" : "lock"} className="size-3" />
+            {canDelete ? "Can delete history" : "Read only"}
           </StatusBadge>
         }
       />
@@ -223,39 +226,40 @@ export default function RiwayatResetPasswordPage() {
         </FeedbackBanner>
       ) : null}
 
-      <div className="grid gap-3 sm:grid-cols-3">
+      <dl className="grid gap-3 sm:grid-cols-3">
         <SummaryTile
-          label="Pengajuan tampil"
+          label="Requests shown"
           value={String(entries.length)}
-          hint="Sesuai filter aktif"
+          hint="Matching the current filter"
         />
         <SummaryTile
-          label="Menyimpan foto"
+          label="With photo"
           value={String(withPhoto)}
-          hint="Bukti wajah tersedia"
+          hint="Face evidence available"
         />
         <SummaryTile
-          label="Berhasil ganti password"
+          label="Password changed"
           value={String(
-            entries.filter((entry) => entry.status === "Terpakai").length,
+            entries.filter((entry) => entry.status === "Used").length,
           )}
-          hint="Status Terpakai"
+          hint="Status Used"
         />
-      </div>
+      </dl>
 
-      <div className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/[0.04] p-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex flex-1 flex-col gap-3 sm:flex-row">
+      <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex flex-1 flex-col gap-2 sm:flex-row">
           <label className="flex-1">
-            <span className="sr-only">Cari akun</span>
+            <span className="sr-only">Search accounts</span>
             <input
+              type="search"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Cari nama, username, kode operator, atau identitas yang diketik"
+              placeholder="Search name, username, operator code, or typed identity"
               className="app-input w-full"
             />
           </label>
           <label>
-            <span className="sr-only">Filter status</span>
+            <span className="sr-only">Filter by status</span>
             <select
               value={status}
               onChange={(event) =>
@@ -263,7 +267,7 @@ export default function RiwayatResetPasswordPage() {
               }
               className="app-input"
             >
-              <option value="SEMUA">Semua status</option>
+              <option value="ALL">All statuses</option>
               {RESET_HISTORY_STATUSES.map((item) => (
                 <option key={item} value={item}>
                   {item}
@@ -277,26 +281,24 @@ export default function RiwayatResetPasswordPage() {
             type="button"
             onClick={() => setPurgeOpen(true)}
             disabled={busy}
-            className="min-h-11 rounded-xl border border-rose-400/30 bg-rose-400/10 px-4 text-xs font-black text-rose-200 transition hover:bg-rose-400/20 disabled:opacity-50"
+            className="app-btn app-btn-secondary text-error"
           >
-            Bersihkan riwayat &gt; {PURGE_DAYS} hari
+            Clear history older than {PURGE_DAYS} days
           </button>
         ) : null}
       </div>
 
       {loading ? (
-        <div className="app-panel grid min-h-72 place-items-center rounded-3xl text-sm text-slate-400">
-          Memuat riwayat reset password...
+        <div className="app-panel grid min-h-60 place-items-center text-body-md text-on-surface-variant">
+          Loading password reset history...
         </div>
       ) : entries.length === 0 ? (
-        <div className="app-panel grid min-h-72 place-items-center rounded-3xl p-6 text-center">
-          <div className="space-y-2">
-            <p className="text-base font-black text-white">
-              Belum ada pengajuan
-            </p>
-            <p className="mx-auto max-w-md text-sm text-slate-400">
-              Riwayat akan terisi begitu ada operator yang memakai tombol Lupa
-              Password di halaman login.
+        <div className="app-panel grid min-h-60 place-items-center p-6 text-center">
+          <div className="space-y-1">
+            <p className="text-headline-md text-on-surface">No requests yet</p>
+            <p className="mx-auto max-w-md text-body-md text-on-surface-variant">
+              History fills in as soon as an operator uses Forgot password on
+              the sign-in page.
             </p>
           </div>
         </div>
@@ -319,31 +321,30 @@ export default function RiwayatResetPasswordPage() {
 
       {approval ? (
         <Modal
-          title="Kode pemulihan"
+          title="Recovery code"
           titleId="reset-approval-title"
           onClose={() => setApproval(null)}
         >
-          <div className="space-y-3 text-sm">
-            <p className="text-slate-300">
-              Serahkan kode ini kepada{" "}
-              <strong className="text-white">{approval.namaOperator}</strong>{" "}
-              secara langsung. Berlaku {approval.berlakuMenit} menit dan hanya
-              bisa dipakai sekali.
+          <div className="space-y-3 text-body-md">
+            <p className="text-on-surface">
+              Hand this code to <strong>{approval.namaOperator}</strong> in
+              person. It is valid for {approval.berlakuMenit} minutes and can be
+              used once.
             </p>
-            <p className="select-all break-all rounded-2xl border border-emerald-400/30 bg-emerald-400/10 p-4 text-center font-mono text-base font-black tracking-wider text-emerald-100">
+            <p className="select-all break-all rounded-md border border-outline-variant bg-surface-container-low p-3 text-center font-mono text-headline-md tracking-wider text-on-surface">
               {approval.token}
             </p>
-            <p className="text-[11px] leading-4 text-amber-300">
-              Kode ini tidak tersimpan dan tidak dapat ditampilkan ulang. Bila
-              layar ini ditutup sebelum kodenya diserahkan, pemohon harus
-              mengajukan permintaan baru.
+            <p className="rounded-md border border-tertiary-fixed-dim bg-tertiary-fixed p-3 text-on-tertiary-fixed">
+              This code is not stored and cannot be shown again. If this window
+              is closed before the code is handed over, the requester must
+              submit a new request.
             </p>
             <button
               type="button"
               onClick={() => setApproval(null)}
-              className="min-h-11 w-full rounded-xl bg-white/10 text-xs font-black text-slate-200 transition hover:bg-white/20"
+              className="app-btn app-btn-primary w-full"
             >
-              Saya sudah menyerahkan kodenya
+              I have handed over the code
             </button>
           </div>
         </Modal>
@@ -351,7 +352,7 @@ export default function RiwayatResetPasswordPage() {
 
       {photo ? (
         <Modal
-          title={`Foto verifikasi — ${photo.entry.operatorName}`}
+          title={`Verification photo: ${photo.entry.operatorName}`}
           titleId="reset-photo-title"
           onClose={() => setPhoto(null)}
         >
@@ -362,30 +363,31 @@ export default function RiwayatResetPasswordPage() {
             {/** biome-ignore lint/performance/noImgElement: sumbernya data URI dari database, bukan aset yang bisa dioptimalkan next/image */}
             <img
               src={photo.src}
-              alt={`Wajah pemohon reset password ${photo.entry.operatorName}`}
-              className="w-full rounded-2xl border border-white/10"
+              alt={`Face of the password reset requester ${photo.entry.operatorName}`}
+              className="w-full rounded-md border border-surface-container"
             />
-            <dl className="grid gap-2 rounded-2xl border border-white/10 bg-slate-950/60 p-4 text-sm sm:grid-cols-2">
+            <dl className="grid gap-2 rounded-md border border-surface-container bg-surface-container-low p-3 sm:grid-cols-2">
               <DetailRow
-                label="Diajukan"
-                value={formatTimestamp(photo.entry.requestedAt)}
+                label="Requested"
+                value={formatDateTime(photo.entry.requestedAt)}
               />
               <DetailRow
-                label="Skor liveness"
+                label="Liveness score"
                 value={formatScore(photo.entry.livenessScore)}
               />
               <DetailRow
-                label="Tantangan"
+                label="Challenges"
                 value={
-                  photo.entry.livenessChallenges.join(", ") || "Tidak tercatat"
+                  photo.entry.livenessChallenges.join(", ") || "Not recorded"
                 }
               />
               <DetailRow label="Status" value={photo.entry.status} />
             </dl>
-            <p className="text-xs leading-5 text-slate-500">
-              Foto ini bukan bukti identitas hukum. Verifikasi liveness menahan
-              foto cetak dan layar diam, bukan rekaman video orang lain — jadi
-              periksa juga kewajaran waktu dan identitas yang diketik.
+            <p className="text-body-sm text-on-surface-variant">
+              This photo is not legal proof of identity. Liveness verification
+              stops printed photos and still screens, not a video recording of
+              someone else, so also check that the timing and typed identity
+              make sense.
             </p>
           </div>
         </Modal>
@@ -393,40 +395,38 @@ export default function RiwayatResetPasswordPage() {
 
       {deleteTarget ? (
         <Modal
-          title="Hapus riwayat pengajuan?"
+          title="Delete this request?"
           titleId="reset-delete-title"
           onClose={() => setDeleteTarget(null)}
         >
           <div className="space-y-4">
-            <p className="text-sm leading-6 text-slate-300">
-              Riwayat pengajuan{" "}
-              <strong className="text-white">
-                {deleteTarget.operatorName}
-              </strong>{" "}
-              beserta foto verifikasinya akan dihapus permanen.
+            <p className="text-body-md text-on-surface">
+              The request history of{" "}
+              <strong>{deleteTarget.operatorName}</strong> and its verification
+              photo will be deleted permanently.
             </p>
-            {deleteTarget.status === "Terkirim" ? (
-              <p className="rounded-xl border border-amber-400/30 bg-amber-400/10 p-3 text-xs leading-5 text-amber-100">
-                Pengajuan ini masih hidup — link resetnya belum dipakai.
-                Menghapusnya ikut mematikan link tersebut, dan pemiliknya perlu
-                mengajukan Lupa Password sekali lagi.
+            {deleteTarget.status === "Sent" ? (
+              <p className="rounded-md border border-tertiary-fixed-dim bg-tertiary-fixed p-3 text-body-md text-on-tertiary-fixed">
+                This request is still live: its reset link has not been used.
+                Deleting it also disables that link, and the owner will need to
+                request Forgot password again.
               </p>
             ) : null}
             <div className="flex flex-wrap justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setDeleteTarget(null)}
-                className="min-h-11 rounded-xl border border-white/15 px-4 text-sm font-bold text-slate-300"
+                className="app-btn app-btn-secondary"
               >
-                Batal
+                Cancel
               </button>
               <button
                 type="button"
                 onClick={() => void confirmDelete()}
                 disabled={busy}
-                className="min-h-11 rounded-xl bg-rose-500 px-4 text-sm font-black text-white disabled:opacity-50"
+                className="app-btn app-btn-danger"
               >
-                {busy ? "Menghapus..." : "Hapus permanen"}
+                {busy ? "Deleting..." : "Delete permanently"}
               </button>
             </div>
           </div>
@@ -435,31 +435,31 @@ export default function RiwayatResetPasswordPage() {
 
       {purgeOpen ? (
         <Modal
-          title="Bersihkan riwayat lama?"
+          title="Clear old history?"
           titleId="reset-purge-title"
           onClose={() => setPurgeOpen(false)}
         >
           <div className="space-y-4">
-            <p className="text-sm leading-6 text-slate-300">
-              Semua riwayat berstatus Terpakai, Kedaluwarsa, atau Dibatalkan
-              yang lebih tua dari {PURGE_DAYS} hari akan dihapus beserta
-              fotonya. Pengajuan yang masih berjalan tidak ikut terhapus.
+            <p className="text-body-md text-on-surface">
+              All requests with status Used, Expired, or Cancelled that are
+              older than {PURGE_DAYS} days will be deleted with their photos.
+              Requests still in progress are kept.
             </p>
             <div className="flex flex-wrap justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setPurgeOpen(false)}
-                className="min-h-11 rounded-xl border border-white/15 px-4 text-sm font-bold text-slate-300"
+                className="app-btn app-btn-secondary"
               >
-                Batal
+                Cancel
               </button>
               <button
                 type="button"
                 onClick={() => void confirmPurge()}
                 disabled={busy}
-                className="min-h-11 rounded-xl bg-rose-500 px-4 text-sm font-black text-white disabled:opacity-50"
+                className="app-btn app-btn-danger"
               >
-                {busy ? "Membersihkan..." : "Bersihkan sekarang"}
+                {busy ? "Clearing..." : "Clear now"}
               </button>
             </div>
           </div>
@@ -479,12 +479,14 @@ function SummaryTile({
   hint: string;
 }) {
   return (
-    <div className="app-panel rounded-2xl p-4">
-      <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+    <div className="app-panel p-3">
+      <dt className="font-mono text-label-caps uppercase text-on-surface-variant">
         {label}
-      </p>
-      <p className="mt-1 text-2xl font-black text-white">{value}</p>
-      <p className="text-xs text-slate-500">{hint}</p>
+      </dt>
+      <dd className="mt-1 font-mono text-headline-xl tabular-nums text-on-surface">
+        {value}
+      </dd>
+      <dd className="text-body-sm text-on-surface-variant">{hint}</dd>
     </div>
   );
 }
@@ -509,25 +511,26 @@ function HistoryCard({
   // Hanya permintaan yang benar-benar menunggu peninjauan manusia yang boleh
   // disetujui. Menampilkan tombolnya pada baris lain akan mengundang klik yang
   // pasti ditolak backend.
-  const menungguPersetujuan =
-    entry.deliveryStatus === "Menunggu Persetujuan" &&
-    entry.status === "Menunggu Verifikasi";
+  const awaitingApproval =
+    entry.deliveryStatus === RESET_DELIVERY_AWAITING_APPROVAL &&
+    entry.status === "Pending Verification";
   return (
-    <li className="app-panel rounded-3xl p-4 sm:p-5">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+    <li className="app-panel p-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0 space-y-1">
           <div className="flex flex-wrap items-center gap-2">
-            <p className="text-base font-black text-white">
+            <p className="text-headline-md text-on-surface">
               {entry.operatorName}
             </p>
             <StatusBadge tone={RESET_HISTORY_STATUS_TONE[entry.status]}>
               {entry.status}
             </StatusBadge>
           </div>
-          <p className="text-xs text-slate-500">
-            {entry.kodeOperator} · @{entry.username} · {entry.maskedEmail}
+          <p className="text-body-sm text-on-surface-variant">
+            <span className="font-mono">{entry.kodeOperator}</span> · @
+            {entry.username} · {entry.maskedEmail}
           </p>
-          <p className="text-xs leading-5 text-slate-400">
+          <p className="text-body-md text-on-surface-variant">
             {RESET_HISTORY_STATUS_HINT[entry.status]}
           </p>
         </div>
@@ -537,23 +540,23 @@ function HistoryCard({
               type="button"
               onClick={onOpenPhoto}
               disabled={busy}
-              className="min-h-10 rounded-xl bg-sky-400 px-3.5 text-xs font-black text-slate-950 transition hover:bg-sky-300 disabled:opacity-50"
+              className="app-btn app-btn-secondary"
             >
-              Lihat foto
+              View photo
             </button>
           ) : (
-            <span className="min-h-10 rounded-xl border border-white/10 px-3.5 py-2.5 text-xs font-bold text-slate-500">
-              Tanpa foto
+            <span className="inline-flex min-h-11 items-center px-2 text-body-md text-on-surface-variant">
+              No photo
             </span>
           )}
-          {canApprove && menungguPersetujuan ? (
+          {canApprove && awaitingApproval ? (
             <button
               type="button"
               onClick={onApprove}
               disabled={busy}
-              className="min-h-10 rounded-xl bg-emerald-400 px-3.5 text-xs font-black text-slate-950 transition hover:bg-emerald-300 disabled:opacity-50"
+              className="app-btn app-btn-primary"
             >
-              Setujui
+              Approve
             </button>
           ) : null}
           {canDelete ? (
@@ -561,38 +564,38 @@ function HistoryCard({
               type="button"
               onClick={onDelete}
               disabled={busy}
-              className="min-h-10 rounded-xl border border-rose-400/30 px-3.5 text-xs font-black text-rose-200 transition hover:bg-rose-400/10 disabled:opacity-50"
+              className="app-btn app-btn-secondary text-error"
             >
-              Hapus
+              Delete
             </button>
           ) : null}
         </div>
       </div>
 
-      <dl className="mt-4 grid gap-2 rounded-2xl border border-white/10 bg-slate-950/50 p-3 text-xs sm:grid-cols-2 lg:grid-cols-4">
+      <dl className="mt-3 grid gap-2 border-t border-surface-container pt-3 sm:grid-cols-2 lg:grid-cols-4">
         <DetailRow
-          label="Diajukan"
-          value={formatTimestamp(entry.requestedAt)}
+          label="Requested"
+          value={formatDateTime(entry.requestedAt)}
         />
-        <DetailRow label="Diketik" value={entry.identifierUsed || "—"} />
+        <DetailRow label="Typed" value={entry.identifierUsed || "-"} />
         <DetailRow
-          label="Skor liveness"
+          label="Liveness score"
           value={formatScore(entry.livenessScore)}
         />
         <DetailRow
-          label="Pengiriman"
-          value={entry.deliveryStatus || "Belum dikirim"}
+          label="Delivery"
+          value={entry.deliveryStatus || "Not sent yet"}
         />
       </dl>
 
       {entry.deliveryError ? (
-        <p className="mt-2 rounded-xl border border-rose-400/25 bg-rose-400/10 p-2.5 text-xs text-rose-100">
+        <p className="mt-2 rounded-md border border-error/30 bg-error-container p-2.5 text-body-md text-on-error-container">
           {entry.deliveryError}
         </p>
       ) : null}
-      {entry.livenessReason && entry.status !== "Terpakai" ? (
-        <p className="mt-2 text-xs leading-5 text-slate-500">
-          Catatan verifikasi: {entry.livenessReason}
+      {entry.livenessReason && entry.status !== "Used" ? (
+        <p className="mt-2 text-body-sm text-on-surface-variant">
+          Verification note: {entry.livenessReason}
         </p>
       ) : null}
     </li>
@@ -602,35 +605,16 @@ function HistoryCard({
 function DetailRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0">
-      <dt className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+      <dt className="font-mono text-label-caps uppercase text-on-surface-variant">
         {label}
       </dt>
-      <dd className="truncate font-semibold text-slate-200">{value}</dd>
+      <dd className="truncate text-body-md font-semibold text-on-surface">
+        {value}
+      </dd>
     </div>
   );
 }
 
 function formatScore(score: number | null) {
-  return score == null ? "Tidak dinilai" : `${Math.round(score * 100)}%`;
-}
-
-/**
- * Stempel waktu di kolom ini ditulis SQLite dalam UTC ("2026-08-29 10:15:00").
- * `new Date(...)` akan memperlakukannya sebagai waktu lokal, jadi penanda `Z`
- * ditambahkan dulu sebelum diformat ke zona pengguna.
- */
-function formatTimestamp(value: string) {
-  if (!value) return "—";
-  const normalized = value.includes("T")
-    ? value
-    : `${value.replace(" ", "T")}Z`;
-  const parsed = new Date(normalized);
-  if (Number.isNaN(parsed.getTime())) return value;
-  return parsed.toLocaleString("id-ID", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return score == null ? "Not scored" : `${Math.round(score * 100)}%`;
 }

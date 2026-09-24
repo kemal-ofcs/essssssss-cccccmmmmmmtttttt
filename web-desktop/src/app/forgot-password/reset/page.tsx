@@ -18,10 +18,12 @@ import { useHydrated } from "@/lib/hooks/useHydrated";
  * Token dibaca dari query string (`?token=`) ketika pengguna mengklik tautan
  * email, dan bisa ditempel manual pada pemasangan Desktop yang emailnya hanya
  * memuat kode — di sana tidak ada URL aplikasi Web untuk dituju.
+ *
+ * Identik di Web-Desktop dan Mobile; salin berkas ini apa adanya.
  */
 export default function ResetPasswordPage() {
   return (
-    <Suspense fallback={<PageShell>Memuat...</PageShell>}>
+    <Suspense fallback={<PageShell>Loading...</PageShell>}>
       <ResetPasswordForm />
     </Suspense>
   );
@@ -52,7 +54,9 @@ function ResetPasswordForm() {
     } catch (cause) {
       setPreview(null);
       setError(
-        cause instanceof Error ? cause.message : "Token tidak dapat diperiksa.",
+        cause instanceof Error
+          ? cause.message
+          : "The token could not be checked.",
       );
     } finally {
       setBusy(false);
@@ -70,7 +74,7 @@ function ResetPasswordForm() {
     event.preventDefault();
     if (busy) return;
     if (password !== confirmation) {
-      setError("Konfirmasi password tidak sama.");
+      setError("The password confirmation does not match.");
       return;
     }
     const strength = validatePasswordStrength(password);
@@ -89,30 +93,30 @@ function ResetPasswordForm() {
       setError(
         cause instanceof Error
           ? cause.message
-          : "Password baru tidak dapat disimpan.",
+          : "The new password could not be saved.",
       );
     } finally {
       setBusy(false);
     }
   };
 
-  if (!isHydrated) return <PageShell>Memuat...</PageShell>;
+  if (!isHydrated) return <PageShell>Loading...</PageShell>;
 
   if (done) {
     return (
       <PageShell>
         <div className="space-y-4 text-center">
-          <h1 className="text-2xl font-black text-white">Password diganti</h1>
-          <p className="text-sm text-slate-300">
-            Password lama sudah digantikan yang baru. Seluruh sesi lama pada
-            akun ini juga telah dikeluarkan demi keamanan.
+          <h1 className="text-headline-xl text-on-surface">Password changed</h1>
+          <p className="text-body-md text-on-surface-variant">
+            Your old password has been replaced. All old sessions on this
+            account were also signed out for security.
           </p>
           <button
             type="button"
             onClick={() => router.replace("/login")}
-            className="min-h-12 w-full rounded-2xl bg-emerald-500 text-sm font-black text-slate-950"
+            className="app-btn app-btn-primary w-full"
           >
-            Login dengan password baru
+            Sign in with the new password
           </button>
         </div>
       </PageShell>
@@ -122,26 +126,31 @@ function ResetPasswordForm() {
   return (
     <PageShell>
       <header className="space-y-1">
-        <p className="text-xs font-black uppercase tracking-[0.2em] text-emerald-400">
+        <p className="text-body-sm font-semibold text-on-surface-variant">
           App Template
         </p>
-        <h1 className="text-2xl font-black text-white">Buat Password Baru</h1>
+        <h1 className="text-headline-xl text-on-surface">
+          Create a new password
+        </h1>
       </header>
 
       {error ? (
-        <p className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-sm text-rose-200">
+        <p
+          role="alert"
+          className="rounded-md border border-error/30 bg-error-container p-3 text-body-md text-on-error-container"
+        >
           {error}
         </p>
       ) : null}
       {notice ? (
-        <p className="rounded-xl border border-sky-500/30 bg-sky-500/10 p-3 text-sm text-sky-200">
+        <output className="block rounded-md border border-secondary/20 bg-secondary-fixed p-3 text-body-md text-on-secondary-fixed-variant">
           {notice}
-        </p>
+        </output>
       ) : null}
 
       <div className="space-y-2">
-        <label className="grid gap-1.5 text-xs font-bold text-slate-300">
-          Kode / token reset
+        <label className="app-label grid gap-1.5">
+          Reset code or token
           <input
             required
             value={token}
@@ -149,8 +158,8 @@ function ResetPasswordForm() {
               setToken(event.target.value);
               setPreview(null);
             }}
-            placeholder="Tempel kode dari email"
-            className="min-h-11 rounded-xl border border-white/15 bg-slate-950 px-3 font-mono text-xs text-white"
+            placeholder="Paste the code from the email"
+            className="app-input font-mono text-code-md font-normal"
           />
         </label>
         {!preview ? (
@@ -158,24 +167,24 @@ function ResetPasswordForm() {
             type="button"
             disabled={busy || token.trim().length === 0}
             onClick={() => void verifyToken(token)}
-            className="min-h-11 w-full rounded-xl border border-white/15 text-sm font-bold text-slate-300 disabled:opacity-50"
+            className="app-btn app-btn-secondary w-full"
           >
-            {busy ? "Memeriksa kode..." : "Periksa kode"}
+            {busy ? "Checking code..." : "Check code"}
           </button>
         ) : null}
       </div>
 
       {preview ? (
         <form className="space-y-4" onSubmit={submit}>
-          <div className="space-y-1 rounded-2xl border border-white/10 bg-slate-950/60 p-4 text-sm">
-            <p className="text-base font-black text-white">
+          <div className="space-y-1 rounded-md border border-surface-container bg-surface-container-low p-3 text-body-md">
+            <p className="text-headline-md text-on-surface">
               {preview.operatorName}
             </p>
-            <p className="text-slate-400">@{preview.username}</p>
-            <p className="text-slate-400">{preview.maskedEmail}</p>
+            <p className="text-on-surface-variant">@{preview.username}</p>
+            <p className="text-on-surface-variant">{preview.maskedEmail}</p>
           </div>
-          <label className="grid gap-1.5 text-xs font-bold text-slate-300">
-            Password baru
+          <label className="app-label grid gap-1.5">
+            New password
             <input
               required
               type="password"
@@ -184,14 +193,14 @@ function ResetPasswordForm() {
               autoComplete="new-password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              className="min-h-11 rounded-xl border border-white/15 bg-slate-950 px-3 text-sm text-white"
+              className="app-input font-normal"
             />
-            <span className="font-normal leading-5 text-slate-500">
-              Minimal 12 karakter dengan huruf besar, huruf kecil, dan angka.
+            <span className="font-normal text-on-surface-variant">
+              At least 12 characters with uppercase, lowercase, and a number.
             </span>
           </label>
-          <label className="grid gap-1.5 text-xs font-bold text-slate-300">
-            Ulangi password baru
+          <label className="app-label grid gap-1.5">
+            Repeat new password
             <input
               required
               type="password"
@@ -200,25 +209,25 @@ function ResetPasswordForm() {
               autoComplete="new-password"
               value={confirmation}
               onChange={(event) => setConfirmation(event.target.value)}
-              className="min-h-11 rounded-xl border border-white/15 bg-slate-950 px-3 text-sm text-white"
+              className="app-input font-normal"
             />
           </label>
           <button
             type="submit"
             disabled={busy}
-            className="min-h-12 w-full rounded-2xl bg-emerald-500 text-sm font-black text-slate-950 disabled:opacity-50"
+            className="app-btn app-btn-primary w-full"
           >
-            {busy ? "Menyimpan..." : "Simpan password baru"}
+            {busy ? "Saving..." : "Save new password"}
           </button>
         </form>
       ) : null}
 
-      <footer className="border-t border-white/10 pt-4 text-center">
+      <footer className="border-t border-surface-container pt-4 text-center">
         <Link
           href="/login"
-          className="text-xs font-bold text-slate-400 hover:text-emerald-300"
+          className="inline-flex min-h-11 items-center text-body-md font-semibold text-secondary hover:underline"
         >
-          Kembali ke halaman login
+          Back to sign in
         </Link>
       </footer>
     </PageShell>
@@ -227,10 +236,8 @@ function ResetPasswordForm() {
 
 function PageShell({ children }: { children: React.ReactNode }) {
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-slate-950 p-4 font-sans text-slate-100 sm:p-6">
-      <div className="pointer-events-none absolute -top-40 -left-40 h-96 w-96 rounded-full bg-emerald-600/15 blur-3xl" />
-      <div className="pointer-events-none absolute -right-40 -bottom-40 h-96 w-96 rounded-full bg-sky-600/15 blur-3xl" />
-      <section className="relative z-10 w-full max-w-lg space-y-5 rounded-3xl border border-white/10 bg-slate-900/70 p-6 shadow-2xl backdrop-blur sm:p-8">
+    <main className="flex min-h-dvh flex-col items-center justify-center bg-background p-4 sm:p-6">
+      <section className="app-panel w-full max-w-lg space-y-5 p-5 shadow-[0_8px_32px_rgb(11_28_48/0.08)] sm:p-6">
         {children}
       </section>
     </main>

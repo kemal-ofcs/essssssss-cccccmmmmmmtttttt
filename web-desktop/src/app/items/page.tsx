@@ -28,7 +28,7 @@ const EMPTY_DRAFT: ItemDraft = {
   harga: 0,
   satuan: "",
   catatan: "",
-  status_aktif: "Aktif",
+  status_aktif: "Active",
 };
 
 export default function ItemsPage() {
@@ -208,7 +208,7 @@ export default function ItemsPage() {
             ) : items.length === 0 ? (
               <tr>
                 <td className="px-4 py-6 text-slate-500" colSpan={6}>
-                  Belum ada item.
+                  None yet item.
                 </td>
               </tr>
             ) : (

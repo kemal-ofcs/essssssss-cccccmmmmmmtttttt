@@ -146,9 +146,9 @@ export async function sendMail(
     return {
       delivered: false,
       message:
-        "Pengiriman email belum dikonfigurasi. Minta Admin mengisi Pengaturan > Email Sistem.",
+        "Email sending is not configured. Ask an Admin to fill in Settings > System email.",
       detail:
-        "Konfigurasi email nonaktif, kunci API kosong, atau email pengirim belum diisi.",
+        "Email settings are off, the API key is empty, or the sender email is not set.",
     };
   }
 
@@ -201,10 +201,10 @@ export async function sendMail(
     return {
       delivered: false,
       detail: `Permintaan ke ${config.provider} gagal: ${
-        error instanceof Error ? error.message : "penyebab tidak diketahui"
+        error instanceof Error ? error.message : "unknown cause"
       }`,
       message:
-        "Email gagal dikirim karena jaringan tidak tersedia. Coba lagi setelah perangkat terhubung internet.",
+        "The email could not be sent because no network is available. Try again once the device is online.",
     };
   }
 }
@@ -227,7 +227,7 @@ export async function sendTestMail(client: Client, operatorId: number) {
     return {
       delivered: false,
       message:
-        "Akun Anda belum punya email terdaftar. Lengkapi email akun Anda di Master Operator lebih dulu.",
+        "Your account has no registered email. Add your account email on the Operators page first.",
       detail: "",
       to: "",
     };
@@ -237,8 +237,8 @@ export async function sendTestMail(client: Client, operatorId: number) {
     client,
     to,
     "Uji Kirim Email Sistem App Template",
-    `Halo ${name},\n\nEmail ini dikirim dari menu Pengaturan > Email Sistem untuk menguji konfigurasi pengirim.\nBila email ini sampai, fitur Lupa Password sudah siap dipakai.\n\nApp Template`,
-    `<p>Halo <strong>${name}</strong>,</p><p>Email ini dikirim dari menu Pengaturan &gt; Email Sistem untuk menguji konfigurasi pengirim. Bila email ini sampai, fitur Lupa Password sudah siap dipakai.</p><p>App Template</p>`,
+    `Hello ${name},\n\nThis email was sent from Settings > System email to test the sender settings.\nIf it arrived, Forgot password is ready to use.\n\nApp Template`,
+    `<p>Hello <strong>${name}</strong>,</p><p>This email was sent from Settings &gt; System email to test the sender settings. If it arrived, Forgot password is ready to use.</p><p>App Template</p>`,
   );
   return { ...result, to };
 }

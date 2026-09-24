@@ -55,7 +55,7 @@ export async function bootstrapSuperadmin(
   draft: BootstrapDraft,
 ): Promise<string[]> {
   if (!isDesktopRuntime()) {
-    throw new Error("Bootstrap hanya tersedia pada aplikasi desktop/mobile.");
+    throw new Error("Bootstrap is only available in the desktop/mobile app.");
   }
   const response = await invokeDesktop<{ recoveryCodes?: unknown }>(
     "desktop_bootstrap_superadmin",
@@ -127,7 +127,7 @@ export async function checkBootstrapDatabase(
 ): Promise<DatabaseCheckResult> {
   if (!isDesktopRuntime()) {
     throw new Error(
-      "Pemeriksaan database hanya tersedia pada aplikasi desktop/mobile.",
+      "The database check is only available in the desktop/mobile app.",
     );
   }
   return invokeDesktop<DatabaseCheckResult>(
@@ -142,7 +142,7 @@ export async function linkBootstrapDatabase(
 ): Promise<DatabaseCheckResult> {
   if (!isDesktopRuntime()) {
     throw new Error(
-      "Konfigurasi database hanya tersedia pada aplikasi desktop/mobile.",
+      "Database settings are only available in the desktop/mobile app.",
     );
   }
   return invokeDesktop<DatabaseCheckResult>(

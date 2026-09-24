@@ -44,7 +44,7 @@ const AuthContext = createContext<AuthContextType>({
   user: null,
   isAuthenticated: false,
   isLoading: true,
-  login: async () => ({ sukses: false, pesan: "AuthContext belum terpasang." }),
+  login: async () => ({ sukses: false, pesan: "AuthContext is not mounted." }),
   logout: () => {},
 });
 

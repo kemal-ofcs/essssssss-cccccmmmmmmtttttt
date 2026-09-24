@@ -17,10 +17,7 @@ function noStoreJson(body: unknown, status = 200) {
 
 export async function POST(request: NextRequest) {
   if (!isSameOriginMutation(request)) {
-    return noStoreJson(
-      { sukses: false, pesan: "Origin tidak diizinkan." },
-      403,
-    );
+    return noStoreJson({ sukses: false, pesan: "Origin not allowed." }, 403);
   }
 
   const token = request.cookies.get(WEB_SESSION_COOKIE)?.value ?? "";
@@ -34,10 +31,7 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   if (!isSameOriginMutation(request)) {
-    return noStoreJson(
-      { sukses: false, pesan: "Origin tidak diizinkan." },
-      403,
-    );
+    return noStoreJson({ sukses: false, pesan: "Origin not allowed." }, 403);
   }
 
   const token = request.cookies.get(WEB_SESSION_COOKIE)?.value ?? "";

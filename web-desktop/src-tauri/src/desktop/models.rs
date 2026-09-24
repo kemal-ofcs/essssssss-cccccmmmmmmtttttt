@@ -141,7 +141,7 @@ impl CommandError {
     pub fn internal() -> Self {
         Self::new(
             "DESKTOP_INTERNAL_ERROR",
-            "Data lokal Desktop tidak dapat diproses.",
+            "Local desktop data could not be processed.",
         )
     }
 }

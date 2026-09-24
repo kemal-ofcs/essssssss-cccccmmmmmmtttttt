@@ -18,16 +18,13 @@ export function assertActorPermission(
   superadminOnly = false,
 ) {
   if (!actor) {
-    throw new AuthorizationError(
-      "Session tidak valid atau sudah berakhir.",
-      401,
-    );
+    throw new AuthorizationError("The session is invalid or has ended.", 401);
   }
   if (
     !hasPermission(actor, permission) ||
     (superadminOnly && !actor.isSuperadmin)
   ) {
-    throw new AuthorizationError("Akses ditolak untuk tindakan ini.", 403);
+    throw new AuthorizationError("Access denied for this action.", 403);
   }
   return actor;
 }

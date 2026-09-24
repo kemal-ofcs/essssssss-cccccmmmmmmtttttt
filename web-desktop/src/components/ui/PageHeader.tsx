@@ -2,27 +2,20 @@ import type { ReactNode } from "react";
 
 interface PageHeaderProps {
   actions?: ReactNode;
-  description: string;
-  eyebrow: string;
+  description?: string;
   title: string;
 }
 
-export function PageHeader({
-  actions,
-  description,
-  eyebrow,
-  title,
-}: PageHeaderProps) {
+export function PageHeader({ actions, description, title }: PageHeaderProps) {
   return (
-    <header className="flex flex-col gap-4 border-b border-white/10 pb-6 sm:flex-row sm:items-end sm:justify-between">
+    <header className="flex flex-col gap-3 border-b border-surface-container pb-4 sm:flex-row sm:items-end sm:justify-between">
       <div className="max-w-3xl">
-        <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-amber-300">
-          {eyebrow}
-        </p>
-        <h1 className="mt-2 text-2xl font-black tracking-tight text-white sm:text-3xl">
-          {title}
-        </h1>
-        <p className="mt-2 text-sm leading-6 text-slate-400">{description}</p>
+        <h1 className="text-headline-xl text-on-surface">{title}</h1>
+        {description ? (
+          <p className="mt-1 text-body-md text-on-surface-variant">
+            {description}
+          </p>
+        ) : null}
       </div>
       {actions ? <div className="shrink-0">{actions}</div> : null}
     </header>

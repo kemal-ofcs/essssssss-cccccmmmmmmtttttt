@@ -74,11 +74,11 @@ fn ensure_column(
             [column],
             |row| row.get::<_, bool>(0),
         )
-        .map_err(|_| format!("Skema tabel {table} tidak dapat diperiksa."))?;
+        .map_err(|_| format!("The schema of table {table} could not be checked."))?;
     if !exists {
         connection
             .execute(alter_sql, [])
-            .map_err(|_| format!("Kolom {table}.{column} tidak dapat dimigrasikan."))?;
+            .map_err(|_| format!("Column {table}.{column} could not be migrated."))?;
     }
     Ok(())
 }
@@ -153,7 +153,7 @@ pub fn initialize(path: &Path) -> Result<(), String> {
       -- dicoba ulang selamanya.
       CREATE TABLE IF NOT EXISTS company_profile (
         id TEXT PRIMARY KEY DEFAULT 'default_company',
-        company_name TEXT NOT NULL DEFAULT 'Nama Perusahaan',
+        company_name TEXT NOT NULL DEFAULT 'Company Name',
         branch_name TEXT,
         logo_url TEXT,
         signature_url TEXT,
@@ -229,8 +229,8 @@ pub fn initialize(path: &Path) -> Result<(), String> {
         harga INTEGER NOT NULL DEFAULT 0 CHECK (harga >= 0),
         satuan TEXT,
         catatan TEXT,
-        status_aktif TEXT NOT NULL DEFAULT 'Aktif'
-          CHECK (status_aktif IN ('Aktif', 'Nonaktif')),
+        status_aktif TEXT NOT NULL DEFAULT 'Active'
+          CHECK (status_aktif IN ('Active', 'Inactive')),
         update_terakhir TEXT NOT NULL
       );
       -- Log transaksional append-only. `event_key` membuat setiap baris idempoten:
@@ -262,7 +262,7 @@ pub fn initialize(path: &Path) -> Result<(), String> {
       VALUES (2, 'desktop-sync-foundation', unixepoch());
       "#,
         )
-        .map_err(|_| "Schema keamanan Desktop tidak dapat diinisialisasi.".to_owned())?;
+        .map_err(|_| "The desktop security schema could not be initialized.".to_owned())?;
 
     Ok(())
 }
@@ -310,7 +310,7 @@ pub fn reset_cloud_linked_data(
             .map_err(|_| {
                 CommandError::new(
                     "LOCAL_RESET_FAILED",
-                    "Data lokal database lama tidak dapat dibersihkan.",
+                    "Local data from the old database could not be cleared.",
                 )
             })?;
     }
@@ -325,7 +325,7 @@ pub fn reset_cloud_linked_data(
         .map_err(|_| {
             CommandError::new(
                 "LOCAL_RESET_FAILED",
-                "Pengaturan lokal database lama tidak dapat dibersihkan.",
+                "Local settings from the old database could not be cleared.",
             )
         })?;
 
@@ -347,7 +347,7 @@ pub fn reset_cloud_linked_data(
         .map_err(|_| {
             CommandError::new(
                 "LOCAL_RESET_FAILED",
-                "Status sinkronisasi database lama tidak dapat dibersihkan.",
+                "Sync status from the old database could not be cleared.",
             )
         })?;
 
@@ -612,7 +612,7 @@ mod tests {
         let connection = database(directory.path()).expect("database connection");
         connection
             .execute(
-                "INSERT INTO master_item (kode_item, nama, harga, status_aktif, update_terakhir) VALUES ('I1', 'Item Lama', 1000, 'Aktif', '0');",
+                "INSERT INTO master_item (kode_item, nama, harga, status_aktif, update_terakhir) VALUES ('I1', 'Item Lama', 1000, 'Active', '0');",
                 [],
             )
             .expect("seed item");

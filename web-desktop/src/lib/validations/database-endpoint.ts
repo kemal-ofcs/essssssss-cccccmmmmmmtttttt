@@ -26,25 +26,25 @@ export const DATABASE_PROVIDER_OPTIONS: readonly DatabaseProviderOption[] = [
     value: "turso",
     label: "Turso Cloud",
     description:
-      "Database terkelola di turso.tech. Selalu terenkripsi dan selalu memerlukan Auth Token.",
-    urlPlaceholder: "libsql://database-anda.turso.io",
-    tokenPlaceholder: "Auth Token dari dashboard Turso",
+      "A managed database on turso.tech. Always encrypted, and always needs an Auth Token.",
+    urlPlaceholder: "libsql://your-database.turso.io",
+    tokenPlaceholder: "Auth Token from the Turso dashboard",
     tokenAlwaysRequired: true,
   },
   {
     value: "self_hosted",
-    label: "Server Database Sendiri",
+    label: "Your Own Database Server",
     description:
-      "Server libSQL (sqld) milik Anda sendiri: komputer kantor, NAS, server lokal, atau VPS. Auth Token opsional bila server berjalan tanpa autentikasi.",
+      "Your own libSQL (sqld) server: an office computer, NAS, local server, or VPS. The Auth Token is optional if the server runs without authentication.",
     urlPlaceholder: "http://192.168.1.10:8080",
-    tokenPlaceholder: "Kosongkan bila server tanpa autentikasi",
+    tokenPlaceholder: "Leave empty if the server has no authentication",
     tokenAlwaysRequired: false,
   },
   {
     value: "local_file",
-    label: "Database Lokal (Tanpa Server)",
+    label: "Local Database (No Server)",
     description:
-      "Berkas SQLite di perangkat ini. Tidak butuh internet, server, maupun Auth Token — cocok untuk satu perangkat yang berdiri sendiri.",
+      "A SQLite file on this device. No internet, server, or Auth Token needed: a good fit for one standalone device.",
     urlPlaceholder: "",
     tokenPlaceholder: "",
     tokenAlwaysRequired: false,
@@ -189,13 +189,13 @@ export function reviewDatabaseEndpoint(
   if (provider === "local_file") {
     return rejected(
       "SCHEME",
-      "Mode Database Lokal tidak memakai URL database.",
+      "Local Database Mode does not use a database URL.",
     );
   }
 
   const trimmed = rawUrl.trim();
   if (!trimmed) {
-    return rejected("EMPTY", "URL database tidak boleh kosong.");
+    return rejected("EMPTY", "The database URL cannot be empty.");
   }
 
   // `libsql://` dan `ws(s)://` adalah ejaan lain dari endpoint HTTP yang sama.
@@ -216,20 +216,20 @@ export function reviewDatabaseEndpoint(
       "MALFORMED",
       provider === "turso"
         ? "Format URL database Turso tidak valid (contoh: libsql://db-name.turso.io)."
-        : "Format URL server database tidak valid (contoh: http://192.168.1.10:8080).",
+        : "Invalid database server URL format (for example: http://192.168.1.10:8080).",
     );
   }
 
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
     return rejected(
       "SCHEME",
-      "URL database harus memakai protokol libsql://, https://, atau http://.",
+      "The database URL must use the libsql://, https://, or http:// protocol.",
     );
   }
   if (!parsed.hostname || parsed.username || parsed.password) {
     return rejected(
       "CREDENTIALS",
-      "URL database harus memiliki host dan tidak boleh memuat kredensial.",
+      "The database URL must have a host and cannot contain credentials.",
     );
   }
 
@@ -240,7 +240,7 @@ export function reviewDatabaseEndpoint(
     if (provider === "turso") {
       return rejected(
         "SCHEME",
-        'URL database Turso wajib memakai HTTPS. Kalau ini server database Anda sendiri, pilih mode "Server Database Sendiri" terlebih dahulu.',
+        'The Turso database URL must use HTTPS. If this is your own database server, choose "Your Own Database Server" first.',
       );
     }
     if (!allowInsecureTransport) {
@@ -249,7 +249,7 @@ export function reviewDatabaseEndpoint(
         issue: {
           code: "INSECURE_PUBLIC",
           message:
-            'Alamat ini berada di luar jaringan privat, sehingga HTTP polos akan mengirim Auth Token dan data operasional tanpa enkripsi. Pasang HTTPS di server, pakai alamat LAN/VPN, atau centang "Izinkan koneksi tanpa enkripsi".',
+            'This address is outside a private network, so plain HTTP would send the Auth Token and operational data unencrypted. Set up HTTPS on the server, use a LAN/VPN address, or check "Allow an unencrypted connection".',
         },
         privateNetwork,
         plaintext,

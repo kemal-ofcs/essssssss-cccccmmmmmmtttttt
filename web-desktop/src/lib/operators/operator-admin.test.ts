@@ -25,7 +25,7 @@ describe("superadmin bootstrap", () => {
       email: "pemilik@contoh.id",
       noHp: "081200000001",
       password: "BootstrapKuat123",
-      status: "Aktif",
+      status: "Active",
     });
     expect(result.id).toBeGreaterThan(0);
 
@@ -47,9 +47,9 @@ describe("superadmin bootstrap", () => {
         email: "pemilik-kedua@contoh.id",
         noHp: "081200000002",
         password: "BootstrapKedua456",
-        status: "Aktif",
+        status: "Active",
       }),
-    ).rejects.toThrow("Superadmin aktif sudah tersedia");
+    ).rejects.toThrow("an active Superadmin already exists");
   });
 });
 
@@ -71,7 +71,7 @@ describe("hapus operator", () => {
       noHp: "081200000009",
       password: "SementaraKuat123",
       roleId: Number(role.rows[0]?.id),
-      status: "Aktif",
+      status: "Active",
     });
 
     await removeOperator(client, Number(superadmin.rows[0]?.id), id);

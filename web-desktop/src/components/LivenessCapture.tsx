@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Icon } from "@/components/ui/Icon";
 import {
   analyzeFrame,
   evaluateChallengeSignals,
@@ -197,7 +198,7 @@ export function LivenessCapture({
     setMessage(null);
     if (!navigator.mediaDevices?.getUserMedia) {
       setPhase("error");
-      setMessage("Kamera tidak tersedia pada perangkat ini.");
+      setMessage("No camera is available on this device.");
       return;
     }
     try {
@@ -225,7 +226,7 @@ export function LivenessCapture({
     } catch {
       setPhase("error");
       setMessage(
-        "Izin kamera ditolak. Aktifkan izin kamera lalu coba lagi — verifikasi wajah wajib untuk memulihkan password.",
+        "Camera permission was denied. Allow camera access and try again: face verification is required to recover a password.",
       );
     }
   }, []);
@@ -377,7 +378,7 @@ export function LivenessCapture({
       setMessage(
         error instanceof Error
           ? error.message
-          : "Tantangan pengganti tidak dapat diambil.",
+          : "A replacement challenge could not be loaded.",
       );
       setPhase("stuck");
     }
@@ -400,28 +401,28 @@ export function LivenessCapture({
               className={`h-1.5 rounded-full ${
                 index < challengeIndex ||
                 (index === challengeIndex && phase === "confirmed")
-                  ? "bg-emerald-400"
+                  ? "bg-success"
                   : index === challengeIndex
-                    ? "bg-sky-400"
-                    : "bg-white/10"
+                    ? "bg-secondary"
+                    : "bg-surface-container"
               }`}
             />
             <p
-              className={`mt-1 text-[10px] font-bold ${
+              className={`mt-1 text-body-sm font-semibold ${
                 index < challengeIndex
-                  ? "text-emerald-300"
+                  ? "text-success"
                   : index === challengeIndex
-                    ? "text-sky-300"
-                    : "text-slate-600"
+                    ? "text-secondary"
+                    : "text-on-surface-variant"
               }`}
             >
-              {index < challengeIndex ? "Selesai" : `Langkah ${index + 1}`}
+              {index < challengeIndex ? "Done" : `Step ${index + 1}`}
             </p>
           </li>
         ))}
       </ol>
 
-      <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-slate-900">
+      <div className="relative overflow-hidden rounded-lg border border-surface-container bg-inverse-surface">
         {/* Cermin: orang melihat dirinya seperti di cermin, jadi instruksi
             "tengok kiri" terasa alami. Analisis tetap pada piksel asli. */}
         <video
@@ -434,77 +435,79 @@ export function LivenessCapture({
         </video>
 
         {phase === "idle" || phase === "error" ? (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-slate-950/80 p-6 text-center">
-            <p className="text-sm text-slate-300">
-              Wajah Anda akan direkam sebagai bukti permintaan pemulihan
-              password.
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-inverse-surface/90 p-6 text-center">
+            <p className="text-body-md text-inverse-on-surface">
+              Your face will be recorded as evidence for this password recovery
+              request.
             </p>
             <button
               type="button"
               onClick={() => void startCamera()}
               disabled={busy}
-              className="min-h-11 rounded-xl bg-emerald-500 px-5 text-sm font-black text-slate-950 disabled:opacity-50"
+              className="app-btn app-btn-primary"
             >
-              {phase === "error" ? "Coba lagi" : "Nyalakan kamera"}
+              {phase === "error" ? "Try again" : "Turn on camera"}
             </button>
           </div>
         ) : null}
 
         {phase === "confirmed" ? (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-emerald-950/70">
-            <div className="grid size-16 place-items-center rounded-full bg-emerald-400 text-3xl font-black text-slate-950">
-              ✓
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-inverse-surface/70">
+            <div className="grid size-16 place-items-center rounded-full bg-success text-on-secondary">
+              <Icon name="check" className="size-8" />
             </div>
-            <p className="text-sm font-black text-emerald-200">Terbaca</p>
+            <p className="text-body-md font-semibold text-inverse-on-surface">
+              Captured
+            </p>
           </div>
         ) : null}
 
         {active && phase !== "confirmed" ? (
-          <div className="absolute inset-x-0 bottom-0 space-y-2 bg-gradient-to-t from-slate-950 to-transparent p-4">
-            <p className="text-center text-xs font-bold uppercase tracking-wider text-emerald-300">
-              Langkah {challengeIndex + 1} dari {challenges.length}
+          <div className="absolute inset-x-0 bottom-0 space-y-1 bg-inverse-surface/85 p-3">
+            <p className="text-center font-mono text-label-caps uppercase text-inverse-on-surface">
+              Step {challengeIndex + 1} of {challenges.length}
             </p>
-            <p className="text-center text-lg font-black text-white">
+            <p className="text-center text-headline-lg text-inverse-on-surface">
               {challenge ? LIVENESS_CHALLENGE_LABEL[challenge] : ""}
             </p>
-            <p className="text-center text-xs text-slate-300">
+            <p className="text-center text-body-sm text-inverse-on-surface">
               {phase === "aiming"
                 ? faceVisible
-                  ? "Wajah terdeteksi..."
-                  : "Posisikan wajah di tengah bingkai."
+                  ? "Face detected..."
+                  : "Center your face in the frame."
                 : phase === "prepare"
-                  ? "Bersiap..."
+                  ? "Get ready..."
                   : faceVisible
-                    ? "Silakan lakukan — tidak perlu terburu-buru."
-                    : "Wajah keluar bingkai — dekatkan lagi."}
+                    ? "Go ahead, there is no rush."
+                    : "Your face left the frame. Move closer."}
             </p>
           </div>
         ) : null}
 
         {phase === "stuck" ? (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-slate-950/85 p-6 text-center">
-            <p className="text-sm font-black text-white">
-              Gerakan belum terbaca
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-inverse-surface/90 p-6 text-center">
+            <p className="text-body-md font-semibold text-inverse-on-surface">
+              The movement was not captured yet
             </p>
-            <p className="max-w-xs text-xs leading-5 text-slate-300">
+            <p className="max-w-xs text-body-sm text-inverse-on-surface">
               {message ??
-                "Tambah cahaya di depan wajah, dekatkan wajah sampai memenuhi sepertiga bingkai, lalu lakukan gerakannya lebih tegas."}
+                "Add light in front of your face, move closer until your face fills a third of the frame, then make the movement more clearly."}
             </p>
             <div className="flex flex-wrap justify-center gap-2">
               <button
                 type="button"
                 onClick={keepTrying}
-                className="min-h-11 rounded-xl bg-emerald-500 px-4 text-sm font-black text-slate-950"
+                className="app-btn app-btn-primary"
               >
-                Coba lagi
+                Try again
               </button>
               {onSwapChallenge ? (
                 <button
                   type="button"
                   onClick={() => void swapChallenge()}
-                  className="min-h-11 rounded-xl border border-sky-400/40 bg-sky-400/10 px-4 text-sm font-bold text-sky-200"
+                  className="app-btn app-btn-secondary"
                 >
-                  Ganti tantangan lain
+                  Try a different challenge
                 </button>
               ) : null}
             </div>
@@ -514,20 +517,20 @@ export function LivenessCapture({
 
       {watching ? (
         <div className="space-y-2">
-          <p className="text-center text-[11px] text-slate-400">
-            Sistem sedang memperhatikan. Langkah ini otomatis lanjut begitu
-            gerakan Anda terbaca.
+          <p className="text-center text-body-sm text-on-surface-variant">
+            Watching now. This step continues automatically as soon as your
+            movement is captured.
           </p>
           {challenge === "KEDIP" ? (
             // Bilah sinyal mata: pengguna bisa melihat sendiri apakah
             // kedipannya terbaca kamera, alih-alih menebak setelah gagal.
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                Sinyal mata — harus turun tajam saat berkedip
+              <p className="text-body-sm text-on-surface-variant">
+                Eye signal: it should drop sharply when you blink
               </p>
-              <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-white/10">
+              <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-surface-container">
                 <div
-                  className="h-full rounded-full bg-sky-400 transition-[width] duration-100"
+                  className="h-full rounded-full bg-secondary transition-[width] duration-100"
                   style={{ width: `${Math.min(100, signal * 400)}%` }}
                 />
               </div>
@@ -537,7 +540,10 @@ export function LivenessCapture({
       ) : null}
 
       {message && phase !== "stuck" ? (
-        <p className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-200">
+        <p
+          role="alert"
+          className="rounded-md border border-error/30 bg-error-container p-3 text-body-md text-on-error-container"
+        >
           {message}
         </p>
       ) : null}
@@ -549,9 +555,9 @@ export function LivenessCapture({
             stopCamera();
             onCancel();
           }}
-          className="min-h-11 rounded-xl border border-white/15 px-4 text-sm font-bold text-slate-300"
+          className="app-btn app-btn-secondary"
         >
-          Batal
+          Cancel
         </button>
       </div>
     </div>

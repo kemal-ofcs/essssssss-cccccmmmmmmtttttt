@@ -7,23 +7,23 @@ import { useLicenseStatus } from "@/lib/hooks/useLicenseStatus";
 import { LicenseActivationPanel } from "./LicenseActivationPanel";
 
 function describeDaysLeft(days: number) {
-  if (days <= 0) return "Sewa sudah berakhir";
-  if (days === 1) return "Hari terakhir sewa";
-  return `${days} hari`;
+  if (days <= 0) return "Rental has ended";
+  if (days === 1) return "Last day of rental";
+  return `${days} days`;
 }
 
 const STATE_LABEL = {
-  active: "Aktif",
-  read_only: "Mode baca-saja",
-  missing: "Belum ada lisensi",
-  invalid: "Tidak sah",
-  device_not_listed: "Perangkat tidak terdaftar",
+  active: "Active",
+  read_only: "Read-only mode",
+  missing: "No license yet",
+  invalid: "Invalid",
+  device_not_listed: "Device not registered",
 } as const;
 
 /**
  * Kartu Lisensi di Pengaturan (Desktop dan Mobile), KHUSUS Superadmin: sisa
  * sewa dan daftar perangkat adalah urusan pemilik lembaga, bukan operator.
- * Operator tetap melihat dialog "Aktifkan lisensi" saat sewa habis
+ * Operator tetap melihat dialog "Activate license" saat sewa habis
  * (`LicenseNotice`). Tidak merender apa pun di Web.
  */
 export function LicenseCard() {
@@ -35,33 +35,33 @@ export function LicenseCard() {
   const license = status.license;
   const rows: [string, string][] = license
     ? [
-        ["Pemegang", license.holder],
-        ["Nomor lisensi", license.id],
-        ["Jenis", LICENSE_KIND_LABEL[license.kind]],
-        ["Terbit", license.issued],
-        ["Pembaruan sampai", license.updatesUntil],
-        ["Berlaku sampai", license.validUntil ?? "Selamanya"],
+        ["Holder", license.holder],
+        ["License number", license.id],
+        ["Type", LICENSE_KIND_LABEL[license.kind]],
+        ["Issued", license.issued],
+        ["Updates until", license.updatesUntil],
+        ["Valid until", license.validUntil ?? "Perpetual"],
         ...(status.daysLeft === null
           ? []
-          : ([["Sisa sewa", describeDaysLeft(status.daysLeft)]] as [
+          : ([["Rental left", describeDaysLeft(status.daysLeft)]] as [
               string,
               string,
             ][])),
         [
-          "Perangkat",
+          "Devices",
           license.devices.length
-            ? `${license.devices.length} terdaftar${status.deviceBound ? "" : " (perangkat ini tidak wajib terdaftar)"}`
-            : "Tidak dikunci ke perangkat",
+            ? `${license.devices.length} registered${status.deviceBound ? "" : " (this device does not need to be listed)"}`
+            : "Not locked to devices",
         ],
       ]
     : [];
 
   return (
-    <section className="rounded-3xl border border-white/10 bg-slate-900/80 p-5 sm:p-7 space-y-4">
+    <section className="app-panel space-y-4 p-4 sm:p-5">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          <h2 className="text-base font-bold text-white">Lisensi</h2>
-          <p className="text-xs text-slate-400">
+          <h2 className="text-headline-md text-on-surface">License</h2>
+          <p className="text-body-md text-on-surface-variant">
             Status: {STATE_LABEL[status.state]}
           </p>
         </div>
@@ -69,19 +69,19 @@ export function LicenseCard() {
           <button
             type="button"
             onClick={() => setReplacing(true)}
-            className="min-h-10 rounded-xl border border-slate-700 bg-slate-800/80 px-3 text-xs font-bold text-slate-300 transition hover:bg-slate-700"
+            className="app-btn app-btn-secondary"
           >
-            {status.state === "active" ? "Ganti lisensi" : "Aktifkan lisensi"}
+            {status.state === "active" ? "Replace license" : "Activate license"}
           </button>
         ) : null}
       </div>
 
       {rows.length ? (
-        <dl className="grid grid-cols-1 gap-x-4 gap-y-2 text-xs sm:grid-cols-2">
+        <dl className="grid grid-cols-1 gap-x-4 gap-y-2 text-body-md sm:grid-cols-2">
           {rows.map(([label, value]) => (
             <div key={label} className="min-w-0">
-              <dt className="text-slate-500">{label}</dt>
-              <dd className="font-semibold text-slate-300 break-words">
+              <dt className="text-body-sm text-on-surface-variant">{label}</dt>
+              <dd className="wrap-break-word font-semibold text-on-surface">
                 {value}
               </dd>
             </div>
@@ -89,15 +89,15 @@ export function LicenseCard() {
         </dl>
       ) : null}
 
-      <p className="text-xs text-slate-400">
-        Kode perangkat ini:{" "}
-        <code className="select-all font-mono font-bold text-slate-300">
+      <p className="text-body-md text-on-surface-variant">
+        This device code:{" "}
+        <code className="select-all font-bold text-on-surface">
           {status.deviceCode}
         </code>
       </p>
 
       {replacing ? (
-        <div className="border-t border-white/10 pt-4">
+        <div className="border-t border-surface-container pt-4">
           <LicenseActivationPanel
             status={status}
             onInstalled={(next) => {
@@ -105,7 +105,7 @@ export function LicenseCard() {
               setReplacing(false);
             }}
             onDismiss={() => setReplacing(false)}
-            dismissLabel="Batal"
+            dismissLabel="Cancel"
           />
         </div>
       ) : null}

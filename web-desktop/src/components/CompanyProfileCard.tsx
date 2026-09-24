@@ -25,13 +25,13 @@ import {
 
 /** Kolom teks bebas, dirender dari satu daftar supaya tidak ada yang terlewat. */
 const TEXT_FIELDS = [
-  { key: "branch_name", label: "Cabang / Unit", placeholder: "Kantor Pusat" },
-  { key: "address", label: "Alamat", placeholder: "Jl. Contoh No. 1" },
-  { key: "phone", label: "Telepon", placeholder: "021-0000000" },
-  { key: "email", label: "Email", placeholder: "info@perusahaan.id" },
-  { key: "website", label: "Situs web", placeholder: "https://perusahaan.id" },
-  { key: "leader_name", label: "Nama penanda tangan", placeholder: "Nama" },
-  { key: "leader_title", label: "Jabatan", placeholder: "Direktur" },
+  { key: "branch_name", label: "Branch / unit", placeholder: "Head office" },
+  { key: "address", label: "Address", placeholder: "Jl. Contoh No. 1" },
+  { key: "phone", label: "Phone", placeholder: "021-0000000" },
+  { key: "email", label: "Email", placeholder: "info@company.co.id" },
+  { key: "website", label: "Website", placeholder: "https://company.co.id" },
+  { key: "leader_name", label: "Signatory name", placeholder: "Full name" },
+  { key: "leader_title", label: "Signatory title", placeholder: "Director" },
 ] as const;
 
 type TextFieldKey = (typeof TEXT_FIELDS)[number]["key"];
@@ -39,11 +39,11 @@ type TextFieldKey = (typeof TEXT_FIELDS)[number]["key"];
 type ImageFieldKey = "logo_url" | "signature_url";
 
 const IMAGE_FIELDS: { key: ImageFieldKey; label: string; hint: string }[] = [
-  { key: "logo_url", label: "Logo", hint: "Tampil di kop dokumen." },
+  { key: "logo_url", label: "Logo", hint: "Shown in document letterheads." },
   {
     key: "signature_url",
-    label: "Tanda tangan",
-    hint: "Tampil di kaki dokumen.",
+    label: "Signature",
+    hint: "Shown in document footers.",
   },
 ];
 
@@ -87,7 +87,7 @@ export function CompanyProfileCard() {
           text:
             error instanceof Error
               ? error.message
-              : "Profil perusahaan tidak dapat dimuat.",
+              : "The company profile could not be loaded.",
         });
       })
       .finally(() => {
@@ -121,7 +121,7 @@ export function CompanyProfileCard() {
         if (value.length > MAX_IMAGE_BASE64_LENGTH) {
           setFeedback({
             tone: "error",
-            text: "Gambar terlalu besar. Perkecil dulu — berkas ini ikut disinkronkan ke setiap perangkat.",
+            text: "The image is too large. Make it smaller first: this file is synced to every device.",
           });
           return;
         }
@@ -129,7 +129,7 @@ export function CompanyProfileCard() {
         setFeedback(null);
       };
       reader.onerror = () => {
-        setFeedback({ tone: "error", text: "Gambar tidak dapat dibaca." });
+        setFeedback({ tone: "error", text: "The image could not be read." });
       };
       reader.readAsDataURL(file);
     };
@@ -151,14 +151,14 @@ export function CompanyProfileCard() {
     try {
       const { id: _id, updated_at: _updatedAt, ...draft } = profile;
       setProfile(await saveCompanyProfile(draft));
-      setFeedback({ tone: "success", text: "Profil perusahaan tersimpan." });
+      setFeedback({ tone: "success", text: "Company profile saved." });
     } catch (error) {
       setFeedback({
         tone: "error",
         text:
           error instanceof Error
             ? error.message
-            : "Profil perusahaan tidak dapat disimpan.",
+            : "The company profile could not be saved.",
       });
     } finally {
       setBusy(false);
@@ -166,29 +166,27 @@ export function CompanyProfileCard() {
   };
 
   return (
-    <section className="app-panel rounded-3xl p-5 sm:p-7">
-      <div className="flex items-start gap-4">
-        <span className="grid size-11 shrink-0 place-items-center rounded-2xl border border-sky-300/20 bg-sky-300/10 text-sky-200">
+    <section className="app-panel p-4 sm:p-5">
+      <div className="flex items-start gap-3">
+        <span className="grid size-10 shrink-0 place-items-center rounded-md bg-surface-container-low text-on-surface-variant">
           <Icon name="tools" className="size-5" />
         </span>
         <div>
-          <h2 className="text-base font-black text-white">
-            Identitas Perusahaan
-          </h2>
-          <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-400">
-            Dipakai sebagai kop pada dokumen, cetakan, dan ekspor. Baris ini
-            tunggal dan ikut disinkronkan, sehingga setiap perangkat memakai
-            identitas yang sama.
+          <h2 className="text-headline-md text-on-surface">Company identity</h2>
+          <p className="mt-1 max-w-2xl text-body-md text-on-surface-variant">
+            Used as the letterhead on documents, printouts, and exports. This is
+            a single synced record, so every device uses the same identity.
           </p>
         </div>
       </div>
 
       {feedback ? (
         <p
-          className={`mt-4 rounded-xl border p-3 text-sm ${
+          role={feedback.tone === "error" ? "alert" : "status"}
+          className={`mt-4 rounded-md border p-3 text-body-md ${
             feedback.tone === "success"
-              ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-200"
-              : "border-rose-500/30 bg-rose-500/10 text-rose-200"
+              ? "border-success/30 bg-success-container text-on-success-container"
+              : "border-error/30 bg-error-container text-on-error-container"
           }`}
         >
           {feedback.text}
@@ -196,46 +194,43 @@ export function CompanyProfileCard() {
       ) : null}
 
       {loading ? (
-        <p className="mt-4 text-sm text-slate-400">Memuat…</p>
+        <p className="mt-4 text-body-md text-on-surface-variant">Loading…</p>
       ) : (
-        <form className="mt-5 space-y-4" onSubmit={submit}>
-          <label className="grid gap-1.5 text-xs font-bold text-slate-300">
-            Nama perusahaan
+        <form className="mt-4 space-y-4" onSubmit={submit}>
+          <label className="app-label grid gap-1.5">
+            Company name
             <input
               required
               minLength={2}
               maxLength={120}
               value={profile.company_name}
               onChange={setField("company_name")}
-              placeholder="Nama Perusahaan"
-              className="app-input"
+              placeholder="Company name"
+              className="app-input font-normal"
             />
           </label>
 
           <div className="grid gap-4 sm:grid-cols-2">
             {TEXT_FIELDS.map((field) => (
-              <label
-                key={field.key}
-                className="grid gap-1.5 text-xs font-bold text-slate-300"
-              >
+              <label key={field.key} className="app-label grid gap-1.5">
                 {field.label}
                 <input
                   maxLength={200}
                   value={profile[field.key] ?? ""}
                   onChange={setField(field.key)}
                   placeholder={field.placeholder}
-                  className="app-input"
+                  className="app-input font-normal"
                 />
               </label>
             ))}
-            <label className="grid gap-1.5 text-xs font-bold text-slate-300">
-              Zona waktu
+            <label className="app-label grid gap-1.5">
+              Time zone
               <input
                 maxLength={64}
                 value={profile.timezone}
                 onChange={setField("timezone")}
                 placeholder="Asia/Jakarta"
-                className="app-input"
+                className="app-input font-normal"
               />
             </label>
           </div>
@@ -244,12 +239,10 @@ export function CompanyProfileCard() {
             {IMAGE_FIELDS.map((field) => (
               <div
                 key={field.key}
-                className="space-y-2 rounded-2xl border border-white/10 bg-slate-950/40 p-3"
+                className="space-y-2 rounded-md border border-surface-container bg-surface-container-low p-3"
               >
-                <p className="text-xs font-bold text-slate-300">
-                  {field.label}
-                </p>
-                <p className="text-[11px] leading-4 text-slate-500">
+                <p className="app-label">{field.label}</p>
+                <p className="text-body-sm text-on-surface-variant">
                   {field.hint}
                 </p>
                 {profile[field.key] ? (
@@ -261,23 +254,24 @@ export function CompanyProfileCard() {
                     <img
                       src={profile[field.key] as string}
                       alt={field.label}
-                      className="h-12 w-auto rounded-lg bg-white/90 object-contain p-1"
+                      className="h-12 w-auto rounded-md border border-surface-container bg-surface-container-lowest object-contain p-1"
                     />
                     <button
                       type="button"
                       onClick={() => clearImage(field.key)}
-                      className="min-h-9 rounded-lg bg-white/10 px-3 text-[11px] font-black text-slate-200 transition hover:bg-white/20"
+                      className="app-btn app-btn-secondary"
                     >
-                      Hapus
+                      Remove
                     </button>
                   </div>
                 ) : null}
                 <input
                   ref={field.key === "logo_url" ? logoInput : signatureInput}
                   type="file"
+                  aria-label={`Choose ${field.label.toLowerCase()} image`}
                   accept="image/png,image/jpeg,image/webp"
                   onChange={pickImage(field.key)}
-                  className="block w-full text-[11px] text-slate-300 file:mr-3 file:min-h-9 file:rounded-lg file:border-0 file:bg-white/10 file:px-3 file:text-[11px] file:font-bold file:text-slate-200"
+                  className="block w-full text-body-sm text-on-surface-variant file:mr-3 file:min-h-9 file:rounded-md file:border file:border-outline-variant file:bg-surface-container-lowest file:px-3 file:text-body-sm file:font-semibold file:text-on-surface"
                 />
               </div>
             ))}
@@ -286,9 +280,9 @@ export function CompanyProfileCard() {
           <button
             type="submit"
             disabled={busy}
-            className="min-h-11 w-full rounded-xl bg-sky-500 text-xs font-black text-slate-950 transition hover:bg-sky-400 disabled:opacity-50 sm:w-auto sm:px-6"
+            className="app-btn app-btn-primary w-full sm:w-auto"
           >
-            {busy ? "Menyimpan…" : "Simpan identitas"}
+            {busy ? "Saving…" : "Save company identity"}
           </button>
         </form>
       )}

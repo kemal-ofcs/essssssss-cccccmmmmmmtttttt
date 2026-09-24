@@ -6,14 +6,21 @@
  */
 
 export const RESET_HISTORY_STATUSES = [
-  "Menunggu Verifikasi",
-  "Terkirim",
-  "Terpakai",
-  "Kedaluwarsa",
-  "Dibatalkan",
+  "Pending Verification",
+  "Sent",
+  "Used",
+  "Expired",
+  "Cancelled",
 ] as const;
 
 export type ResetHistoryStatus = (typeof RESET_HISTORY_STATUSES)[number];
+
+/**
+ * `delivery_status` jalur `in_app` sebelum peninjau menyetujui. Nilai yang sama
+ * ditulis `password-reset.ts` dan `turso.rs`; UI memakainya untuk menentukan
+ * kapan tombol Approve boleh tampil.
+ */
+export const RESET_DELIVERY_AWAITING_APPROVAL = "Awaiting Approval";
 
 export function isResetHistoryStatus(
   value: unknown,
@@ -49,7 +56,7 @@ export interface ResetHistoryEntry {
 }
 
 export interface ResetHistoryFilter {
-  status?: ResetHistoryStatus | "SEMUA";
+  status?: ResetHistoryStatus | "ALL";
   /** Cocokkan nama, username, kode operator, atau identitas yang diketik. */
   search?: string;
   limit?: number;
@@ -68,19 +75,19 @@ export const RESET_HISTORY_STATUS_TONE: Record<
   ResetHistoryStatus,
   "info" | "success" | "warning" | "danger" | "neutral"
 > = {
-  "Menunggu Verifikasi": "warning",
-  Terkirim: "info",
-  Terpakai: "success",
-  Kedaluwarsa: "neutral",
-  Dibatalkan: "danger",
+  "Pending Verification": "warning",
+  Sent: "info",
+  Used: "success",
+  Expired: "neutral",
+  Cancelled: "danger",
 };
 
 export const RESET_HISTORY_STATUS_HINT: Record<ResetHistoryStatus, string> = {
-  "Menunggu Verifikasi":
-    "Pemohon berhenti sebelum verifikasi wajah selesai. Tidak ada link yang dikirim.",
-  Terkirim: "Link reset sudah dikirim ke email pemilik akun dan masih berlaku.",
-  Terpakai: "Password berhasil diganti memakai link ini.",
-  Kedaluwarsa: "Link tidak dipakai sampai batas waktunya habis.",
-  Dibatalkan:
-    "Dihentikan sistem: verifikasi wajah gagal, email gagal terkirim, atau pemohon mengajukan permintaan baru.",
+  "Pending Verification":
+    "The requester stopped before face verification finished. No link was sent.",
+  Sent: "A reset link was sent to the account owner's email and is still valid.",
+  Used: "The password was changed with this link.",
+  Expired: "The link was not used before it expired.",
+  Cancelled:
+    "Stopped by the system: face verification failed, the email could not be sent, or the requester made a new request.",
 };

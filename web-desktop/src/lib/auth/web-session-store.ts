@@ -35,7 +35,7 @@ async function readResponse(response: Response) {
   try {
     return (await response.json()) as AuthApiResponse;
   } catch {
-    return { sukses: false, pesan: "Respons autentikasi tidak valid." };
+    return { sukses: false, pesan: "Invalid authentication response." };
   }
 }
 
@@ -105,18 +105,18 @@ export async function loginWebSession(
     if (response.ok && body.sukses && body.operator) {
       clearForcedLogoutMarker();
       emit({ user: body.operator, isLoading: false });
-      return { sukses: true, pesan: body.pesan ?? "Login berhasil." };
+      return { sukses: true, pesan: body.pesan ?? "Signed in." };
     }
     emit({ user: null, isLoading: false });
     return {
       sukses: false,
       requiresTotp: body.requiresTotp === true,
-      pesan: body.pesan ?? "Username atau password tidak sesuai.",
+      pesan: body.pesan ?? "Wrong username or password.",
     };
   } catch {
     return {
       sukses: false,
-      pesan: "Server autentikasi tidak dapat dijangkau.",
+      pesan: "The authentication server cannot be reached.",
     };
   }
 }

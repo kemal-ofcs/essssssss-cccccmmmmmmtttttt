@@ -31,9 +31,6 @@ function rememberDismissed() {
  * dialog "Aktifkan lisensi" langsung muncul setelah login, dan pita di atas
  * halaman tetap menyediakannya selama mode baca-saja berlaku. Tidak merender
  * apa pun di Web maupun saat lisensinya aktif.
- *
- * TIDAK ikut `sync-frontend-lib.ts`: `Modal` Web-Desktop dan Mobile punya
- * kontrak berbeda (`titleId` wajib di sini, `isOpen` wajib di Mobile).
  */
 export function LicenseNotice() {
   const { status, setStatus } = useLicenseStatus();
@@ -53,21 +50,21 @@ export function LicenseNotice() {
 
   return (
     <>
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 bg-amber-950/50 px-4 py-2 text-xs text-amber-100">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-tertiary-fixed-dim bg-tertiary-fixed px-4 py-2 text-body-md text-on-tertiary-fixed">
         <span>
-          <span className="font-bold text-amber-300">Mode baca-saja.</span> Data
-          tetap bisa dilihat, diekspor, dan disinkronkan.
+          <span className="font-bold">Read-only mode.</span> Data can still be
+          viewed, exported, and synced.
         </span>
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="min-h-9 rounded-lg border border-white/10 bg-slate-900/80 px-3 font-bold text-amber-300 transition hover:bg-slate-800"
+          className="min-h-9 rounded-md bg-tertiary-container px-3 font-semibold text-on-tertiary transition-colors hover:bg-primary-container"
         >
-          Aktifkan lisensi
+          Activate license
         </button>
       </div>
       {open ? (
-        <Modal onClose={close} title="Lisensi" titleId="license-dialog-title">
+        <Modal onClose={close} title="License" titleId="license-dialog-title">
           <LicenseActivationPanel
             status={status}
             onInstalled={(next) => {
@@ -75,7 +72,7 @@ export function LicenseNotice() {
               close();
             }}
             onDismiss={close}
-            dismissLabel="Lanjut dalam mode baca-saja"
+            dismissLabel="Continue in read-only mode"
           />
         </Modal>
       ) : null}
@@ -87,7 +84,7 @@ const sameName = (a: string, b: string) =>
   a.trim().toLowerCase() === b.trim().toLowerCase();
 
 /**
- * "Berlisensi untuk …" di kepala halaman. Disembunyikan bila sama dengan nama
+ * "Licensed to …" di kepala halaman. Disembunyikan bila sama dengan nama
  * perusahaan di profil — pada pemasangan resmi keduanya identik. Yang tampil
  * justru salinan yang profilnya sudah diganti ke nama lain: nama pembeli
  * aslinya tetap terbaca.
@@ -104,5 +101,5 @@ export function LicenseHolderLabel({
   if (!holder || (unlessEqualTo && sameName(holder, unlessEqualTo))) {
     return null;
   }
-  return <span className={className}>Berlisensi untuk {holder}</span>;
+  return <span className={className}>Licensed to {holder}</span>;
 }

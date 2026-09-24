@@ -12,76 +12,76 @@
  * di database tidak pernah bisa dicabut lewat UI.
  */
 export const PERMISSION_CATALOG = [
-  { key: "home.view", name: "Akses Beranda & Navigasi", group: "Navigasi" },
-  { key: "dashboard.view", name: "Akses Dashboard", group: "Dashboard" },
-  { key: "items.view", name: "Lihat Master Item", group: "Master Data" },
-  { key: "items.manage", name: "Kelola Master Item", group: "Master Data" },
-  { key: "activity.view", name: "Lihat Log Aktivitas", group: "Operasional" },
-  { key: "activity.record", name: "Catat Aktivitas", group: "Operasional" },
+  { key: "home.view", name: "Home and navigation access", group: "Navigation" },
+  { key: "dashboard.view", name: "Dashboard access", group: "Dashboard" },
+  { key: "items.view", name: "View items", group: "Master data" },
+  { key: "items.manage", name: "Manage items", group: "Master data" },
+  { key: "activity.view", name: "View activity log", group: "Operations" },
+  { key: "activity.record", name: "Record activity", group: "Operations" },
   // MENGAJUKAN reset password dan MENGAKTIFKAN 2FA untuk akun sendiri tidak
   // butuh izin apa pun: yang pertama memang terbuka tanpa sesi, yang kedua hak
   // setiap operator atas akunnya. Yang di-RBAC adalah membaca/menghapus jejak
   // pemulihan dan mematikan 2FA milik orang lain.
   {
     key: "password_reset.view",
-    name: "Lihat Riwayat Reset Password",
-    group: "Operator",
+    name: "View password reset history",
+    group: "Operators",
   },
   {
     key: "password_reset.delete",
-    name: "Hapus Riwayat Reset Password",
-    group: "Operator",
+    name: "Delete password reset history",
+    group: "Operators",
   },
   {
     key: "two_factor.reset",
-    name: "Reset 2FA Operator Lain",
-    group: "Operator",
+    name: "Reset another operator's 2FA",
+    group: "Operators",
   },
   // Menyetujui pemulihan berarti menyerahkan kendali sebuah akun kepada
   // orang yang sedang berdiri di depan layar, setelah peninjau melihat foto
   // wajahnya. Harus diberikan sadar, bukan ikut paket bawaan.
   {
     key: "password_reset.approve",
-    name: "Setujui Pemulihan Password",
-    group: "Sistem",
+    name: "Approve password recovery",
+    group: "System",
   },
   {
     key: "database_backup.export",
-    name: "Ekspor Cadangan Database",
-    group: "Sistem",
+    name: "Export database backup",
+    group: "System",
   },
   {
     key: "database_backup.restore",
-    name: "Pulihkan Database dari Cadangan",
-    group: "Sistem",
+    name: "Restore database from backup",
+    group: "System",
   },
-  { key: "operators.view", name: "Lihat Daftar Operator", group: "Operator" },
-  { key: "operators.manage", name: "Kelola Operator", group: "Operator" },
-  { key: "roles.manage", name: "Kelola Hak Akses & Role", group: "Role" },
+  { key: "operators.view", name: "View operators", group: "Operators" },
+  { key: "operators.manage", name: "Manage operators", group: "Operators" },
+  { key: "roles.manage", name: "Manage roles and access", group: "Roles" },
   {
     key: "settings.view",
-    name: "Lihat Pengaturan Sistem",
-    group: "Pengaturan",
+    name: "View system settings",
+    group: "Settings",
   },
   {
     key: "settings.manage",
-    name: "Kelola Pengaturan Sistem",
-    group: "Pengaturan",
+    name: "Manage system settings",
+    group: "Settings",
   },
   {
     key: "sync.view",
-    name: "Lihat Status Sinkronisasi",
-    group: "Sinkronisasi",
+    name: "View sync status",
+    group: "Sync",
   },
   {
     key: "sync.retry",
-    name: "Kirim Ulang & Atasi Konflik",
-    group: "Sinkronisasi",
+    name: "Retry sync and resolve conflicts",
+    group: "Sync",
   },
   {
     key: "diagnostics.view",
-    name: "Lihat Diagnostik Sistem",
-    group: "Diagnostik",
+    name: "View system diagnostics",
+    group: "Diagnostics",
   },
 ] as const;
 

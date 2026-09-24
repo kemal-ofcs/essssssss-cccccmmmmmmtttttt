@@ -27,7 +27,7 @@ try {
     email,
     noHp,
     password,
-    status: "Aktif",
+    status: "Active",
   });
   console.log(`Superadmin SPD001 berhasil dibuat dengan ID ${result.id}.`);
 } finally {

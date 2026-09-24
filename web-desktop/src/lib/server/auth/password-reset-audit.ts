@@ -71,9 +71,9 @@ export async function listPasswordResetHistory(
   const conditions: string[] = [];
   const args: (string | number)[] = [];
 
-  if (filter.status && filter.status !== "SEMUA") {
+  if (filter.status && filter.status !== "ALL") {
     if (!isResetHistoryStatus(filter.status)) {
-      throw new Error("Status riwayat tidak dikenal.");
+      throw new Error("Unknown history status.");
     }
     conditions.push("p.status = ?");
     args.push(filter.status);
@@ -127,7 +127,7 @@ export async function listPasswordResetHistory(
 
   return result.rows.map((row) => {
     const report = parseReport(row.liveness_report);
-    const status = isResetHistoryStatus(row.status) ? row.status : "Dibatalkan";
+    const status = isResetHistoryStatus(row.status) ? row.status : "Cancelled";
     return {
       id: text(row.id),
       operatorId: Number(row.operator_id),
@@ -159,17 +159,17 @@ export async function getPasswordResetPhoto(
 ): Promise<ResetHistoryPhoto> {
   const id = requestId.trim();
   if (id.length === 0 || id.length > 64) {
-    throw new Error("ID permintaan tidak valid.");
+    throw new Error("Invalid request ID.");
   }
   const result = await client.execute({
     sql: "SELECT photo_mime, photo_base64 FROM password_reset_request WHERE id = ? LIMIT 1;",
     args: [id],
   });
   const row = result.rows[0];
-  if (!row) throw new Error("Permintaan tidak ditemukan.");
+  if (!row) throw new Error("Request not found.");
   const base64 = text(row.photo_base64).trim();
   if (base64.length === 0) {
-    throw new Error("Permintaan ini tidak menyimpan foto verifikasi.");
+    throw new Error("This request has no verification photo.");
   }
   return { mime: text(row.photo_mime) || "image/jpeg", base64 };
 }
@@ -188,14 +188,14 @@ export async function deletePasswordResetHistory(
 ) {
   const id = requestId.trim();
   if (id.length === 0 || id.length > 64) {
-    throw new Error("ID permintaan tidak valid.");
+    throw new Error("Invalid request ID.");
   }
   const result = await client.execute({
     sql: "DELETE FROM password_reset_request WHERE id = ?;",
     args: [id],
   });
   if (Number(result.rowsAffected ?? 0) === 0) {
-    throw new Error("Riwayat tidak ditemukan atau sudah dihapus.");
+    throw new Error("The history was not found or has already been deleted.");
   }
   return { deleted: 1 };
 }
@@ -208,12 +208,12 @@ export async function deletePasswordResetHistory(
  */
 export async function purgePasswordResetHistory(client: Client, days: number) {
   if (!Number.isSafeInteger(days) || days < 1 || days > 3650) {
-    throw new Error("Rentang hari pembersihan tidak valid.");
+    throw new Error("Invalid cleanup day range.");
   }
   const result = await client.execute({
     sql: `
       DELETE FROM password_reset_request
-      WHERE status IN ('Terpakai', 'Kedaluwarsa', 'Dibatalkan')
+      WHERE status IN ('Used', 'Expired', 'Cancelled')
         AND requested_at <= datetime('now', ?);
     `,
     args: [`-${days} days`],

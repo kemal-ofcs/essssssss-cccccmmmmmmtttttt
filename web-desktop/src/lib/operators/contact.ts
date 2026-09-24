@@ -56,17 +56,17 @@ export function isValidOperatorPhone(value: string) {
  */
 export function assertOperatorContact(email: string, phone: string) {
   if (!email.trim()) {
-    throw new Error("Email operator wajib diisi.");
+    throw new Error("The operator email is required.");
   }
   if (!isValidOperatorEmail(email)) {
-    throw new Error("Format email operator tidak valid.");
+    throw new Error("Invalid operator email format.");
   }
   if (!phone.trim()) {
-    throw new Error("Nomor HP operator wajib diisi.");
+    throw new Error("The operator phone number is required.");
   }
   if (!isValidOperatorPhone(phone)) {
     throw new Error(
-      "Nomor HP operator tidak valid. Gunakan format 08xxxxxxxxxx atau +62xxxxxxxxxx.",
+      "Invalid operator phone number. Use the format 08xxxxxxxxxx or +62xxxxxxxxxx.",
     );
   }
 }

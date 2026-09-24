@@ -327,7 +327,7 @@ impl PendingGuard {
 fn sync_table_error(table: &str, err: impl std::fmt::Display) -> CommandError {
     CommandError::new(
         "DESKTOP_SYNC_APPLY_FAILED",
-        format!("Snapshot tabel {table} tidak dapat diterapkan ke database lokal: {err}"),
+        format!("The snapshot of table {table} could not be applied to the local database: {err}"),
     )
 }
 
@@ -588,14 +588,14 @@ pub fn enqueue(
     {
         return Err(CommandError::new(
             "DESKTOP_SYNC_EVENT_INVALID",
-            format!("Event sinkronisasi tidak valid: {domain}/{operation}."),
+            format!("Invalid sync event: {domain}/{operation}."),
         ));
     }
     // Penjagaan terakhir: konfigurasi koneksi perangkat tidak boleh masuk outbox.
     if domain == "setting" && is_device_local_setting(entity_key) {
         return Err(CommandError::new(
             "DESKTOP_SYNC_EVENT_INVALID",
-            format!("Pengaturan '{entity_key}' bersifat lokal perangkat dan tidak disinkronkan."),
+            format!("Setting '{entity_key}' is device-local and is not synced."),
         ));
     }
     let event_id = new_event_id(client_id, domain, operation);
@@ -682,7 +682,7 @@ pub fn apply_snapshot_with_pulse(
     storage::initialize(&state.data_dir).map_err(|_| {
         CommandError::new(
             "DESKTOP_SCHEMA_MIGRATION_FAILED",
-            "Skema database lokal tidak dapat disiapkan sebelum menerapkan snapshot sinkronisasi.",
+            "The local database schema could not be prepared before applying the sync snapshot.",
         )
     })?;
     let snapshot = payload.get("snapshot").unwrap_or(payload);
@@ -709,7 +709,7 @@ pub fn apply_snapshot_with_pulse(
         return Err(CommandError::new(
             "DESKTOP_SYNC_SNAPSHOT_STALE",
             format!(
-                "Snapshot cloud revisi {revision} lebih tua daripada data lokal revisi {local_revision}. Snapshot diabaikan agar data terbaru tidak tertimpa."
+                "Cloud snapshot revision {revision} is older than local data revision {local_revision}. The snapshot was ignored so newer data is not overwritten."
             ),
         ));
     }
@@ -986,7 +986,7 @@ fn apply_push_results(
         let message = result
             .get("message")
             .and_then(Value::as_str)
-            .unwrap_or("Respons sinkronisasi tidak valid.");
+            .unwrap_or("Invalid sync response.");
         let server_revision = result.get("serverRevision").and_then(Value::as_i64);
         let source = transaction
             .query_row(
@@ -1178,7 +1178,7 @@ pub async fn push_outbox(state: &DesktopState) -> Result<(), CommandError> {
                 mark_batch_failed(
                     state,
                     &event_ids,
-                    "Respons database Turso tidak lengkap atau tidak valid.",
+                    "The Turso database response is incomplete or invalid.",
                 );
                 return Err(error);
             }
@@ -1419,7 +1419,7 @@ pub fn retry_failed(state: &DesktopState, event_id: Option<&str>) -> Result<(), 
     if event_id.is_some() && changed == 0 {
         return Err(CommandError::new(
             "OPERATIONAL_NOT_FOUND",
-            "Event gagal atau konflik tidak ditemukan.",
+            "Failed or conflicting event not found.",
         ));
     }
     Ok(())

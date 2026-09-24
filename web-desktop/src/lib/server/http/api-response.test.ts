@@ -10,6 +10,6 @@ test("kegagalan fetch database dilaporkan sebagai layanan sementara", async () =
   expect(await response.json()).toEqual({
     sukses: false,
     pesan:
-      "Database server sedang tidak dapat dijangkau. Periksa koneksi internet lalu coba sinkronkan kembali.",
+      "The database server cannot be reached right now. Check the internet connection, then sync again.",
   });
 });

@@ -25,10 +25,7 @@ export const runtime = "nodejs";
 export async function POST(request: NextRequest) {
   try {
     if (!isSameOriginMutation(request)) {
-      return noStoreJson(
-        { sukses: false, pesan: "Origin tidak diizinkan." },
-        403,
-      );
+      return noStoreJson({ sukses: false, pesan: "Origin not allowed." }, 403);
     }
     await ensureServerDatabaseInitialized();
     await requireWebSession(request);

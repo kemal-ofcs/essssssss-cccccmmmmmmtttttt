@@ -1,13 +1,14 @@
 import type { ReactNode } from "react";
 
-type StatusTone = "info" | "success" | "warning" | "danger" | "neutral";
+export type StatusTone = "info" | "success" | "warning" | "danger" | "neutral";
 
+// Pasangan warna dari DESIGN.md bagian 4; semuanya >= 7:1.
 const toneClasses: Record<StatusTone, string> = {
-  info: "border-sky-400/25 bg-sky-400/10 text-sky-200",
-  success: "border-emerald-400/25 bg-emerald-400/10 text-emerald-200",
-  warning: "border-amber-300/30 bg-amber-300/10 text-amber-200",
-  danger: "border-rose-400/25 bg-rose-400/10 text-rose-200",
-  neutral: "border-slate-700 bg-slate-900/80 text-slate-300",
+  info: "bg-secondary-fixed text-on-secondary-fixed-variant",
+  success: "bg-success-container text-on-success-container",
+  warning: "bg-tertiary-fixed text-on-tertiary-fixed",
+  danger: "bg-error-container text-on-error-container",
+  neutral: "bg-surface-container text-on-surface-variant",
 };
 
 interface StatusBadgeProps {
@@ -23,7 +24,7 @@ export function StatusBadge({
 }: StatusBadgeProps) {
   return (
     <span
-      className={`inline-flex min-h-7 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${toneClasses[tone]} ${className}`}
+      className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 font-mono text-label-caps uppercase ${toneClasses[tone]} ${className}`}
     >
       {children}
     </span>

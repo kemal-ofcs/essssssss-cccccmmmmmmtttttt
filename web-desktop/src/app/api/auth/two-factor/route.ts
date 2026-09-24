@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
       await requireWebPermission(request, "two_factor.reset");
       const target = Number(body.operatorId);
       if (!Number.isSafeInteger(target) || target < 1) {
-        throw new TwoFactorError("ID operator tidak valid.");
+        throw new TwoFactorError("Invalid operator ID.");
       }
       await disableTwoFactor(database, target, { requireProof: false });
       return noStoreJson({ sukses: true });
