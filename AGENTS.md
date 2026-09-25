@@ -415,3 +415,14 @@ Detail lengkap ada di `README.md`.
     `readBusinessSettings`/`read_business_settings`, bukan konstanta; kuota
     disalin ke klien saat klien dibuat, jadi mengubah setelan tidak mengubah
     klien lama.
+38. **Foto (PRD FR-07).** Kompresi WebP (1280 px, kualitas 75, ≤ 300 KB)
+    dikerjakan webview lewat `src/lib/media/compress-image.ts` di ketiga target,
+    tanpa encoder di Rust; Web dan cloud memeriksa ulang hasilnya dengan
+    `validateMediaUpload` ↔ `validate_media_upload` (vektor kembar, header
+    `RIFF....WEBP`, ukuran dihitung sendiri, tidak dipercaya dari payload).
+    `media_asset` hanya-tambah (D-13) dan terpisah dari baris pemiliknya.
+    Snapshot SENGAJA hanya membawa data ringkas foto, tanpa `data_base64`:
+    isinya diambil satu per satu (`desktop_get_media`), lalu disimpan di
+    perangkat sehingga sesudahnya terlihat offline, dan pull berikutnya tidak
+    pernah menimpanya karena kolom itu tidak ada di daftar kolom snapshot.
+    Batch push dibatasi `PUSH_BATCH_MAX_BYTES` (4 MB), bukan hanya 50 event.
