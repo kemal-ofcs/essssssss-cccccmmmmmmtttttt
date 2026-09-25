@@ -27,10 +27,12 @@ const filesToCopy = [
   "components/ui/PageHeader.tsx",
   "components/ui/StatusBadge.tsx",
   "components/AutoSyncRunner.tsx",
+  "components/QuarantineBanner.tsx",
   // Domain MaklonOS: workspace klien dan kartu Pengaturan-nya.
   "components/clients/ClientCodeCard.tsx",
   "components/clients/ClientWorkspace.tsx",
   "components/clients/LeadDetail.tsx",
+  "components/audit/ActiveSessions.tsx",
   "components/audit/AuditLog.tsx",
   "components/clients/MasterDataCard.tsx",
   "components/BootstrapPanel.tsx",
