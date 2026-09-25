@@ -336,8 +336,8 @@ heading("7. Handler domain masih terdaftar di turso.rs");
 // Perbarui daftar ini setiap kali sebuah domain baru ditambahkan — ia
 // memastikan handler-nya tidak pernah terhapus diam-diam dari `turso.rs`.
 const expectedDomains: [string, string][] = [
-	["item", "master_item"],
-	["activity", "log_aktivitas"],
+	["client", "clients"],
+	["master-option", "master_option"],
 	["setting", "setting_gex_system"],
 ];
 

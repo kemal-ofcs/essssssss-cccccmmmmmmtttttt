@@ -279,12 +279,19 @@ di `web-desktop/src/components/visual/` dengan store di
 `mobile/scripts/sync-frontend-lib.ts` karena script itu tidak menyalin
 `src/components` secara default.
 
-## Domain contoh
+## Domain MaklonOS
 
-`master_item` dan `log_aktivitas` adalah tabel peraga yang memperagakan pola
-lengkap dari UI sampai cloud. Ganti keduanya dengan domain aplikasi ini, ikuti
-tabel empat lapisan di atas, lalu sesuaikan `src/lib/rbac/catalog.ts`,
-`src/lib/auth/access.ts`, gateway, dan pendaftaran perintah di kedua `lib.rs`.
+Domain contoh template (`master_item`, `log_aktivitas`) sudah diganti domain
+MaklonOS (PRD F-04, F-12, F-13): `clients` + `leads` (intake lead, satu event
+`client/register` membawa keduanya), `master_option` (Master Data), dan
+`device_tag_registry` (cloud-only, tag perangkat untuk kode klien). Polanya
+dari UI sampai cloud: `src/lib/validations/client.ts` ↔ `desktop/clients.rs`
+(vektor kembar), `src/lib/server/clients.ts` ↔ command `desktop_*_client*` /
+`desktop_*_master_option*` di `commands.rs`, gateway `src/lib/gateways/clients.ts`,
+dan komponen bersama `src/components/clients/*`. Domain baru berikutnya
+meniru pola ini: ikuti tabel empat lapisan di atas, lalu sesuaikan
+`src/lib/rbac/catalog.ts`, `src/lib/auth/access.ts`, gateway, dan pendaftaran
+perintah di kedua `lib.rs`.
 
 Detail lengkap ada di `README.md`.
 30. Siklus sinkronisasi TIDAK punya loop latar di Rust. Yang menjalankannya
@@ -311,10 +318,9 @@ Detail lengkap ada di `README.md`.
     `password_reset.approve` (kendali sebuah akun),
     `two_factor.reset` (lapisan kedua akun orang lain),
     `database_backup.restore` (SELURUH data perangkat dalam satu langkah),
-    `settings.manage`, dan — dari domain contoh — `items.manage`.
-    Yang terakhir ada di sana sebagai PERAGAAN: saat Anda mengganti domain
-    contoh, izin domain Anda sendiri yang bisa menghapus data wajib ikut
-    didaftarkan di sana, bukan dibiarkan masuk paket Admin secara diam-diam.
+    dan `settings.manage`. Izin domain yang bisa MENGHAPUS data bisnis
+    (mis. `clients.delete` saat ditambahkan) wajib ikut didaftarkan di sana,
+    bukan dibiarkan masuk paket Admin secara diam-diam.
 33. `bun run audit:docs` membandingkan DOKUMEN dengan KODE — jumlah rute
     kanonik, jumlah tabel snapshot, daftar provider, daftar izin sensitif, dan
     keberadaan setiap berkas yang dirujuk. `audit:schema` dan `audit:contract`
@@ -342,7 +348,7 @@ Detail lengkap ada di `README.md`.
     lisensi. Seluruh komponen lisensi, termasuk `LicenseNotice.tsx`, ikut
     `filesToCopy` (kontrak `Modal` kedua workspace kini sama).
     Halaman pertama setelah login ditentukan SATU fungsi, `landingPath`
-    (`src/lib/auth/landing.ts`): Pengaturan bila boleh, lalu Item, Aktivitas,
+    (`src/lib/auth/landing.ts`): Klien bila boleh, lalu Pengaturan, lalu
     Riwayat Reset — hanya rute yang ada di kedua workspace.
 35. **Bahasa dan tampilan (MaklonOS).** Antarmuka, pesan error (TS dan
     `CommandError` Rust), dan nilai yang TERSIMPAN di database berbahasa

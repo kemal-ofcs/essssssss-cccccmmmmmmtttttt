@@ -97,11 +97,13 @@ pub fn run() {
             mobile::commands::desktop_get_server_url,
             mobile::commands::desktop_set_server_url,
             // Domain contoh — ganti dengan domain aplikasi Anda.
-            mobile::commands::desktop_list_items,
-            mobile::commands::desktop_save_item,
-            mobile::commands::desktop_delete_item,
-            mobile::commands::desktop_list_activities,
-            mobile::commands::desktop_record_activity,
+            mobile::commands::desktop_list_clients,
+            mobile::commands::desktop_register_client,
+            mobile::commands::desktop_update_client,
+            mobile::commands::desktop_list_master_options,
+            mobile::commands::desktop_save_master_option,
+            mobile::commands::desktop_get_client_code_settings,
+            mobile::commands::desktop_save_client_code_settings,
         ])
         .run(tauri::generate_context!())
         .unwrap_or_else(|error| {

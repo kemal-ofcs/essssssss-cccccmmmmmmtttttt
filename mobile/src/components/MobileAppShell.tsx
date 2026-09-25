@@ -16,8 +16,7 @@ interface NavItem {
 }
 
 const NAV_ITEMS: readonly NavItem[] = [
-  { area: "items", href: "/items", label: "Items" },
-  { area: "activity", href: "/activity", label: "Activity" },
+  { area: "clients", href: "/clients", label: "Clients" },
   { area: "settings", href: "/settings", label: "Settings" },
 ];
 

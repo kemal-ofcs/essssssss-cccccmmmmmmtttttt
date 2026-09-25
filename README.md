@@ -182,8 +182,10 @@ SPPG_ALLOW_INSECURE_DATABASE=0        # 1 hanya bila Anda menerima risikonya
 ## 4. Mengganti domain contoh
 
 Template membawa dua tabel peraga: `master_item` (master data) dan
-`log_aktivitas` (log transaksional append-only). Keduanya memperagakan pola
-lengkap dari UI sampai cloud.
+`log_aktivitas` (log transaksional append-only). Di MaklonOS keduanya SUDAH
+diganti domain `clients` + `leads` + `master_option` (PRD F-04, F-12, F-13),
+dan domain itulah yang kini menjadi pola acuan dari UI sampai cloud. Langkah di
+bawah tetap berlaku untuk setiap domain baru berikutnya.
 
 `company_profile` **bukan** salah satunya — itu bagian platform. Jangan hapus
 bersama kedua tabel di atas: hampir setiap aplikasi bisnis memerlukan identitas
