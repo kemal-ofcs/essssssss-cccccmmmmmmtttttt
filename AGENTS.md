@@ -383,3 +383,19 @@ Detail lengkap ada di `README.md`.
     ikut `filesToCopy`; beda platform ditangani di dalam komponen lewat
     `isMobileRuntime()`. Yang tetap terpisah hanya kerangka layar
     (`AppShell`/`MobileAppShell`) dan halaman `src/app/**`.
+36. **Sesi tunggal (PRD FR-03).** Login online terakhir menang: login Web
+    (`createSessionRecord`) dan login online perangkat (`open_device_session`)
+    mencabut sesi lain operator itu (`SESSION_SUPERSEDE_SQL`) di transaksi yang
+    SAMA dengan pembuatan sesi baru. Login offline tidak pernah mengusir siapa
+    pun: siklus sync pertama yang tersambung memutuskan tersusul atau
+    dipromosikan (`sync::check_session`, dijalankan SEBELUM push; gagal =
+    push dilewati, pull tetap jalan). Waktu di `app_session` bercampur bentuk
+    ISO (Web) dan `datetime('now')` (perangkat), jadi setiap perbandingannya
+    WAJIB `julianday()` — teks `"…T08…"` lebih besar dari `"… 08…"`. SQL-nya
+    ada di `clients.rs` dan `src/lib/auth/session-sql.ts`, wajib identik.
+    Sesi yang dicabut disimpan 30 hari (`SESSION_PURGE_SQL`), bukan dihapus
+    saat login: perangkat yang lama offline membandingkannya. Entri outbox
+    sesi yang tersusul diberi `quarantined_at`, tidak didorong, tidak
+    dihapus, dan tetap menjaga barisnya dari `delete_missing`; hanya
+    pemiliknya yang memutuskan Kirim atau Buang (`sync.retry`, tercatat di
+    log audit). Mode Database Lokal tidak membuka sesi cloud.

@@ -109,6 +109,11 @@ pub fn run() {
             mobile::commands::desktop_list_operator_directory,
             mobile::commands::desktop_reassign_lead,
             mobile::commands::desktop_list_audit_log,
+            mobile::commands::desktop_list_quarantine,
+            mobile::commands::desktop_resolve_quarantine,
+            mobile::commands::desktop_list_active_sessions,
+            mobile::commands::desktop_end_session,
+            mobile::commands::desktop_end_operator_sessions,
         ])
         .run(tauri::generate_context!())
         .unwrap_or_else(|error| {
