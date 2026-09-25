@@ -476,20 +476,6 @@ pub async fn desktop_login(
         {
             Ok(operator) => {
                 storage::clear_login_failures(&state.data_dir, &identifier)?;
-                // Sesi tunggal (PRD FR-03): login online terakhir menang. Sesi
-                // lain operator ini dicabut di transaksi cloud yang sama dengan
-                // pembuatan sesi baru. Mode Database Lokal tidak punya perangkat
-                // lain, jadi tidak membuka sesi cloud.
-                let session_id = if backend_is_local {
-                    None
-                } else {
-                    let (kind, label) = sync::device_identity(&state);
-                    let (session_id, created_at) = turso
-                        .open_device_session(&operator, kind, &label, true)
-                        .await?;
-                    sync::record_session_contact(&state, operator.id, &created_at);
-                    Some(session_id)
-                };
                 let provisioned = secrets::provision(&state, operator.clone(), &password);
                 let (offline_ready, offline_valid_until, mut message): (
                     bool,
@@ -508,25 +494,6 @@ pub async fn desktop_login(
                     ),
                 };
 
-                storage::audit(
-                    &state.data_dir,
-                    Some(operator.id),
-                    "login-online-turso-success",
-                    None,
-                );
-
-                // Sesi dipasang SEBELUM sinkronisasi pertama: pemeriksaan sesi
-                // tunggal di awal siklus membaca sesi ini.
-                *state.session.lock().map_err(|_| CommandError::internal())? =
-                    Some(MobileSession {
-                        operator: operator.clone(),
-                        mode: SessionMode::Online,
-                        license: license_grant,
-                        session_id: session_id.clone(),
-                    });
-                sync::set_current_actor(Some(operator.id), session_id);
-                sync::clear_session_ended();
-
                 if operator
                     .permissions
                     .iter()
@@ -541,6 +508,20 @@ pub async fn desktop_login(
                         }
                     }
                 }
+
+                storage::audit(
+                    &state.data_dir,
+                    Some(operator.id),
+                    "login-online-turso-success",
+                    None,
+                );
+
+                *state.session.lock().map_err(|_| CommandError::internal())? =
+                    Some(MobileSession {
+                        operator: operator.clone(),
+                        mode: SessionMode::Online,
+                        license: license_grant,
+                    });
 
                 return Ok(MobileLoginResult {
                     sukses: true,
@@ -654,17 +635,11 @@ pub async fn desktop_login(
         "login-offline-success",
         None,
     );
-    // Login offline tidak membuka sesi cloud dan tidak mengusir siapa pun.
-    // Siklus sync pertama yang tersambung memutuskan: tersusul, atau
-    // dipromosikan menjadi sesi cloud (lihat `sync::check_session`).
     *state.session.lock().map_err(|_| CommandError::internal())? = Some(MobileSession {
         operator: credential.operator.clone(),
         mode: SessionMode::Offline,
         license: license_grant,
-        session_id: None,
     });
-    sync::set_current_actor(Some(credential.operator.id), None);
-    sync::clear_session_ended();
     Ok(MobileLoginResult {
         sukses: true,
         pesan: "The cloud database is unreachable. Signed in with a validated offline snapshot."
@@ -683,14 +658,10 @@ pub async fn desktop_logout(state: State<'_, MobileState>) -> Result<(), Command
         .lock()
         .map_err(|_| CommandError::internal())?
         .take();
-    sync::set_current_actor(None, None);
     if let Some(session) = previous {
         storage::audit(&state.data_dir, Some(session.operator.id), "logout", None);
-        // Cabut baris `app_session` cloud-nya, sebisanya: logout lokal tidak
-        // boleh gagal atau menunggu hanya karena jaringan terputus.
-        if let (Some(session_id), Ok(turso)) = (session.session_id, state.get_turso_client()) {
-            let _ = turso.revoke_device_session(&session_id).await;
-        }
+        // Sesi 2-tier tidak memegang token server: `token` hanya penanda
+        // internal. Tidak ada endpoint logout yang perlu dihubungi.
     }
     Ok(())
 }
@@ -1553,28 +1524,13 @@ pub fn desktop_clear_turso_config(state: State<'_, MobileState>) -> Result<(), C
 // terkirim dua kali tidak pernah menggandakan baris.
 // ===========================================================================
 
-/// Satu baris log audit domain (PRD FR-10) untuk mutasi yang sedang ditulis.
-struct AuditEntry<'a> {
-    actor: &'a OperatorUser,
-    action: &'static str,
-    entity_type: &'static str,
-    entity_id: &'a str,
-    summary: Value,
-    /// Divisi yang diwakili (D-23: CS mencatat atas nama RnD/Finance).
-    /// `None` = role pelaku sendiri.
-    on_behalf_of: Option<&'static str>,
-}
-
 /// Tulis satu mutasi lokal beserta event outbox-nya dalam satu transaksi.
-/// Bila `audit` diisi, baris log audit dan event `audit/record`-nya ikut
-/// transaksi yang sama (PRD FR-10.1): mutasi dan jejaknya tidak pernah terpisah.
 fn commit_with_outbox(
     state: &MobileState,
     domain: &str,
     operation: &str,
     entity_key: &str,
     payload: Value,
-    audit: Option<AuditEntry<'_>>,
     apply: impl FnOnce(&rusqlite::Transaction<'_>) -> Result<(), CommandError>,
 ) -> Result<(), CommandError> {
     let client_id = sync::ensure_client_id(state)?;
@@ -1583,9 +1539,6 @@ fn commit_with_outbox(
         .transaction()
         .map_err(|_| CommandError::internal())?;
     apply(&transaction)?;
-    if let Some(entry) = audit {
-        write_audit(&transaction, &client_id, entry)?;
-    }
     sync::enqueue(
         &transaction,
         &client_id,
@@ -1599,53 +1552,6 @@ fn commit_with_outbox(
         None,
     )?;
     transaction.commit().map_err(|_| CommandError::internal())?;
-    Ok(())
-}
-
-/// Tulis satu baris log audit beserta event `audit/record`-nya di transaksi
-/// lokal yang sedang berjalan.
-fn write_audit(
-    transaction: &rusqlite::Transaction<'_>,
-    client_id: &str,
-    entry: AuditEntry<'_>,
-) -> Result<(), CommandError> {
-    let id = clients::new_uuid();
-    let occurred_at = clients::utc_timestamp(storage::now_epoch_seconds());
-    let summary = entry.summary.to_string();
-    let division = entry.on_behalf_of.unwrap_or(&entry.actor.role);
-    transaction
-        .execute(
-            clients::DOMAIN_AUDIT_INSERT_SQL,
-            rusqlite::params![
-                &id,
-                entry.actor.id,
-                division,
-                entry.action,
-                entry.entity_type,
-                entry.entity_id,
-                &summary,
-                &occurred_at
-            ],
-        )
-        .map_err(|_| CommandError::internal())?;
-    sync::enqueue(
-        transaction,
-        client_id,
-        "audit",
-        "record",
-        &id,
-        &json!({
-            "id": id,
-            "actor_operator_id": entry.actor.id,
-            "on_behalf_of_division": division,
-            "action": entry.action,
-            "entity_type": entry.entity_type,
-            "entity_id": entry.entity_id,
-            "summary_json": summary,
-            "occurred_at": occurred_at,
-        }),
-        None,
-    )?;
     Ok(())
 }
 
@@ -1788,7 +1694,6 @@ pub async fn desktop_update_company_profile(
         "update",
         "default_company",
         payload.clone(),
-        None,
         move |transaction| {
             let value = |key: &str| -> Option<String> {
                 row.get(key)
@@ -1846,1790 +1751,310 @@ pub async fn desktop_update_company_profile(
 }
 
 // ===========================================================================
-// DOMAIN MAKLONOS: klien, lead, Master Data, dan setelan kode klien.
-//
-// Padanan jalur Web: `src/lib/server/clients.ts`. Pesan validasi dan aturan
-// keduanya WAJIB sama; aturan murninya ada di `clients.rs` / `client.ts` dan
-// diuji dengan vektor kembar.
+// DOMAIN CONTOH — GANTI DENGAN DOMAIN APLIKASI ANDA
 //
 // Pola yang wajib dipertahankan pada setiap mutasi:
 //
 //   1. Tulis perubahan ke SQLite lokal DAN daftarkan event outbox dalam SATU
-//      transaksi (`commit_with_outbox`).
+//      transaksi. Kalau outbox ditulis di transaksi terpisah dan proses mati di
+//      antaranya, perubahan itu hidup di perangkat tetapi tidak pernah sampai
+//      ke cloud — dan tidak ada yang menyadarinya.
 //   2. Pakai pasangan (domain, operation) yang terdaftar di
 //      `CANONICAL_SYNC_ROUTES`. Pasangan lain ditolak batas cloud.
-//   3. `entity_key` adalah identitas resmi baris (UUID buatan perangkat).
+//   3. `entity_key` adalah identitas resmi baris; pilih kunci bisnis yang stabil
+//      lintas perangkat.
 //   4. Picu sinkronisasi latar setelah commit, jangan sebelum.
 // ===========================================================================
 
-use super::{clients, samples};
+#[tauri::command]
+pub fn desktop_list_items(state: State<'_, MobileState>) -> Result<Value, CommandError> {
+    require_permission(&state, "items.view")?;
+    let connection = storage::database(&state.data_dir)?;
+    let mut statement = connection
+        .prepare(
+            "SELECT kode_item, nama, kategori, harga, satuan, catatan, status_aktif, update_terakhir
+             FROM master_item ORDER BY nama;",
+        )
+        .map_err(|_| CommandError::internal())?;
+    let rows = statement
+        .query_map([], |row| {
+            Ok(json!({
+                "kode_item": row.get::<_, String>(0)?,
+                "nama": row.get::<_, String>(1)?,
+                "kategori": row.get::<_, Option<String>>(2)?,
+                "harga": row.get::<_, i64>(3)?,
+                "satuan": row.get::<_, Option<String>>(4)?,
+                "catatan": row.get::<_, Option<String>>(5)?,
+                "status_aktif": row.get::<_, String>(6)?,
+                "update_terakhir": row.get::<_, String>(7)?,
+            }))
+        })
+        .map_err(|_| CommandError::internal())?;
+    Ok(Value::Array(
+        rows.collect::<Result<Vec<_>, _>>()
+            .map_err(|_| CommandError::internal())?,
+    ))
+}
 
-fn draft_text(draft: &Value, key: &str) -> String {
-    draft
-        .get(key)
+#[tauri::command]
+pub async fn desktop_save_item(
+    state: State<'_, MobileState>,
+    item: Value,
+) -> Result<Value, CommandError> {
+    require_permission(&state, "items.manage")?;
+    let kode_item = item
+        .get("kode_item")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| {
+            CommandError::new("ITEM_INVALID", "Kode item wajib diisi.")
+        })?
+        .to_owned();
+    let nama = item
+        .get("nama")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| value.chars().count() >= 2)
+        .ok_or_else(|| {
+            CommandError::new("ITEM_INVALID", "Nama item minimal dua karakter.")
+        })?
+        .to_owned();
+    let kategori = item
+        .get("kategori")
         .and_then(Value::as_str)
         .unwrap_or_default()
-        .trim()
-        .to_owned()
-}
-
-fn client_invalid(message: impl Into<String>) -> CommandError {
-    CommandError::new("CLIENT_INVALID", message)
-}
-
-struct ClientDraft {
-    name: String,
-    phone: String,
-    address: String,
-    city: String,
-    province: String,
-    channel: String,
-    category: String,
-    needs: String,
-}
-
-/// Opsi Master Data boleh dipakai bila ada, jenisnya cocok, dan aktif — atau
-/// memang nilai yang sudah tersimpan (opsi yang dinonaktifkan belakangan tidak
-/// boleh membuat klien lama tidak bisa disunting).
-fn option_usable(
-    connection: &rusqlite::Connection,
-    id: &str,
-    kind: &str,
-    current: Option<&str>,
-) -> Result<bool, CommandError> {
-    use rusqlite::OptionalExtension;
-    if id.is_empty() {
-        return Ok(false);
-    }
-    let active = connection
-        .query_row(
-            "SELECT is_active FROM master_option WHERE id = ? AND kind = ?;",
-            rusqlite::params![id, kind],
-            |row| row.get::<_, i64>(0),
-        )
-        .optional()
-        .map_err(|_| CommandError::internal())?;
-    Ok(match active {
-        Some(flag) => flag == 1 || current == Some(id),
-        None => false,
-    })
-}
-
-fn validate_client_draft(
-    connection: &rusqlite::Connection,
-    draft: &Value,
-    current: Option<(&str, &str)>,
-) -> Result<ClientDraft, CommandError> {
-    let name = draft_text(draft, "name");
-    let length = name.chars().count();
-    if !(clients::CLIENT_NAME_MIN..=clients::CLIENT_NAME_MAX).contains(&length) {
-        return Err(client_invalid("The client name must be 2-120 characters."));
-    }
-    let phone = clients::normalize_whatsapp(&draft_text(draft, "phone")).ok_or_else(|| {
-        client_invalid("Enter a valid WhatsApp number that starts with 0 or 62.")
-    })?;
-    let address = draft_text(draft, "address");
-    let city = draft_text(draft, "city");
-    let province = draft_text(draft, "province");
-    if [&address, &city, &province]
-        .iter()
-        .any(|value| value.chars().count() > clients::CLIENT_TEXT_MAX)
-    {
-        return Err(client_invalid(
-            "Address, city, and province can be at most 300 characters each.",
+        .to_owned();
+    let harga = item.get("harga").and_then(Value::as_i64).unwrap_or(0);
+    if harga < 0 {
+        return Err(CommandError::new(
+            "ITEM_INVALID",
+            "Harga tidak boleh negatif.",
         ));
     }
-    let needs = draft_text(draft, "needs_notes");
-    if needs.chars().count() > clients::CLIENT_NOTES_MAX {
-        return Err(client_invalid("Client needs can be at most 2000 characters."));
-    }
-    let channel = draft_text(draft, "channel_option_id");
-    if !option_usable(connection, &channel, "LEAD_CHANNEL", current.map(|c| c.0))? {
-        return Err(client_invalid("Choose an active lead channel."));
-    }
-    let category = draft_text(draft, "product_category_option_id");
-    if !option_usable(connection, &category, "PRODUCT_CATEGORY", current.map(|c| c.1))? {
-        return Err(client_invalid("Choose an active product category."));
-    }
-    Ok(ClientDraft {
-        name,
-        phone,
-        address,
-        city,
-        province,
-        channel,
-        category,
-        needs,
-    })
-}
-
-/// Kode klien lain yang sudah memakai nomor ini di data lokal. Cloud
-/// memeriksa ulang saat push (guard di `turso.rs::push_events`).
-fn local_phone_owner(
-    connection: &rusqlite::Connection,
-    phone: &str,
-    client_id: &str,
-) -> Result<Option<String>, CommandError> {
-    use rusqlite::OptionalExtension;
-    connection
-        .query_row(
-            "SELECT client_code FROM clients WHERE phone_normalized = ? AND id <> ? LIMIT 1;",
-            rusqlite::params![phone, client_id],
-            |row| row.get::<_, String>(0),
-        )
-        .optional()
-        .map_err(|_| CommandError::internal())
-}
-
-fn duplicate_phone(phone: &str, owner: &str) -> CommandError {
-    CommandError::new(
-        "CLIENT_PHONE_TAKEN",
-        format!("The WhatsApp number {phone} is already registered to client {owner}."),
-    )
-}
-
-fn company_timezone(connection: &rusqlite::Connection) -> String {
-    connection
-        .query_row(
-            "SELECT timezone FROM company_profile WHERE id = 'default_company';",
-            [],
-            |row| row.get::<_, Option<String>>(0),
-        )
-        .ok()
-        .flatten()
-        .filter(|value| !value.trim().is_empty())
-        .unwrap_or_else(|| "Asia/Jakarta".to_owned())
-}
-
-/// Setelan bisnis dari `setting_gex_system` lokal (PRD FR-11). Padanan
-/// `loadBusinessSettings` di `src/lib/server/business-settings.ts`.
-fn business_settings(connection: &rusqlite::Connection) -> samples::BusinessSettings {
-    let mut values = std::collections::HashMap::new();
-    for key in samples::BUSINESS_SETTING_KEYS {
-        if let Ok(value) = connection.query_row(
-            "SELECT value FROM setting_gex_system WHERE key = ? LIMIT 1;",
-            [key],
-            |row| row.get::<_, String>(0),
-        ) {
-            values.insert((*key).to_owned(), value);
+    let satuan = item
+        .get("satuan")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_owned();
+    let catatan = item
+        .get("catatan")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_owned();
+    // Nilai asing ditolak, tidak pernah dinormalkan menjadi "Active" — aturan
+    // yang sama dieja `saveItem` di `src/lib/server/example-domain.ts`.
+    let status = match item.get("status_aktif").and_then(Value::as_str) {
+        None | Some("Active") => "Active",
+        Some("Inactive") => "Inactive",
+        Some(_) => {
+            return Err(CommandError::new(
+                "ITEM_INVALID",
+                "Status item harus Aktif atau Nonaktif.",
+            ))
         }
-    }
-    samples::read_business_settings(&values)
-}
-
-fn client_code_prefix(state: &MobileState) -> String {
-    storage::get_system_setting(&state.data_dir, clients::CLIENT_CODE_PREFIX_SETTING)
-        .ok()
-        .flatten()
-        .and_then(|value| clients::normalize_code_prefix(&value))
-        .unwrap_or_else(|| clients::DEFAULT_CLIENT_CODE_PREFIX.to_owned())
-}
-
-fn client_code_web_tag(state: &MobileState) -> String {
-    storage::get_system_setting(&state.data_dir, clients::CLIENT_CODE_WEB_TAG_SETTING)
-        .ok()
-        .flatten()
-        .and_then(|value| clients::normalize_device_tag(&value))
-        .unwrap_or_else(|| clients::DEFAULT_CLIENT_CODE_WEB_TAG.to_owned())
-}
-
-/// Daftar klien beserta lead-nya, terbaru dulu. Bentuk barisnya sama dengan
-/// `listClients` di `src/lib/server/clients.ts`. Segmen dihitung saat dibaca
-/// dari jam perangkat (PRD FR-05.3, FR-05.7), tidak pernah disimpan.
-#[tauri::command]
-pub fn desktop_list_clients(state: State<'_, MobileState>) -> Result<Value, CommandError> {
-    require_permission(&state, "clients.view")?;
-    let connection = storage::database(&state.data_dir)?;
-    let timezone = company_timezone(&connection);
-    let business = business_settings(&connection);
-    let now = storage::now_epoch_seconds();
-    let mut statement = connection
-        .prepare(
-            "SELECT c.id, c.client_code, c.name, c.phone_normalized, c.address, c.city,
-                    c.province, c.lifecycle_status, c.created_by, c.created_at, c.updated_at,
-                    l.id, l.pic_cs_id, l.channel_option_id, l.product_category_option_id,
-                    l.needs_notes, l.last_client_response_at, l.total_followups,
-                    l.last_followup_at, o.nama_operator, c.free_revision_limit
-             FROM clients c
-             LEFT JOIN leads l ON l.client_id = c.id
-             LEFT JOIN master_operator o ON o.id = l.pic_cs_id
-             ORDER BY c.created_at DESC, c.id;",
-        )
-        .map_err(|_| CommandError::internal())?;
-    let rows = statement
-        .query_map([], |row| {
-            let lifecycle = row.get::<_, String>(7)?;
-            let last_response = row.get::<_, Option<String>>(16)?.unwrap_or_default();
-            let days = clients::days_since_response(&last_response, now, &timezone);
-            Ok(json!({
-                "id": row.get::<_, String>(0)?,
-                "client_code": row.get::<_, String>(1)?,
-                "name": row.get::<_, String>(2)?,
-                "phone_normalized": row.get::<_, String>(3)?,
-                "address": row.get::<_, String>(4)?,
-                "city": row.get::<_, String>(5)?,
-                "province": row.get::<_, String>(6)?,
-                "segment": clients::lead_segment(
-                    &lifecycle,
-                    days,
-                    business.lead_hot_max_days,
-                    business.lead_warm_max_days,
-                ),
-                "free_revision_limit": row.get::<_, Option<i64>>(20)?.unwrap_or(0),
-                "lifecycle_status": lifecycle,
-                "created_by": row.get::<_, Option<i64>>(8)?,
-                "created_at": row.get::<_, String>(9)?,
-                "updated_at": row.get::<_, String>(10)?,
-                "lead_id": row.get::<_, Option<String>>(11)?,
-                "pic_cs_id": row.get::<_, Option<i64>>(12)?,
-                "pic_cs_name": row.get::<_, Option<String>>(19)?,
-                "channel_option_id": row.get::<_, Option<String>>(13)?.unwrap_or_default(),
-                "product_category_option_id": row.get::<_, Option<String>>(14)?.unwrap_or_default(),
-                "needs_notes": row.get::<_, Option<String>>(15)?.unwrap_or_default(),
-                "last_client_response_at": last_response,
-                "last_followup_at": row.get::<_, Option<String>>(18)?.unwrap_or_default(),
-                "total_followups": row.get::<_, Option<i64>>(17)?.unwrap_or(0),
-                "days_since_response": days,
-            }))
-        })
-        .map_err(|_| CommandError::internal())?;
-    Ok(Value::Array(
-        rows.collect::<Result<Vec<_>, _>>()
-            .map_err(|_| CommandError::internal())?,
-    ))
-}
-
-/// Kuota revisi per klien (FR-06.5). `null`/tidak dikirim = pertahankan.
-/// Padanan `clientFreeRevisionLimit` di `src/lib/server/clients.ts`.
-fn client_free_revision_limit(value: Option<&Value>, current: i64) -> Result<i64, CommandError> {
-    match value {
-        None | Some(Value::Null) => Ok(current),
-        Some(value) => value
-            .as_i64()
-            .filter(|limit| (0..=samples::FREE_REVISION_LIMIT_MAX).contains(limit))
-            .ok_or_else(|| {
-                CommandError::new(
-                    "CLIENT_INVALID",
-                    "Free revisions must be a whole number from 0 to 20.",
-                )
-            }),
-    }
-}
-
-/// Daftarkan lead baru: satu baris `clients` + satu baris `leads`, kode
-/// `KLN-YYYYMMDD-<KP><NN>` dihitung dari data lokal sehingga aman saat offline.
-#[tauri::command]
-pub async fn desktop_register_client(
-    state: State<'_, MobileState>,
-    client: Value,
-) -> Result<Value, CommandError> {
-    let operator = require_permission(&state, "clients.manage")?;
-    let tag = sync::local_device_tag(&state)?.ok_or_else(|| {
-        CommandError::new(
-            "DEVICE_TAG_MISSING",
-            "This device has no client code tag yet. Connect it to the database once to get one.",
-        )
-    })?;
-    let now = storage::now_epoch_seconds();
-    let (draft, code, free_revisions) = {
-        let connection = storage::database(&state.data_dir)?;
-        let draft = validate_client_draft(&connection, &client, None)?;
-        // Disalin saat klien dibuat (FR-06.5, kriteria terima FR-11).
-        let free_revisions = business_settings(&connection).default_free_revision_limit;
-        if let Some(owner) = local_phone_owner(&connection, &draft.phone, "")? {
-            return Err(duplicate_phone(&draft.phone, &owner));
-        }
-        let stamp = clients::company_date_stamp(now, &company_timezone(&connection));
-        let mut statement = connection
-            .prepare("SELECT client_code FROM clients WHERE client_code LIKE ?;")
-            .map_err(|_| CommandError::internal())?;
-        let codes = statement
-            .query_map([format!("%-{stamp}-{tag}__")], |row| row.get::<_, String>(0))
-            .map_err(|_| CommandError::internal())?
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|_| CommandError::internal())?;
-        let code = clients::next_client_sequence(codes.iter().map(String::as_str), &stamp, &tag)
-            .and_then(|sequence| {
-                clients::format_client_code(&client_code_prefix(&state), &stamp, &tag, sequence)
-            })
-            .ok_or_else(|| {
-                CommandError::new(
-                    "CLIENT_CODE_EXHAUSTED",
-                    "This device has used up its client codes for today.",
-                )
-            })?;
-        (draft, code, free_revisions)
     };
+    let updated = storage::now_epoch_seconds().to_string();
 
-    let id = clients::new_uuid();
-    let lead_id = clients::new_uuid();
-    let timestamp = clients::utc_timestamp(now);
     let payload = json!({
-        "id": id,
-        "client_code": code,
-        "name": draft.name,
-        "phone_normalized": draft.phone,
-        "address": draft.address,
-        "city": draft.city,
-        "province": draft.province,
-        "lifecycle_status": "LEAD",
-        "free_revision_limit": free_revisions,
-        "is_white_label": 0,
-        "assigned_crm_id": Value::Null,
-        "created_by": operator.id,
-        "created_at": timestamp,
-        "updated_at": timestamp,
-        "lead_id": lead_id,
-        "pic_cs_id": operator.id,
-        "channel_option_id": draft.channel,
-        "product_category_option_id": draft.category,
-        "needs_notes": draft.needs,
-        "last_followup_at": "",
-        // Lead masuk = klien yang menghubungi, jadi itulah respons pertamanya.
-        "last_client_response_at": timestamp,
-        "total_followups": 0,
+        "kode_item": kode_item,
+        "nama": nama,
+        "kategori": kategori,
+        "harga": harga,
+        "satuan": satuan,
+        "catatan": catatan,
+        "status_aktif": status,
     });
 
-    let audit = AuditEntry {
-        actor: &operator,
-        action: "client.register",
-        entity_type: "client",
-        entity_id: &id,
-        summary: json!({ "client_code": code, "name": draft.name }),
-        on_behalf_of: None,
-    };
-    commit_with_outbox(&state, "client", "register", &id, payload, Some(audit), |transaction| {
-        transaction
-            .execute(
-                r#"INSERT INTO clients
-                    (id, client_code, name, phone_normalized, address, city, province,
-                     lifecycle_status, free_revision_limit, is_white_label, assigned_crm_id,
-                     created_by, created_at, updated_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, 'LEAD', ?, 0, NULL, ?, ?, ?);"#,
-                rusqlite::params![
-                    &id, &code, &draft.name, &draft.phone, &draft.address, &draft.city,
-                    &draft.province, free_revisions, operator.id, &timestamp, &timestamp
-                ],
-            )
-            .map_err(|_| CommandError::new("CLIENT_SAVE_FAILED", "The client could not be saved."))?;
-        transaction
-            .execute(
-                r#"INSERT INTO leads
-                    (id, client_id, pic_cs_id, channel_option_id, product_category_option_id,
-                     needs_notes, last_followup_at, last_client_response_at, total_followups,
-                     created_at, updated_at)
-                   VALUES (?, ?, ?, ?, ?, ?, '', ?, 0, ?, ?);"#,
-                rusqlite::params![
-                    &lead_id, &id, operator.id, &draft.channel, &draft.category, &draft.needs,
-                    &timestamp, &timestamp, &timestamp
-                ],
-            )
-            .map_err(|_| CommandError::new("CLIENT_SAVE_FAILED", "The client could not be saved."))?;
-        Ok(())
-    })?;
-
-    let _ = sync::synchronize(&state).await;
-    Ok(json!({ "sukses": true, "id": id, "client_code": code }))
-}
-
-/// Ubah data kontak klien dan kebutuhan lead-nya. Kode klien, pembuat, dan
-/// kolom interaksi lead tidak ikut berubah.
-#[tauri::command]
-pub async fn desktop_update_client(
-    state: State<'_, MobileState>,
-    client: Value,
-) -> Result<Value, CommandError> {
-    use rusqlite::OptionalExtension;
-    let operator = require_permission(&state, "clients.manage")?;
-    let id = draft_text(&client, "id");
-    let now = clients::utc_timestamp(storage::now_epoch_seconds());
-    let (draft, current) = {
+    let exists = {
         let connection = storage::database(&state.data_dir)?;
-        let current = connection
+        connection
             .query_row(
-                "SELECT c.client_code, c.lifecycle_status, c.free_revision_limit, c.is_white_label,
-                        c.assigned_crm_id, c.created_by, c.created_at, l.id, l.pic_cs_id,
-                        l.channel_option_id, l.product_category_option_id, l.last_followup_at,
-                        l.last_client_response_at, l.total_followups, l.created_at
-                 FROM clients c JOIN leads l ON l.client_id = c.id WHERE c.id = ? LIMIT 1;",
-                [&id],
-                |row| {
-                    Ok(json!({
-                        "client_code": row.get::<_, String>(0)?,
-                        "lifecycle_status": row.get::<_, String>(1)?,
-                        "free_revision_limit": row.get::<_, i64>(2)?,
-                        "is_white_label": row.get::<_, i64>(3)?,
-                        "assigned_crm_id": row.get::<_, Option<i64>>(4)?,
-                        "created_by": row.get::<_, Option<i64>>(5)?,
-                        "created_at": row.get::<_, String>(6)?,
-                        "lead_id": row.get::<_, String>(7)?,
-                        "pic_cs_id": row.get::<_, Option<i64>>(8)?,
-                        "channel_option_id": row.get::<_, String>(9)?,
-                        "product_category_option_id": row.get::<_, String>(10)?,
-                        "last_followup_at": row.get::<_, String>(11)?,
-                        "last_client_response_at": row.get::<_, String>(12)?,
-                        "total_followups": row.get::<_, i64>(13)?,
-                        "lead_created_at": row.get::<_, String>(14)?,
-                    }))
-                },
+                "SELECT EXISTS(SELECT 1 FROM master_item WHERE kode_item = ?);",
+                [&kode_item],
+                |row| row.get::<_, bool>(0),
             )
-            .optional()
-            .map_err(|_| CommandError::internal())?
-            .ok_or_else(|| CommandError::new("CLIENT_NOT_FOUND", "Client not found."))?;
-        let draft = validate_client_draft(
-            &connection,
-            &client,
-            Some((
-                current["channel_option_id"].as_str().unwrap_or_default(),
-                current["product_category_option_id"].as_str().unwrap_or_default(),
-            )),
-        )?;
-        if let Some(owner) = local_phone_owner(&connection, &draft.phone, &id)? {
-            return Err(duplicate_phone(&draft.phone, &owner));
-        }
-        (draft, current)
-    };
-    let free_revisions = client_free_revision_limit(
-        client.get("free_revision_limit"),
-        current["free_revision_limit"].as_i64().unwrap_or(0),
-    )?;
-
-    let lead_id = current["lead_id"].as_str().unwrap_or_default().to_owned();
-    let payload = json!({
-        "id": id,
-        "client_code": current["client_code"],
-        "name": draft.name,
-        "phone_normalized": draft.phone,
-        "address": draft.address,
-        "city": draft.city,
-        "province": draft.province,
-        "lifecycle_status": current["lifecycle_status"],
-        "free_revision_limit": free_revisions,
-        "is_white_label": current["is_white_label"],
-        "assigned_crm_id": current["assigned_crm_id"],
-        "created_by": current["created_by"],
-        "created_at": current["created_at"],
-        "updated_at": now,
-        "lead_id": lead_id,
-        "pic_cs_id": current["pic_cs_id"],
-        "channel_option_id": draft.channel,
-        "product_category_option_id": draft.category,
-        "needs_notes": draft.needs,
-        "last_followup_at": current["last_followup_at"],
-        "last_client_response_at": current["last_client_response_at"],
-        "total_followups": current["total_followups"],
-    });
-
-    let audit = AuditEntry {
-        actor: &operator,
-        action: "client.update",
-        entity_type: "client",
-        entity_id: &id,
-        summary: json!({ "client_code": current["client_code"], "name": draft.name }),
-        on_behalf_of: None,
-    };
-    commit_with_outbox(&state, "client", "update", &id, payload, Some(audit), |transaction| {
-        transaction
-            .execute(
-                "UPDATE clients SET name = ?, phone_normalized = ?, address = ?, city = ?, province = ?, free_revision_limit = ?, updated_at = ? WHERE id = ?;",
-                rusqlite::params![
-                    &draft.name, &draft.phone, &draft.address, &draft.city, &draft.province,
-                    free_revisions, &now, &id
-                ],
-            )
-            .map_err(|_| CommandError::new("CLIENT_SAVE_FAILED", "The client could not be saved."))?;
-        transaction
-            .execute(
-                "UPDATE leads SET channel_option_id = ?, product_category_option_id = ?, needs_notes = ?, updated_at = ? WHERE id = ?;",
-                rusqlite::params![&draft.channel, &draft.category, &draft.needs, &now, &lead_id],
-            )
-            .map_err(|_| CommandError::new("CLIENT_SAVE_FAILED", "The client could not be saved."))?;
-        Ok(())
-    })?;
-
-    let _ = sync::synchronize(&state).await;
-    Ok(json!({ "sukses": true, "id": id }))
-}
-
-/// Daftar pilihan Master Data (saluran lead, kategori produk), aktif maupun
-/// tidak. Bentuk barisnya sama dengan `listMasterOptions` di TS.
-#[tauri::command]
-pub fn desktop_list_master_options(state: State<'_, MobileState>) -> Result<Value, CommandError> {
-    require_permission(&state, "clients.view")?;
-    let connection = storage::database(&state.data_dir)?;
-    let mut statement = connection
-        .prepare(
-            "SELECT id, kind, code, label, is_active, sort_order, updated_at
-             FROM master_option ORDER BY kind, sort_order, label;",
-        )
-        .map_err(|_| CommandError::internal())?;
-    let rows = statement
-        .query_map([], |row| {
-            Ok(json!({
-                "id": row.get::<_, String>(0)?,
-                "kind": row.get::<_, String>(1)?,
-                "code": row.get::<_, String>(2)?,
-                "label": row.get::<_, String>(3)?,
-                "is_active": row.get::<_, i64>(4)? == 1,
-                "sort_order": row.get::<_, i64>(5)?,
-                "updated_at": row.get::<_, String>(6)?,
-            }))
-        })
-        .map_err(|_| CommandError::internal())?;
-    Ok(Value::Array(
-        rows.collect::<Result<Vec<_>, _>>()
-            .map_err(|_| CommandError::internal())?,
-    ))
-}
-
-/// Tambah atau ubah satu pilihan Master Data. Opsi tidak pernah dihapus, hanya
-/// dinonaktifkan: data lama yang memakainya harus tetap terbaca.
-#[tauri::command]
-pub async fn desktop_save_master_option(
-    state: State<'_, MobileState>,
-    option: Value,
-) -> Result<Value, CommandError> {
-    use rusqlite::OptionalExtension;
-    let operator = require_permission(&state, "master_data.manage")?;
-    let invalid = |message: &str| CommandError::new("MASTER_OPTION_INVALID", message);
-    let requested_id = draft_text(&option, "id");
-    let code = clients::normalize_option_code(&draft_text(&option, "code"))
-        .ok_or_else(|| invalid("The code must be 1-20 characters: letters, numbers, _ or -."))?;
-    let label = draft_text(&option, "label");
-    if label.is_empty() || label.chars().count() > clients::OPTION_LABEL_MAX {
-        return Err(invalid("The label must be 1-80 characters."));
-    }
-    let is_active = option.get("is_active").and_then(Value::as_bool).unwrap_or(true);
-    let now = clients::utc_timestamp(storage::now_epoch_seconds());
-
-    let (id, kind, sort_order) = {
-        let connection = storage::database(&state.data_dir)?;
-        let (id, kind, sort_order) = if requested_id.is_empty() {
-            let kind = draft_text(&option, "kind");
-            if !clients::MASTER_OPTION_KINDS.contains(&kind.as_str()) {
-                return Err(invalid("Unknown master data type."));
-            }
-            let next: i64 = connection
-                .query_row(
-                    "SELECT COALESCE(MAX(sort_order), 0) + 10 FROM master_option WHERE kind = ?;",
-                    [&kind],
-                    |row| row.get(0),
-                )
-                .map_err(|_| CommandError::internal())?;
-            (clients::new_uuid(), kind, next)
-        } else {
-            let (kind, sort_order) = connection
-                .query_row(
-                    "SELECT kind, sort_order FROM master_option WHERE id = ?;",
-                    [&requested_id],
-                    |row| Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?)),
-                )
-                .optional()
-                .map_err(|_| CommandError::internal())?
-                .ok_or_else(|| CommandError::new("MASTER_OPTION_NOT_FOUND", "Option not found."))?;
-            (requested_id.clone(), kind, sort_order)
-        };
-        let taken: i64 = connection
-            .query_row(
-                "SELECT COUNT(*) FROM master_option WHERE kind = ? AND code = ? AND id <> ?;",
-                rusqlite::params![&kind, &code, &id],
-                |row| row.get(0),
-            )
-            .map_err(|_| CommandError::internal())?;
-        if taken > 0 {
-            return Err(invalid("Another option of this type already uses that code."));
-        }
-        (id, kind, sort_order)
+            .unwrap_or(false)
     };
 
-    let payload = json!({
-        "id": id,
-        "kind": kind,
-        "code": code,
-        "label": label,
-        "is_active": i64::from(is_active),
-        "sort_order": sort_order,
-        "updated_at": now,
-    });
-    let audit = AuditEntry {
-        actor: &operator,
-        action: "master_option.save",
-        entity_type: "master_option",
-        entity_id: &id,
-        summary: json!({ "kind": kind, "code": code, "label": label, "is_active": is_active }),
-        on_behalf_of: None,
-    };
-    commit_with_outbox(&state, "master-option", "upsert", &id, payload.clone(), Some(audit), |transaction| {
-        transaction
-            .execute(
-                r#"INSERT INTO master_option (id, kind, code, label, is_active, sort_order, updated_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?)
-                   ON CONFLICT(id) DO UPDATE SET
-                     code = excluded.code,
-                     label = excluded.label,
-                     is_active = excluded.is_active,
-                     sort_order = excluded.sort_order,
-                     updated_at = excluded.updated_at;"#,
-                rusqlite::params![&id, &kind, &code, &label, i64::from(is_active), sort_order, &now],
-            )
-            .map_err(|_| CommandError::internal())?;
-        Ok(())
-    })?;
-
-    let _ = sync::synchronize(&state).await;
-    Ok(json!({
-        "id": id,
-        "kind": kind,
-        "code": code,
-        "label": label,
-        "is_active": is_active,
-        "sort_order": sort_order,
-        "updated_at": now,
-    }))
-}
-
-/// Awalan kode klien, tag Web, dan tag perangkat ini (bila sudah ada).
-#[tauri::command]
-pub fn desktop_get_client_code_settings(
-    state: State<'_, MobileState>,
-) -> Result<Value, CommandError> {
-    require_permission(&state, "clients.view")?;
-    Ok(json!({
-        "client_code_prefix": client_code_prefix(&state),
-        "client_code_web_tag": client_code_web_tag(&state),
-        "device_tag": sync::local_device_tag(&state)?,
-    }))
-}
-
-/// Simpan awalan kode klien dan tag Web. Mengganti tag Web butuh koneksi ke
-/// database: tag itu tidak boleh sama dengan tag yang sudah dipegang perangkat.
-#[tauri::command]
-pub async fn desktop_save_client_code_settings(
-    state: State<'_, MobileState>,
-    settings: Value,
-) -> Result<Value, CommandError> {
-    require_permission(&state, "settings.manage")?;
-    let invalid = |message: &str| CommandError::new("CLIENT_CODE_SETTINGS_INVALID", message);
-    let prefix = clients::normalize_code_prefix(&draft_text(&settings, "client_code_prefix"))
-        .ok_or_else(|| invalid("The client code prefix must be 2-5 letters."))?;
-    let web_tag = clients::normalize_device_tag(&draft_text(&settings, "client_code_web_tag"))
-        .ok_or_else(|| invalid("The Web tag must be exactly 2 letters or numbers."))?;
-    if web_tag != client_code_web_tag(&state) {
-        let turso = state.get_turso_client().map_err(|_| {
-            invalid("Changing the Web tag needs a database connection.")
-        })?;
-        let taken = turso
-            .device_tag_taken(&web_tag)
-            .await
-            .map_err(|_| invalid("Changing the Web tag needs a database connection."))?;
-        if taken {
-            return Err(invalid("That Web tag is already used by a device."));
-        }
-    }
-
-    let client_id = sync::ensure_client_id(&state)?;
-    // Koneksi dan transaksi SQLite tidak `Send`: keduanya wajib sudah ditutup
-    // sebelum `sync::synchronize(...).await` di bawah, atau command ini tidak
-    // bisa didaftarkan ke `generate_handler!`.
-    {
-        let mut connection = storage::database(&state.data_dir)?;
-        let transaction = connection
-            .transaction()
-            .map_err(|_| CommandError::internal())?;
-        for (key, value) in [
-            (clients::CLIENT_CODE_PREFIX_SETTING, prefix.as_str()),
-            (clients::CLIENT_CODE_WEB_TAG_SETTING, web_tag.as_str()),
-        ] {
+    commit_with_outbox(
+        &state,
+        "item",
+        if exists { "update" } else { "create" },
+        &kode_item,
+        payload,
+        |transaction| {
             transaction
                 .execute(
-                    "INSERT INTO setting_gex_system (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value;",
-                    rusqlite::params![key, value],
+                    r#"INSERT INTO master_item
+                        (kode_item, nama, kategori, harga, satuan, catatan, status_aktif, update_terakhir)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                       ON CONFLICT(kode_item) DO UPDATE SET
+                         nama = excluded.nama,
+                         kategori = excluded.kategori,
+                         harga = excluded.harga,
+                         satuan = excluded.satuan,
+                         catatan = excluded.catatan,
+                         status_aktif = excluded.status_aktif,
+                         update_terakhir = excluded.update_terakhir;"#,
+                    rusqlite::params![
+                        &kode_item, &nama, &kategori, harga, &satuan, &catatan, status, &updated
+                    ],
+                )
+                .map_err(|_| {
+                    CommandError::new("ITEM_SAVE_FAILED", "Item tidak dapat disimpan.")
+                })?;
+            Ok(())
+        },
+    )?;
+
+    let _ = sync::synchronize(&state).await;
+    Ok(json!({ "sukses": true, "kode_item": kode_item }))
+}
+
+#[tauri::command]
+pub async fn desktop_delete_item(
+    state: State<'_, MobileState>,
+    kode_item: String,
+) -> Result<Value, CommandError> {
+    require_permission(&state, "items.manage")?;
+    let kode_item = kode_item.trim().to_owned();
+    if kode_item.is_empty() {
+        return Err(CommandError::new("ITEM_INVALID", "Kode item wajib diisi."));
+    }
+    commit_with_outbox(
+        &state,
+        "item",
+        "delete",
+        &kode_item,
+        json!({ "kode_item": kode_item }),
+        |transaction| {
+            transaction
+                .execute(
+                    "DELETE FROM master_item WHERE kode_item = ?;",
+                    [&kode_item],
                 )
                 .map_err(|_| CommandError::internal())?;
-            sync::enqueue(
-                &transaction,
-                &client_id,
-                "setting",
-                "update",
-                key,
-                &json!({ "key": key, "value": value }),
-                None,
-            )?;
-        }
-        transaction.commit().map_err(|_| CommandError::internal())?;
-    }
-
-    let _ = sync::synchronize(&state).await;
-    Ok(json!({
-        "client_code_prefix": prefix,
-        "client_code_web_tag": web_tag,
-        "device_tag": sync::local_device_tag(&state)?,
-    }))
-}
-
-fn operator_can(operator: &OperatorUser, permission: &str) -> bool {
-    operator.is_superadmin || operator.permissions.iter().any(|key| key == permission)
-}
-
-fn lead_invalid(message: impl Into<String>) -> CommandError {
-    CommandError::new("LEAD_INVALID", message)
-}
-
-/// Riwayat interaksi satu lead, terbaru dulu. Cermin `listLeadInteractions`.
-#[tauri::command]
-pub fn desktop_list_lead_interactions(
-    state: State<'_, MobileState>,
-    lead_id: String,
-) -> Result<Value, CommandError> {
-    require_permission(&state, "leads.view")?;
-    let connection = storage::database(&state.data_dir)?;
-    let mut statement = connection
-        .prepare(
-            "SELECT i.id, i.lead_id, i.operator_id, o.nama_operator, i.direction, i.kind,
-                    i.notes, i.occurred_at, i.created_at
-             FROM lead_interactions i LEFT JOIN master_operator o ON o.id = i.operator_id
-             WHERE i.lead_id = ? ORDER BY i.occurred_at DESC, i.created_at DESC, i.rowid DESC;",
-        )
-        .map_err(|_| CommandError::internal())?;
-    let rows = statement
-        .query_map([lead_id.trim()], |row| {
-            Ok(json!({
-                "id": row.get::<_, String>(0)?,
-                "lead_id": row.get::<_, String>(1)?,
-                "operator_id": row.get::<_, Option<i64>>(2)?,
-                "operator_name": row.get::<_, Option<String>>(3)?,
-                "direction": row.get::<_, String>(4)?,
-                "kind": row.get::<_, String>(5)?,
-                "notes": row.get::<_, String>(6)?,
-                "occurred_at": row.get::<_, String>(7)?,
-                "created_at": row.get::<_, String>(8)?,
-            }))
-        })
-        .map_err(|_| CommandError::internal())?;
-    Ok(Value::Array(
-        rows.collect::<Result<Vec<_>, _>>()
-            .map_err(|_| CommandError::internal())?,
-    ))
-}
-
-/// Catat satu follow up (`OUTBOUND`) atau respons klien (`INBOUND`). Hanya di
-/// lead milik sendiri, kecuali pemegang `leads.reassign` (PRD OQ-34). Baris
-/// interaksi, ringkasan lead, dan outbox ditulis dalam satu transaksi.
-#[tauri::command]
-pub async fn desktop_record_lead_interaction(
-    state: State<'_, MobileState>,
-    interaction: Value,
-) -> Result<Value, CommandError> {
-    use rusqlite::OptionalExtension;
-    let operator = require_permission(&state, "leads.manage")?;
-    let lead_id = draft_text(&interaction, "lead_id");
-    let direction = draft_text(&interaction, "direction");
-    if !clients::LEAD_INTERACTION_DIRECTIONS.contains(&direction.as_str()) {
-        return Err(lead_invalid("Choose whether this is a follow up or a client response."));
-    }
-    let kind = draft_text(&interaction, "kind");
-    if !clients::LEAD_INTERACTION_KINDS.contains(&kind.as_str()) {
-        return Err(lead_invalid("Choose how the contact happened."));
-    }
-    let notes = draft_text(&interaction, "notes");
-    if notes.is_empty() || notes.chars().count() > clients::INTERACTION_NOTES_MAX {
-        return Err(lead_invalid("Notes are required, up to 1000 characters."));
-    }
-    let now = storage::now_epoch_seconds();
-    let occurred = clients::resolve_interaction_time(interaction.get("occurred_at"), now)
-        .map_err(lead_invalid)?;
-    let client_code = {
-        let connection = storage::database(&state.data_dir)?;
-        let (pic, code) = connection
-            .query_row(
-                "SELECT l.pic_cs_id, c.client_code FROM leads l JOIN clients c ON c.id = l.client_id WHERE l.id = ?;",
-                [&lead_id],
-                |row| Ok((row.get::<_, Option<i64>>(0)?, row.get::<_, String>(1)?)),
-            )
-            .optional()
-            .map_err(|_| CommandError::internal())?
-            .ok_or_else(|| CommandError::new("LEAD_NOT_FOUND", "Lead not found."))?;
-        if pic != Some(operator.id) && !operator_can(&operator, "leads.reassign") {
-            return Err(CommandError::new(
-                "LEAD_NOT_OWNED",
-                "Only the lead's CS can record on it. Ask an Admin to reassign the lead.",
-            ));
-        }
-        code
-    };
-
-    let id = clients::new_uuid();
-    let occurred_at = clients::utc_timestamp(occurred);
-    let created_at = clients::utc_timestamp(now);
-    let payload = json!({
-        "id": id,
-        "lead_id": lead_id,
-        "operator_id": operator.id,
-        "direction": direction,
-        "kind": kind,
-        "notes": notes,
-        "occurred_at": occurred_at,
-        "created_at": created_at,
-    });
-    let audit = AuditEntry {
-        actor: &operator,
-        action: "lead_interaction.record",
-        entity_type: "lead",
-        entity_id: &lead_id,
-        summary: json!({ "client_code": client_code, "interaction_id": id, "direction": direction, "kind": kind }),
-        on_behalf_of: None,
-    };
-    commit_with_outbox(&state, "lead-interaction", "record", &id, payload, Some(audit), |transaction| {
-        transaction
-            .execute(
-                clients::LEAD_SUMMARY_UPDATE_SQL,
-                rusqlite::params![&direction, &occurred_at, &lead_id, &id],
-            )
-            .map_err(|_| CommandError::internal())?;
-        transaction
-            .execute(
-                clients::LEAD_INTERACTION_INSERT_SQL,
-                rusqlite::params![
-                    &id, &lead_id, operator.id, &direction, &kind, &notes, &occurred_at, &created_at
-                ],
-            )
-            .map_err(|_| CommandError::internal())?;
-        Ok(())
-    })?;
-
-    let _ = sync::synchronize(&state).await;
-    Ok(json!({ "sukses": true, "id": id }))
-}
-
-/// Operator aktif untuk nama PIC dan pilihan pindah PIC. Dibaca dari direktori
-/// hanya-baca yang ikut snapshot, jadi tetap jalan saat offline.
-#[tauri::command]
-pub fn desktop_list_operator_directory(state: State<'_, MobileState>) -> Result<Value, CommandError> {
-    require_permission(&state, "leads.view")?;
-    let connection = storage::database(&state.data_dir)?;
-    let mut statement = connection
-        .prepare(
-            "SELECT id, kode_operator, nama_operator, COALESCE(role, '') FROM master_operator
-             WHERE COALESCE(status, 'Active') = 'Active' ORDER BY nama_operator, id;",
-        )
-        .map_err(|_| CommandError::internal())?;
-    let rows = statement
-        .query_map([], |row| {
-            Ok(json!({
-                "id": row.get::<_, i64>(0)?,
-                "kode_operator": row.get::<_, String>(1)?,
-                "nama_operator": row.get::<_, String>(2)?,
-                "role_key": row.get::<_, String>(3)?,
-            }))
-        })
-        .map_err(|_| CommandError::internal())?;
-    Ok(Value::Array(
-        rows.collect::<Result<Vec<_>, _>>()
-            .map_err(|_| CommandError::internal())?,
-    ))
-}
-
-/// Pindahkan lead ke PIC CS lain (PRD OQ-34). Cermin `reassignLead`.
-#[tauri::command]
-pub async fn desktop_reassign_lead(
-    state: State<'_, MobileState>,
-    lead_id: String,
-    pic_cs_id: i64,
-) -> Result<Value, CommandError> {
-    use rusqlite::OptionalExtension;
-    let operator = require_permission(&state, "leads.reassign")?;
-    let lead_id = lead_id.trim().to_owned();
-    let client_code = {
-        let connection = storage::database(&state.data_dir)?;
-        let code = connection
-            .query_row(
-                "SELECT c.client_code FROM leads l JOIN clients c ON c.id = l.client_id WHERE l.id = ?;",
-                [&lead_id],
-                |row| row.get::<_, String>(0),
-            )
-            .optional()
-            .map_err(|_| CommandError::internal())?
-            .ok_or_else(|| CommandError::new("LEAD_NOT_FOUND", "Lead not found."))?;
-        let active = connection
-            .query_row(
-                "SELECT 1 FROM master_operator WHERE id = ? AND COALESCE(status, 'Active') = 'Active';",
-                [pic_cs_id],
-                |_| Ok(()),
-            )
-            .optional()
-            .map_err(|_| CommandError::internal())?;
-        if active.is_none() {
-            return Err(lead_invalid("Choose an active operator."));
-        }
-        code
-    };
-    let updated_at = clients::utc_timestamp(storage::now_epoch_seconds());
-    let payload = json!({ "id": lead_id, "pic_cs_id": pic_cs_id, "updated_at": updated_at });
-    let audit = AuditEntry {
-        actor: &operator,
-        action: "lead.reassign",
-        entity_type: "lead",
-        entity_id: &lead_id,
-        summary: json!({ "client_code": client_code, "pic_cs_id": pic_cs_id }),
-        on_behalf_of: None,
-    };
-    commit_with_outbox(&state, "lead", "reassign", &lead_id, payload, Some(audit), |transaction| {
-        transaction
-            .execute(
-                "UPDATE leads SET pic_cs_id = ?, updated_at = ? WHERE id = ?;",
-                rusqlite::params![pic_cs_id, &updated_at, &lead_id],
-            )
-            .map_err(|_| CommandError::internal())?;
-        Ok(())
-    })?;
+            Ok(())
+        },
+    )?;
     let _ = sync::synchronize(&state).await;
     Ok(json!({ "sukses": true }))
 }
 
-/// Log audit domain (PRD FR-10.3). Online: dari cloud, jadi terlihat seluruh
-/// perangkat dan Web. Offline: hanya catatan yang pernah ditulis perangkat ini,
-/// dan `source` memberitahu layar yang mana.
 #[tauri::command]
-pub async fn desktop_list_audit_log(
+pub fn desktop_list_activities(
     state: State<'_, MobileState>,
-    filter: Value,
+    limit: Option<i64>,
 ) -> Result<Value, CommandError> {
-    require_permission(&state, "audit.view")?;
-    let timezone = {
-        let connection = storage::database(&state.data_dir)?;
-        company_timezone(&connection)
-    };
-    let entity_type = draft_text(&filter, "entity_type");
-    let actor = filter.get("actor_operator_id").and_then(Value::as_i64).unwrap_or(0);
-    let from = clients::company_day_bounds_utc(&draft_text(&filter, "from"), &timezone)
-        .map(|(start, _)| start)
-        .unwrap_or_default();
-    let to = clients::company_day_bounds_utc(&draft_text(&filter, "to"), &timezone)
-        .map(|(_, end)| end)
-        .unwrap_or_default();
-
-    if let Ok(turso) = state.get_turso_client() {
-        let params = vec![json!(entity_type), json!(actor), json!(from), json!(to)];
-        if let Ok(entries) = turso.list_domain_audit(params).await {
-            return Ok(json!({ "source": "cloud", "entries": entries }));
-        }
-    }
-
+    require_permission(&state, "activity.view")?;
+    let limit = limit.unwrap_or(200).clamp(1, 1000);
     let connection = storage::database(&state.data_dir)?;
     let mut statement = connection
-        .prepare(clients::DOMAIN_AUDIT_LIST_SQL)
+        .prepare(
+            "SELECT event_key, kode_item, jenis, jumlah, keterangan, kode_operator, waktu
+             FROM log_aktivitas ORDER BY waktu DESC LIMIT ?;",
+        )
         .map_err(|_| CommandError::internal())?;
     let rows = statement
-        .query_map(rusqlite::params![entity_type, actor, from, to], |row| {
+        .query_map([limit], |row| {
             Ok(json!({
-                "id": row.get::<_, String>(0)?,
-                "actor_operator_id": row.get::<_, Option<i64>>(1)?,
-                "actor_name": row.get::<_, Option<String>>(2)?,
-                "on_behalf_of_division": row.get::<_, String>(3)?,
-                "action": row.get::<_, String>(4)?,
-                "entity_type": row.get::<_, String>(5)?,
-                "entity_id": row.get::<_, String>(6)?,
-                "summary_json": row.get::<_, String>(7)?,
-                "occurred_at": row.get::<_, String>(8)?,
+                "event_key": row.get::<_, String>(0)?,
+                "kode_item": row.get::<_, String>(1)?,
+                "jenis": row.get::<_, String>(2)?,
+                "jumlah": row.get::<_, i64>(3)?,
+                "keterangan": row.get::<_, Option<String>>(4)?,
+                "kode_operator": row.get::<_, Option<String>>(5)?,
+                "waktu": row.get::<_, String>(6)?,
             }))
         })
         .map_err(|_| CommandError::internal())?;
-    let entries = rows
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|_| CommandError::internal())?;
-    Ok(json!({ "source": "device", "entries": entries }))
+    Ok(Value::Array(
+        rows.collect::<Result<Vec<_>, _>>()
+            .map_err(|_| CommandError::internal())?,
+    ))
 }
 
-/// Entri outbox yang dikarantina karena sesi pembuatnya tersusul (PRD FR-03
-/// butir 5). Pemegang `sync.retry` melihat semua entri di perangkat ini.
 #[tauri::command]
-pub fn desktop_list_quarantine(state: State<'_, MobileState>) -> Result<Value, CommandError> {
-    let actor = require_permission(&state, "sync.view")?;
-    sync::quarantine_entries(&state, actor.id, operator_can(&actor, "sync.retry"))
-}
-
-/// Putuskan entri karantina: `send` melepasnya ke antrean biasa (konflik tetap
-/// ditangani `base_revision`), `discard` menghapusnya dari outbox (butuh
-/// `sync.retry`, tercatat di log audit). Data di tabel lokal tidak disentuh.
-#[tauri::command]
-pub async fn desktop_resolve_quarantine(
+pub async fn desktop_record_activity(
     state: State<'_, MobileState>,
-    action: String,
-    event_ids: Vec<String>,
+    activity: Value,
 ) -> Result<Value, CommandError> {
-    let actor = require_permission(&state, "sync.view")?;
-    let see_all = operator_can(&actor, "sync.retry");
-    let event_ids: Vec<String> = event_ids
-        .into_iter()
-        .map(|id| id.trim().to_owned())
-        .filter(|id| !id.is_empty())
-        .take(500)
-        .collect();
-    if event_ids.is_empty() {
-        return Err(CommandError::new("VALIDATION_ERROR", "Choose at least one entry."));
-    }
-    match action.as_str() {
-        "send" => {
-            let released = sync::release_quarantine(&state, &event_ids, actor.id, see_all)?;
-            let _ = sync::synchronize(&state).await;
-            Ok(json!({ "count": released }))
-        }
-        "discard" => {
-            let actor = require_permission(&state, "sync.retry")?;
-            let client_id = sync::ensure_client_id(&state)?;
-            let mut connection = storage::database(&state.data_dir)?;
-            let transaction = connection
-                .transaction()
-                .map_err(|_| CommandError::internal())?;
-            let discarded = sync::discard_quarantine(&transaction, &event_ids, actor.id, true)?;
-            if !discarded.is_empty() {
-                write_audit(
-                    &transaction,
-                    &client_id,
-                    AuditEntry {
-                        actor: &actor,
-                        action: "sync.quarantine_discard",
-                        entity_type: "sync",
-                        entity_id: &client_id,
-                        summary: json!({ "count": discarded.len(), "entries": discarded }),
-                        on_behalf_of: None,
-                    },
-                )?;
-            }
-            transaction.commit().map_err(|_| CommandError::internal())?;
-            Ok(json!({ "count": discarded.len() }))
-        }
-        _ => Err(CommandError::new("VALIDATION_ERROR", "Choose send or discard.")),
-    }
-}
+    let operator = require_permission(&state, "activity.record")?;
+    let kode_item = activity
+        .get("kode_item")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| CommandError::new("ACTIVITY_INVALID", "Kode item wajib diisi."))?
+        .to_owned();
+    let jenis = activity
+        .get("jenis")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| CommandError::new("ACTIVITY_INVALID", "Jenis aktivitas wajib diisi."))?
+        .to_owned();
+    let jumlah = activity.get("jumlah").and_then(Value::as_i64).unwrap_or(0);
+    let keterangan = activity
+        .get("keterangan")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_owned();
 
-/// Sesi aktif semua operator (PRD FR-10.3). Hanya online: sesi hidup di cloud.
-#[tauri::command]
-pub async fn desktop_list_active_sessions(
-    state: State<'_, MobileState>,
-) -> Result<Value, CommandError> {
-    require_permission(&state, "sessions.manage")?;
-    let current = state
-        .session
-        .lock()
-        .map_err(|_| CommandError::internal())?
-        .as_ref()
-        .and_then(|session| session.session_id.clone());
-    let sessions = state.get_turso_client()?.list_active_sessions().await?;
-    Ok(json!({ "current_session_id": current, "sessions": sessions }))
-}
-
-/// Akhiri satu sesi (PRD FR-10.4). Perangkat targetnya keluar dalam satu
-/// siklus sync; alasan wajib dan tercatat di log audit.
-#[tauri::command]
-pub async fn desktop_end_session(
-    state: State<'_, MobileState>,
-    session_id: String,
-    reason: String,
-) -> Result<Value, CommandError> {
-    let actor = require_permission(&state, "sessions.manage")?;
-    let reason = clients::session_end_reason(&reason)
-        .map_err(|message| CommandError::new("VALIDATION_ERROR", message))?;
-    let ended = state
-        .get_turso_client()?
-        .end_sessions(&actor, Some(session_id.trim()), None, &reason)
-        .await?;
-    Ok(json!({ "count": ended }))
-}
-
-/// Akhiri semua sesi seorang operator, dengan alasan wajib.
-#[tauri::command]
-pub async fn desktop_end_operator_sessions(
-    state: State<'_, MobileState>,
-    operator_id: i64,
-    reason: String,
-) -> Result<Value, CommandError> {
-    let actor = require_permission(&state, "sessions.manage")?;
-    let reason = clients::session_end_reason(&reason)
-        .map_err(|message| CommandError::new("VALIDATION_ERROR", message))?;
-    let ended = state
-        .get_turso_client()?
-        .end_sessions(&actor, None, Some(operator_id), &reason)
-        .await?;
-    Ok(json!({ "count": ended }))
-}
-
-// ===========================================================================
-// Setelan bisnis (PRD FR-11) dan tiket sampel (PRD FR-06). Cermin
-// `src/lib/server/business-settings.ts` dan `src/lib/server/samples.ts`;
-// aturannya di `samples.rs` (vektor kembar dengan `sample.ts`).
-// ===========================================================================
-
-/// Baris query sebagai objek JSON menurut nama kolomnya.
-fn query_json(
-    connection: &rusqlite::Connection,
-    sql: &str,
-    params: &[&dyn rusqlite::ToSql],
-) -> Result<Vec<Value>, CommandError> {
-    use rusqlite::types::ValueRef;
-    let mut statement = connection.prepare(sql).map_err(|_| CommandError::internal())?;
-    let names: Vec<String> = statement.column_names().iter().map(|name| (*name).to_owned()).collect();
-    let mut rows = statement.query(params).map_err(|_| CommandError::internal())?;
-    let mut out = Vec::new();
-    while let Some(row) = rows.next().map_err(|_| CommandError::internal())? {
-        let mut object = serde_json::Map::new();
-        for (index, name) in names.iter().enumerate() {
-            let value = match row.get_ref(index).map_err(|_| CommandError::internal())? {
-                ValueRef::Null | ValueRef::Blob(_) => Value::Null,
-                ValueRef::Integer(number) => json!(number),
-                ValueRef::Real(number) => json!(number),
-                ValueRef::Text(text) => json!(String::from_utf8_lossy(text)),
-            };
-            object.insert(name.clone(), value);
-        }
-        out.push(Value::Object(object));
-    }
-    Ok(out)
-}
-
-/// Setelan bisnis, dibaca pemegang `settings.view` (kartu Pengaturan).
-#[tauri::command]
-pub fn desktop_get_business_settings(state: State<'_, MobileState>) -> Result<Value, CommandError> {
-    require_permission(&state, "settings.view")?;
-    let connection = storage::database(&state.data_dir)?;
-    Ok(business_settings(&connection).to_json())
-}
-
-/// Simpan setelan bisnis. Berlaku untuk data yang dibuat SESUDAHNYA (kriteria
-/// terima FR-11). Setiap kunci ikut sinkronisasi lewat rute `setting/upsert`.
-#[tauri::command]
-pub async fn desktop_save_business_settings(
-    state: State<'_, MobileState>,
-    settings: Value,
-) -> Result<Value, CommandError> {
-    let operator = require_permission(&state, "settings.manage")?;
-    let checked = samples::validate_business_settings(&settings)
-        .map_err(|message| CommandError::new("BUSINESS_SETTINGS_INVALID", message))?;
+    // `event_key` dibuat di perangkat dan menjadi kunci idempotensi baris. Karena
+    // dipakai sebagai `ON CONFLICT`, pengiriman ulang event yang sama tidak
+    // pernah menggandakan barisnya.
     let client_id = sync::ensure_client_id(&state)?;
-    {
-        let mut connection = storage::database(&state.data_dir)?;
-        let transaction = connection.transaction().map_err(|_| CommandError::internal())?;
-        for (key, value) in checked.to_rows() {
-            transaction
-                .execute(
-                    "INSERT INTO setting_gex_system (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value;",
-                    rusqlite::params![key, &value],
-                )
-                .map_err(|_| CommandError::internal())?;
-            sync::enqueue(
-                &transaction,
-                &client_id,
-                "setting",
-                "upsert",
-                key,
-                &json!({ "key": key, "value": value }),
-                None,
-            )?;
-        }
-        write_audit(
-            &transaction,
-            &client_id,
-            AuditEntry {
-                actor: &operator,
-                action: "settings.business",
-                entity_type: "setting",
-                entity_id: "business",
-                summary: checked.to_json(),
-                on_behalf_of: None,
-            },
-        )?;
-        transaction.commit().map_err(|_| CommandError::internal())?;
-    }
-    let _ = sync::synchronize(&state).await;
-    Ok(checked.to_json())
-}
+    let event_key = sync::new_event_id(&client_id, "activity", "record");
+    let waktu = storage::now_epoch_seconds().to_string();
+    let local_id = sync::new_local_id();
 
-/// Data ringkas foto satu tiket, tanpa isinya. `has_data` = isinya sudah ada
-/// di perangkat ini (buatan sendiri atau pernah dibuka). Cermin `listSampleMedia`.
-const SAMPLE_MEDIA_LIST_SQL: &str = "SELECT m.id, m.purpose, m.byte_size, m.created_by, o.nama_operator AS created_by_name, m.created_at, CASE WHEN m.data_base64 <> '' THEN 1 ELSE 0 END AS has_data FROM media_asset m LEFT JOIN master_operator o ON o.id = m.created_by WHERE m.owner_type = 'sample' AND m.owner_id = ? ORDER BY m.created_at, m.rowid;";
-
-const SAMPLE_LIST_SQL: &str = "SELECT s.*, c.client_code, c.name AS client_name, c.free_revision_limit, o.nama_operator AS pic_crm_name FROM sample_requests s LEFT JOIN clients c ON c.id = s.client_id LEFT JOIN master_operator o ON o.id = s.pic_crm_id";
-
-fn sample_invalid(message: impl Into<String>) -> CommandError {
-    CommandError::new("SAMPLE_INVALID", message)
-}
-
-/// Tiket sampel, terbaru dulu, beserta mode biaya perusahaan (form butuh
-/// tahu apakah pilihan gratis/berbayar ditampilkan). Cermin `listSampleRequests`.
-#[tauri::command]
-pub fn desktop_list_sample_requests(state: State<'_, MobileState>) -> Result<Value, CommandError> {
-    require_permission(&state, "samples.view")?;
-    let connection = storage::database(&state.data_dir)?;
-    let requests = query_json(
-        &connection,
-        &format!("{SAMPLE_LIST_SQL} ORDER BY s.created_at DESC, s.id;"),
-        &[],
-    )?;
-    Ok(json!({
-        "requests": requests,
-        "sample_fee_mode": business_settings(&connection).sample_fee_mode,
-    }))
-}
-
-/// Satu tiket beserta linimasa langkah dan keputusan klien per iterasi.
-#[tauri::command]
-pub fn desktop_get_sample_request(state: State<'_, MobileState>, id: String) -> Result<Value, CommandError> {
-    require_permission(&state, "samples.view")?;
-    let connection = storage::database(&state.data_dir)?;
-    let request = query_json(&connection, &format!("{SAMPLE_LIST_SQL} WHERE s.id = ?;"), &[&id])?
-        .into_iter()
-        .next()
-        .ok_or_else(|| CommandError::new("SAMPLE_NOT_FOUND", "Sample request not found."))?;
-    let status_log = query_json(
-        &connection,
-        "SELECT l.*, o.nama_operator AS recorded_by_name FROM sample_status_log l LEFT JOIN master_operator o ON o.id = l.recorded_by WHERE l.sample_request_id = ? ORDER BY l.recorded_at DESC, l.rowid DESC;",
-        &[&id],
-    )?;
-    let feedbacks = query_json(
-        &connection,
-        "SELECT * FROM sample_feedbacks WHERE sample_request_id = ? ORDER BY iteration_number, recorded_at;",
-        &[&id],
-    )?;
-    let media = query_json(&connection, SAMPLE_MEDIA_LIST_SQL, &[&id])?;
-    Ok(json!({
-        "request": request,
-        "status_log": status_log,
-        "feedbacks": feedbacks,
-        "media": media,
-    }))
-}
-
-/// Periksa pilihan Master Data dan PIC CRM draft terhadap database lokal.
-/// `current` = tiket yang sedang disunting (pilihan lamanya tetap sah
-/// walau sudah dinonaktifkan). Pesan identik dengan `checkSampleReferences`.
-fn check_sample_references(
-    connection: &rusqlite::Connection,
-    draft: &Value,
-    current: Option<&Value>,
-) -> Result<(), CommandError> {
-    let current_text = |key: &str| current.and_then(|row| row[key].as_str());
-    let required = draft["product_category_option_id"].as_str().unwrap_or_default();
-    if !option_usable(connection, required, "PRODUCT_CATEGORY", current_text("product_category_option_id"))? {
-        return Err(sample_invalid("Choose an active product type."));
-    }
-    for (key, kind, message) in [
-        ("sample_kind_option_id", "SAMPLE_KIND", "Choose an active sample kind."),
-        ("formulation_type_option_id", "FORMULATION_TYPE", "Choose an active formulation type."),
-        ("registration_category_option_id", "REGISTRATION_CATEGORY", "Choose an active registration category."),
-    ] {
-        let id = draft[key].as_str().unwrap_or_default();
-        if !id.is_empty() && !option_usable(connection, id, kind, current_text(key))? {
-            return Err(sample_invalid(message));
-        }
-    }
-    if let Some(pic) = draft["pic_crm_id"].as_i64() {
-        let unchanged = current.and_then(|row| row["pic_crm_id"].as_i64()) == Some(pic);
-        let crm: i64 = connection
-            .query_row(
-                "SELECT COUNT(*) FROM master_operator WHERE id = ? AND COALESCE(status, 'Active') = 'Active' AND role = 'crm';",
-                [pic],
-                |row| row.get(0),
-            )
-            .map_err(|_| CommandError::internal())?;
-        if crm == 0 && !unchanged {
-            return Err(sample_invalid("Choose an active CRM operator."));
-        }
-    }
-    Ok(())
-}
-
-/// Bentuk draft dari baris tiket, untuk menggabungkan field yang terkunci.
-fn sample_draft_from_row(row: &Value) -> Value {
-    let special = row["special_requests_json"]
-        .as_str()
-        .and_then(|text| serde_json::from_str::<Value>(text).ok())
-        .unwrap_or_else(|| json!({}));
-    json!({
-        "product_category_option_id": row["product_category_option_id"],
-        "sample_kind_option_id": row["sample_kind_option_id"],
-        "formulation_type_option_id": row["formulation_type_option_id"],
-        "registration_category_option_id": row["registration_category_option_id"],
-        "pic_crm_id": row["pic_crm_id"],
-        "sample_qty": row["sample_qty"],
-        "brand_name": row["brand_name"],
-        "bpom_product_name": row["bpom_product_name"],
-        "claims": row["claims"],
-        "packaging": row["packaging"],
-        "reference_notes": row["reference_notes"],
-        "client_budget_idr": row["client_budget_idr"],
-        "special_requests": special,
-        "deadline_at": row["deadline_at"],
-        "ship_to_address": row["ship_to_address"],
-        "is_dummy_required": row["is_dummy_required"].as_i64() == Some(1),
-        "is_paid_sample": row["is_paid_sample"].as_i64() == Some(1),
-    })
-}
-
-/// Payload sinkronisasi dari draft yang sudah divalidasi. `special_requests`
-/// ikut dikirim dalam bentuk objek supaya cloud bisa memvalidasinya ulang.
-fn sample_payload(draft: &Value, extra: Value) -> Value {
-    let mut payload = draft.clone();
-    payload["special_requests"] = draft["special_requests_json"]
-        .as_str()
-        .and_then(|text| serde_json::from_str::<Value>(text).ok())
-        .unwrap_or_else(|| json!({}));
-    if let (Some(target), Value::Object(extra)) = (payload.as_object_mut(), extra) {
-        target.extend(extra);
-    }
-    payload
-}
-
-fn flag(value: &Value) -> i64 {
-    i64::from(value.as_bool() == Some(true))
-}
-
-/// Buat tiket sampel untuk satu klien (PRD FR-06.1). Tiket pertama mengubah
-/// klien `LEAD` menjadi `FIRST_ORDER_ACTIVE` (D-09). Cermin `createSampleRequest`.
-#[tauri::command]
-pub async fn desktop_create_sample_request(
-    state: State<'_, MobileState>,
-    request: Value,
-) -> Result<Value, CommandError> {
-    use rusqlite::OptionalExtension;
-    let operator = require_permission(&state, "samples.manage")?;
-    let client_id = draft_text(&request, "client_id");
-    let now = clients::utc_timestamp(storage::now_epoch_seconds());
-    let id = clients::new_uuid();
-    let (draft, client_code, lead_id) = {
-        let connection = storage::database(&state.data_dir)?;
-        let (client_code, lead_id) = connection
-            .query_row(
-                "SELECT c.client_code, COALESCE(l.id, '') FROM clients c LEFT JOIN leads l ON l.client_id = c.id WHERE c.id = ? LIMIT 1;",
-                [&client_id],
-                |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
-            )
-            .optional()
-            .map_err(|_| CommandError::internal())?
-            .ok_or_else(|| CommandError::new("CLIENT_NOT_FOUND", "Client not found."))?;
-        let mode = business_settings(&connection).sample_fee_mode;
-        let draft = samples::validate_sample_draft(&request, mode).map_err(sample_invalid)?;
-        check_sample_references(&connection, &draft, None)?;
-        (draft, client_code, lead_id)
-    };
-
-    let payload = sample_payload(
-        &draft,
-        json!({
-            "id": id,
-            "client_id": client_id,
-            "lead_id": lead_id,
-            "created_by": operator.id,
-            "updated_at": now,
-        }),
-    );
-    let paid = draft["is_paid_sample"].as_bool() == Some(true);
-    let audit = AuditEntry {
-        actor: &operator,
-        action: "sample.create",
-        entity_type: "sample",
-        entity_id: &id,
-        // Tiket gratis ditandai di audit (OQ-28): sampel gratis adalah biaya
-        // perusahaan.
-        summary: json!({
-            "client_code": client_code,
-            "brand_name": draft["brand_name"],
-            "is_paid_sample": paid,
-        }),
-        on_behalf_of: None,
-    };
-    commit_with_outbox(&state, "sample", "create", &id, payload, Some(audit), |transaction| {
-        transaction
-            .execute(
-                samples::SAMPLE_INSERT_SQL,
-                rusqlite::params![
-                    &id,
-                    &client_id,
-                    &lead_id,
-                    draft["sample_kind_option_id"].as_str(),
-                    draft["formulation_type_option_id"].as_str(),
-                    draft["registration_category_option_id"].as_str(),
-                    draft["product_category_option_id"].as_str(),
-                    draft["pic_crm_id"].as_i64(),
-                    draft["sample_qty"].as_i64(),
-                    draft["brand_name"].as_str(),
-                    draft["bpom_product_name"].as_str(),
-                    draft["claims"].as_str(),
-                    draft["packaging"].as_str(),
-                    draft["reference_notes"].as_str(),
-                    draft["client_budget_idr"].as_i64(),
-                    draft["special_requests_json"].as_str(),
-                    draft["deadline_at"].as_str(),
-                    draft["ship_to_address"].as_str(),
-                    flag(&draft["is_dummy_required"]),
-                    flag(&draft["is_paid_sample"]),
-                    &now,
-                    operator.id,
-                ],
-            )
-            .map_err(|_| CommandError::new("SAMPLE_SAVE_FAILED", "The sample request could not be saved."))?;
-        transaction
-            .execute(samples::CLIENT_LIFECYCLE_FROM_SAMPLES_SQL, rusqlite::params![&client_id, &now])
-            .map_err(|_| CommandError::internal())?;
-        Ok(())
-    })?;
-
-    let _ = sync::synchronize(&state).await;
-    Ok(json!({ "id": id }))
-}
-
-/// Ubah tiket. Setelah dikirim ke RnD hanya deadline, alamat, PIC CRM, dan
-/// budget yang berubah (keputusan G); field lain diambil dari tiket.
-#[tauri::command]
-pub async fn desktop_update_sample_request(
-    state: State<'_, MobileState>,
-    request: Value,
-) -> Result<Value, CommandError> {
-    let operator = require_permission(&state, "samples.manage")?;
-    let id = draft_text(&request, "id");
-    let now = clients::utc_timestamp(storage::now_epoch_seconds());
-    let (draft, current) = {
-        let connection = storage::database(&state.data_dir)?;
-        let current = query_json(&connection, &format!("{SAMPLE_LIST_SQL} WHERE s.id = ?;"), &[&id])?
-            .into_iter()
-            .next()
-            .ok_or_else(|| CommandError::new("SAMPLE_NOT_FOUND", "Sample request not found."))?;
-        let status = current["status"].as_str().unwrap_or_default();
-        if samples::SAMPLE_TERMINAL_STATUSES.contains(&status) {
-            return Err(sample_invalid("This sample request is closed."));
-        }
-        let (merged, mode) = if status == "DRAFT" {
-            (request.clone(), business_settings(&connection).sample_fee_mode)
-        } else {
-            let mut merged = sample_draft_from_row(&current);
-            for key in samples::SAMPLE_FIELDS_EDITABLE_AFTER_SUBMIT {
-                merged[*key] = request.get(*key).cloned().unwrap_or(Value::Null);
-            }
-            let mode = if current["is_paid_sample"].as_i64() == Some(1) { "PAID" } else { "FREE" };
-            (merged, mode)
-        };
-        let draft = samples::validate_sample_draft(&merged, mode).map_err(sample_invalid)?;
-        check_sample_references(&connection, &draft, Some(&current))?;
-        (draft, current)
-    };
-
-    let payload = sample_payload(
-        &draft,
-        json!({
-            "id": id,
-            "base_updated_at": current["updated_at"],
-            "updated_at": now,
-        }),
-    );
-    let audit = AuditEntry {
-        actor: &operator,
-        action: "sample.update",
-        entity_type: "sample",
-        entity_id: &id,
-        summary: json!({
-            "client_code": current["client_code"],
-            "brand_name": draft["brand_name"],
-        }),
-        on_behalf_of: None,
-    };
-    commit_with_outbox(&state, "sample", "update", &id, payload, Some(audit), |transaction| {
-        let changed = transaction
-            .execute(
-                samples::SAMPLE_UPDATE_SQL,
-                rusqlite::params![
-                    &id,
-                    draft["sample_kind_option_id"].as_str(),
-                    draft["formulation_type_option_id"].as_str(),
-                    draft["registration_category_option_id"].as_str(),
-                    draft["product_category_option_id"].as_str(),
-                    draft["sample_qty"].as_i64(),
-                    draft["brand_name"].as_str(),
-                    draft["bpom_product_name"].as_str(),
-                    draft["claims"].as_str(),
-                    draft["packaging"].as_str(),
-                    draft["reference_notes"].as_str(),
-                    draft["special_requests_json"].as_str(),
-                    flag(&draft["is_dummy_required"]),
-                    flag(&draft["is_paid_sample"]),
-                    draft["pic_crm_id"].as_i64(),
-                    draft["client_budget_idr"].as_i64(),
-                    draft["deadline_at"].as_str(),
-                    draft["ship_to_address"].as_str(),
-                    &now,
-                ],
-            )
-            .map_err(|_| CommandError::new("SAMPLE_SAVE_FAILED", "The sample request could not be saved."))?;
-        if changed == 0 {
-            return Err(sample_invalid("This sample request is closed."));
-        }
-        Ok(())
-    })?;
-
-    let _ = sync::synchronize(&state).await;
-    Ok(json!({ "id": id }))
-}
-
-/// Catat satu langkah tiket (FR-06.4). Langkah RnD/Finance dicatat CS atas
-/// nama divisi itu (D-23); catatan wajib. Cermin `recordSampleStep`.
-#[tauri::command]
-pub async fn desktop_record_sample_step(
-    state: State<'_, MobileState>,
-    id: String,
-    action: String,
-    notes: String,
-    lead_time_days: Option<i64>,
-) -> Result<Value, CommandError> {
-    let operator = require_permission(&state, "samples.manage")?;
-    let notes = samples::normalize_sample_notes(&notes)
-        .ok_or_else(|| sample_invalid("Notes are required, up to 1000 characters."))?;
-    let now = clients::utc_timestamp(storage::now_epoch_seconds());
-    let current = {
-        let connection = storage::database(&state.data_dir)?;
-        query_json(&connection, &format!("{SAMPLE_LIST_SQL} WHERE s.id = ?;"), &[&id])?
-            .into_iter()
-            .next()
-            .ok_or_else(|| CommandError::new("SAMPLE_NOT_FOUND", "Sample request not found."))?
-    };
-    let base_status = current["status"].as_str().unwrap_or_default().to_owned();
-    let base_index = current["revision_index"].as_i64().unwrap_or(0);
-    let state_before = samples::SampleActionState {
-        status: &base_status,
-        is_paid_sample: current["is_paid_sample"].as_i64() == Some(1),
-        revision_index: base_index,
-        free_revision_limit: current["free_revision_limit"].as_i64().unwrap_or(0),
-    };
-    let lead_time = if action == "RND_ACCEPT" { lead_time_days } else { None };
-    let result = samples::apply_sample_action(&state_before, &action, lead_time).map_err(sample_invalid)?;
-    let division = samples::sample_action_division(&action);
-    let client_id = current["client_id"].as_str().unwrap_or_default().to_owned();
-    let log_id = clients::new_uuid();
-    let feedback = result.client_decision.map(|decision| {
-        json!({
-            "id": clients::new_uuid(),
-            "iteration_number": base_index + 1,
-            "client_decision": decision,
-        })
-    });
     let payload = json!({
-        "id": id,
-        "client_id": client_id,
-        "action": action,
-        "base_status": base_status,
-        "base_revision_index": base_index,
-        "status": result.status,
-        "revision_index": result.revision_index,
-        "is_billable": result.is_billable,
-        "rnd_lead_time_days": lead_time,
-        "changed_at": now,
-        "log": {
-            "id": log_id,
-            "notes": notes,
-            "on_behalf_of_division": division.unwrap_or(&operator.role),
-            "recorded_by": operator.id,
-        },
-        "feedback": feedback,
+        "event_key": event_key,
+        "kode_item": kode_item,
+        "jenis": jenis,
+        "jumlah": jumlah,
+        "keterangan": keterangan,
+        "kode_operator": operator.kode_operator,
+        "waktu": waktu,
     });
-    let audit = AuditEntry {
-        actor: &operator,
-        action: "sample.step",
-        entity_type: "sample",
-        entity_id: &id,
-        summary: json!({
-            "client_code": current["client_code"],
-            "brand_name": current["brand_name"],
-            "action": action,
-            "from": base_status,
-            "to": result.status,
-            "revision_index": result.revision_index,
-            "notes": notes,
-        }),
-        on_behalf_of: division,
-    };
-    commit_with_outbox(&state, "sample", "transition", &id, payload, Some(audit), |transaction| {
-        let changed = transaction
-            .execute(
-                samples::SAMPLE_TRANSITION_SQL,
-                rusqlite::params![
-                    &id,
-                    result.status,
-                    result.revision_index,
-                    result.is_billable.map(i64::from),
-                    lead_time,
-                    &now,
-                    &base_status,
-                    base_index,
-                ],
-            )
-            .map_err(|_| CommandError::internal())?;
-        if changed == 0 {
-            return Err(sample_invalid(samples::SAMPLE_CHANGED_ELSEWHERE));
-        }
-        transaction
-            .execute(
-                samples::SAMPLE_STATUS_LOG_INSERT_SQL,
-                rusqlite::params![
-                    &log_id,
-                    &id,
-                    &base_status,
-                    result.status,
-                    &action,
-                    &notes,
-                    division.unwrap_or(&operator.role),
-                    operator.id,
-                    &now,
-                ],
-            )
-            .map_err(|_| CommandError::internal())?;
-        if let Some(feedback) = &feedback {
+
+    commit_with_outbox(
+        &state,
+        "activity",
+        "record",
+        &event_key,
+        payload,
+        |transaction| {
             transaction
                 .execute(
-                    samples::SAMPLE_FEEDBACK_INSERT_SQL,
+                    r#"INSERT INTO log_aktivitas
+                        (id_log, event_key, kode_item, jenis, jumlah, keterangan, kode_operator, waktu)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?);"#,
                     rusqlite::params![
-                        feedback["id"].as_str(),
-                        &id,
-                        base_index + 1,
-                        feedback["client_decision"].as_str(),
-                        &notes,
-                        operator.id,
-                        &now,
+                        local_id,
+                        &event_key,
+                        &kode_item,
+                        &jenis,
+                        jumlah,
+                        &keterangan,
+                        &operator.kode_operator,
+                        &waktu
                     ],
                 )
-                .map_err(|_| CommandError::internal())?;
-        }
-        transaction
-            .execute(samples::CLIENT_LIFECYCLE_FROM_SAMPLES_SQL, rusqlite::params![&client_id, &now])
-            .map_err(|_| CommandError::internal())?;
-        Ok(())
-    })?;
+                .map_err(|_| {
+                    CommandError::new(
+                        "ACTIVITY_SAVE_FAILED",
+                        "Aktivitas tidak dapat dicatat.",
+                    )
+                })?;
+            Ok(())
+        },
+    )?;
 
     let _ = sync::synchronize(&state).await;
-    Ok(json!({ "status": result.status, "revision_index": result.revision_index }))
-}
-
-/// Unggah satu foto terkompresi ke tiket (PRD FR-07). Kompresi sudah terjadi
-/// di webview; di sini diperiksa ulang (`validate_media_upload`), dicatat
-/// di audit, dan diantrekan lewat rute `media/upload`. Cermin `uploadSampleMedia`.
-#[tauri::command]
-pub async fn desktop_upload_sample_media(
-    state: State<'_, MobileState>,
-    sample_id: String,
-    purpose: String,
-    data_base64: String,
-) -> Result<Value, CommandError> {
-    let operator = require_permission(&state, "samples.manage")?;
-    let byte_size = samples::validate_media_upload(&purpose, &data_base64).map_err(sample_invalid)?;
-    let now = clients::utc_timestamp(storage::now_epoch_seconds());
-    let current = {
-        let connection = storage::database(&state.data_dir)?;
-        let current = query_json(&connection, &format!("{SAMPLE_LIST_SQL} WHERE s.id = ?;"), &[&sample_id])?
-            .into_iter()
-            .next()
-            .ok_or_else(|| CommandError::new("SAMPLE_NOT_FOUND", "Sample request not found."))?;
-        check_media_allowed(&connection, &current, &purpose)?;
-        current
-    };
-    let id = clients::new_uuid();
-    let payload = json!({
-        "id": id,
-        "owner_type": "sample",
-        "owner_id": sample_id,
-        "purpose": purpose,
-        "data_base64": data_base64,
-        "created_by": operator.id,
-        "created_at": now,
-    });
-    let audit = AuditEntry {
-        actor: &operator,
-        action: "sample.photo",
-        entity_type: "sample",
-        entity_id: &sample_id,
-        summary: json!({
-            "client_code": current["client_code"],
-            "brand_name": current["brand_name"],
-            "purpose": purpose,
-            "byte_size": byte_size,
-        }),
-        on_behalf_of: None,
-    };
-    commit_with_outbox(&state, "media", "upload", &id, payload, Some(audit), |transaction| {
-        transaction
-            .execute(
-                samples::MEDIA_INSERT_SQL,
-                rusqlite::params![&id, &sample_id, &purpose, byte_size as i64, &data_base64, operator.id, &now],
-            )
-            .map_err(|_| CommandError::new("MEDIA_SAVE_FAILED", "The photo could not be saved."))?;
-        Ok(())
-    })?;
-    let _ = sync::synchronize(&state).await;
-    Ok(json!({ "id": id, "purpose": purpose, "byte_size": byte_size, "created_at": now }))
-}
-
-/// Aturan unggah per tiket, padanan `checkMediaAllowed` (pesan identik):
-/// tiket belum ditutup, bukti bayar hanya untuk sampel berbayar, dan jumlah
-/// foto di bawah `max_photos_per_sample` (keputusan B/D 1.4b).
-fn check_media_allowed(
-    connection: &rusqlite::Connection,
-    sample: &Value,
-    purpose: &str,
-) -> Result<(), CommandError> {
-    let status = sample["status"].as_str().unwrap_or_default();
-    if samples::SAMPLE_TERMINAL_STATUSES.contains(&status) {
-        return Err(sample_invalid("This sample request is closed."));
-    }
-    if purpose == "PAYMENT_PROOF" && sample["is_paid_sample"].as_i64() != Some(1) {
-        return Err(sample_invalid("Payment proof is only for paid samples."));
-    }
-    let limit = business_settings(connection).max_photos_per_sample;
-    let count: i64 = connection
-        .query_row(
-            "SELECT COUNT(*) FROM media_asset WHERE owner_type = 'sample' AND owner_id = ?;",
-            [sample["id"].as_str().unwrap_or_default()],
-            |row| row.get(0),
-        )
-        .map_err(|_| CommandError::internal())?;
-    if count >= limit {
-        return Err(sample_invalid(format!(
-            "This sample request already has the most photos allowed ({limit})."
-        )));
-    }
-    Ok(())
-}
-
-/// Isi satu foto. Dari perangkat bila sudah ada; bila belum, diambil dari
-/// cloud lalu DISIMPAN di perangkat, sehingga sesudahnya tetap terlihat saat
-/// offline (permintaan pemilik produk, 1.4b). Cermin `getMediaData`.
-#[tauri::command]
-pub async fn desktop_get_media(state: State<'_, MobileState>, id: String) -> Result<Value, CommandError> {
-    use rusqlite::OptionalExtension;
-    require_permission(&state, "samples.view")?;
-    let local: Option<String> = {
-        let connection = storage::database(&state.data_dir)?;
-        connection
-            .query_row(
-                "SELECT data_base64 FROM media_asset WHERE id = ? AND data_base64 <> '';",
-                [&id],
-                |row| row.get(0),
-            )
-            .optional()
-            .map_err(|_| CommandError::internal())?
-    };
-    if let Some(data) = local {
-        return Ok(json!({ "id": id, "mime": samples::MEDIA_MIME, "data_base64": data }));
-    }
-    let offline = || CommandError::new("MEDIA_OFFLINE", "This photo is available when the device is online.");
-    let turso = state.get_turso_client().map_err(|_| offline())?;
-    let data = turso
-        .get_media_data(&id)
-        .await
-        .map_err(|_| offline())?
-        .ok_or_else(|| CommandError::new("MEDIA_NOT_FOUND", "Photo not found."))?;
-    let connection = storage::database(&state.data_dir)?;
-    connection
-        .execute(
-            "UPDATE media_asset SET data_base64 = ? WHERE id = ? AND data_base64 = '';",
-            rusqlite::params![&data, &id],
-        )
-        .map_err(|_| CommandError::internal())?;
-    Ok(json!({ "id": id, "mime": samples::MEDIA_MIME, "data_base64": data }))
+    Ok(json!({ "sukses": true, "event_key": event_key }))
 }
 
 #[cfg(test)]

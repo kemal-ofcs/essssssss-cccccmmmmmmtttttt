@@ -1,9 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Mutex,
-    },
+    sync::atomic::{AtomicBool, Ordering},
     time::SystemTime,
 };
 
@@ -12,9 +9,8 @@ use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 
 use super::{
-    clients,
     config::MobileState,
-    models::{CommandError, MobileSyncStatus, SessionMode},
+    models::{CommandError, MobileSyncStatus},
     storage,
     turso::TursoClient,
 };
@@ -23,7 +19,7 @@ use super::{
 /// `CURRENT_SCHEMA_VERSION` di `web-desktop/src/lib/db-schema.ts` setiap kali
 /// migrasi baru ditambahkan, karena keduanya membaca tabel `schema_migration`
 /// yang sama di Turso.
-pub const CLIENT_SCHEMA_VERSION: i64 = 8;
+pub const CLIENT_SCHEMA_VERSION: i64 = 2;
 
 /// Hanya `cloud > client` yang berbahaya; `cloud <= client` adalah kondisi normal.
 fn is_client_schema_outdated(cloud_version: i64) -> bool {
@@ -34,9 +30,9 @@ fn schema_outdated_error(cloud_version: i64) -> CommandError {
     CommandError::new(
         "SCHEMA_VERSION_OUTDATED",
         format!(
-            "The app needs an update. The cloud database schema is already version {cloud_version}, \
-             but this app only supports version {CLIENT_SCHEMA_VERSION}. \
-             Sending data was stopped so columns from the newer version are not overwritten with old data."
+            "Aplikasi perlu diperbarui. Skema database cloud sudah versi {cloud_version}, \
+             sedangkan aplikasi ini hanya mendukung versi {CLIENT_SCHEMA_VERSION}. \
+             Pengiriman data dihentikan agar kolom versi baru tidak tertimpa data lama."
         ),
     )
 }
@@ -79,9 +75,6 @@ struct SnapshotTable {
     conflict_column: &'static str,
     entity_column: &'static str,
     delete_missing: bool,
-    /// Tabel yang hanya ditarik, tidak pernah didorong (direktori operator).
-    /// Wajib TIDAK punya rute kanonik; tabel lain wajib punya.
-    read_only: bool,
 }
 
 /// Tabel yang ikut ditarik dari cloud ke SQLite lokal.
@@ -95,219 +88,44 @@ struct SnapshotTable {
 /// - `conflict_column` adalah kunci upsert lokal; pilih kolom yang stabil lintas
 ///   perangkat (kode bisnis), bukan rowid yang berbeda di tiap instalasi.
 /// - `entity_column` adalah identitas baris untuk `desktop_entity_revision`.
-/// - `read_only` menandai tabel yang sengaja satu arah (cloud → perangkat).
 /// - `delete_missing` hanya untuk tabel yang cloud-nya benar-benar otoritatif.
 ///   Untuk log transaksional biarkan `false`: baris lokal yang belum pernah
 ///   terkirim tidak boleh dihapus hanya karena cloud belum memilikinya.
 const SNAPSHOT_TABLES: &[SnapshotTable] = &[
-    // Domain MaklonOS. Kolom WAJIB identik dengan `storage.rs`, `turso.rs`,
-    // dan `db-schema.ts`. `delete_missing: true` karena cloud otoritatif untuk
-    // ketiganya; aturan 7 tetap menjaga baris yang belum pernah dilacak server.
     SnapshotTable {
-        payload_key: "clients",
-        domain: "client",
-        table: "clients",
+        payload_key: "items",
+        domain: "item",
+        table: "master_item",
         columns: &[
-            "id",
-            "client_code",
-            "name",
-            "phone_normalized",
-            "address",
-            "city",
-            "province",
-            "lifecycle_status",
-            "free_revision_limit",
-            "is_white_label",
-            "assigned_crm_id",
-            "created_by",
-            "created_at",
-            "updated_at",
+            "kode_item",
+            "nama",
+            "kategori",
+            "harga",
+            "satuan",
+            "catatan",
+            "status_aktif",
+            "update_terakhir",
         ],
-        conflict_column: "id",
-        entity_column: "id",
+        conflict_column: "kode_item",
+        entity_column: "kode_item",
         delete_missing: true,
-        read_only: false,
     },
-    // Lead ikut rute `client`: satu event `client/register` membawa kedua baris.
     SnapshotTable {
-        payload_key: "leads",
-        domain: "client",
-        table: "leads",
+        payload_key: "activities",
+        domain: "activity",
+        table: "log_aktivitas",
         columns: &[
-            "id",
-            "client_id",
-            "pic_cs_id",
-            "channel_option_id",
-            "product_category_option_id",
-            "needs_notes",
-            "last_followup_at",
-            "last_client_response_at",
-            "total_followups",
-            "created_at",
-            "updated_at",
+            "event_key",
+            "kode_item",
+            "jenis",
+            "jumlah",
+            "keterangan",
+            "kode_operator",
+            "waktu",
         ],
-        conflict_column: "id",
-        entity_column: "id",
-        delete_missing: true,
-        read_only: false,
-    },
-    // Log interaksi: `delete_missing: false` seperti log transaksional lain.
-    // Baris lokal yang belum terkirim tidak boleh hilang hanya karena cloud
-    // belum memilikinya.
-    SnapshotTable {
-        payload_key: "leadInteractions",
-        domain: "lead-interaction",
-        table: "lead_interactions",
-        columns: &[
-            "id",
-            "lead_id",
-            "operator_id",
-            "direction",
-            "kind",
-            "notes",
-            "occurred_at",
-            "created_at",
-        ],
-        conflict_column: "id",
-        entity_column: "id",
+        conflict_column: "event_key",
+        entity_column: "event_key",
         delete_missing: false,
-        read_only: false,
-    },
-    // Tiket sampel (PRD FR-06). Satu rute `sample` untuk ketiga tabel: event
-    // `sample/transition` membawa tiket, riwayat langkah, dan keputusan klien
-    // sekaligus. Tiket `delete_missing: true` (cloud otoritatif, aturan 7 tetap
-    // menjaga baris yang belum terkirim); dua tabel riwayat `false` seperti log
-    // transaksional lain.
-    SnapshotTable {
-        payload_key: "sampleRequests",
-        domain: "sample",
-        table: "sample_requests",
-        columns: &[
-            "id",
-            "client_id",
-            "lead_id",
-            "sample_kind_option_id",
-            "formulation_type_option_id",
-            "registration_category_option_id",
-            "rnd_product_class",
-            "product_category_option_id",
-            "pic_crm_id",
-            "sample_qty",
-            "brand_name",
-            "bpom_product_name",
-            "claims",
-            "packaging",
-            "reference_notes",
-            "client_budget_idr",
-            "special_requests_json",
-            "deadline_at",
-            "ship_to_address",
-            "is_dummy_required",
-            "is_paid_sample",
-            "revision_index",
-            "is_billable",
-            "status",
-            "rnd_lead_time_days",
-            "sent_at",
-            "status_changed_at",
-            "created_by",
-            "created_at",
-            "updated_at",
-        ],
-        conflict_column: "id",
-        entity_column: "id",
-        delete_missing: true,
-        read_only: false,
-    },
-    SnapshotTable {
-        payload_key: "sampleFeedbacks",
-        domain: "sample",
-        table: "sample_feedbacks",
-        columns: &[
-            "id",
-            "sample_request_id",
-            "iteration_number",
-            "client_decision",
-            "client_notes",
-            "recorded_by",
-            "recorded_at",
-        ],
-        conflict_column: "id",
-        entity_column: "id",
-        delete_missing: false,
-        read_only: false,
-    },
-    // Foto (PRD FR-07): hanya data ringkas. `data_base64` SENGAJA tidak ada di
-    // daftar kolom, jadi pull tidak pernah menimpa isi foto yang sudah tersimpan
-    // di perangkat. Hanya-tambah, `delete_missing: false`.
-    SnapshotTable {
-        payload_key: "mediaAssets",
-        domain: "media",
-        table: "media_asset",
-        columns: &[
-            "id",
-            "owner_type",
-            "owner_id",
-            "purpose",
-            "mime",
-            "byte_size",
-            "created_by",
-            "created_at",
-        ],
-        conflict_column: "id",
-        entity_column: "id",
-        delete_missing: false,
-        read_only: false,
-    },
-    SnapshotTable {
-        payload_key: "sampleStatusLog",
-        domain: "sample",
-        table: "sample_status_log",
-        columns: &[
-            "id",
-            "sample_request_id",
-            "from_status",
-            "to_status",
-            "action",
-            "notes",
-            "on_behalf_of_division",
-            "recorded_by",
-            "recorded_at",
-        ],
-        conflict_column: "id",
-        entity_column: "id",
-        delete_missing: false,
-        read_only: false,
-    },
-    // Direktori operator hanya-baca: tidak punya rute outbox, cloud
-    // otoritatif penuh. Hanya empat kolom (lihat `SNAPSHOT_SOURCES`).
-    SnapshotTable {
-        payload_key: "operatorDirectory",
-        domain: "operator",
-        table: "master_operator",
-        columns: &["id", "kode_operator", "nama_operator", "status", "role"],
-        conflict_column: "id",
-        entity_column: "id",
-        delete_missing: true,
-        read_only: true,
-    },
-    SnapshotTable {
-        payload_key: "masterOptions",
-        domain: "master-option",
-        table: "master_option",
-        columns: &[
-            "id",
-            "kind",
-            "code",
-            "label",
-            "is_active",
-            "sort_order",
-            "updated_at",
-        ],
-        conflict_column: "id",
-        entity_column: "id",
-        delete_missing: true,
-        read_only: false,
     },
     SnapshotTable {
         payload_key: "settings",
@@ -317,7 +135,6 @@ const SNAPSHOT_TABLES: &[SnapshotTable] = &[
         conflict_column: "key",
         entity_column: "key",
         delete_missing: false,
-        read_only: false,
     },
     // `delete_missing: false` seperti seluruh tabel lain di sini, dan untuk
     // tabel baris-tunggal alasannya lebih tajam: cloud yang untuk sesaat tidak
@@ -345,7 +162,6 @@ const SNAPSHOT_TABLES: &[SnapshotTable] = &[
         conflict_column: "id",
         entity_column: "id",
         delete_missing: false,
-        read_only: false,
     },
 ];
 
@@ -355,18 +171,10 @@ const SNAPSHOT_TABLES: &[SnapshotTable] = &[
 /// Producer yang menulis pasangan di luar daftar akan ditolak batas cloud
 /// sebagai konflik dan macet permanen di antrean.
 const CANONICAL_SYNC_ROUTES: &[(&str, &str)] = &[
-    ("client", "register"),
-    ("client", "update"),
-    ("master-option", "upsert"),
-    ("lead-interaction", "record"),
-    ("lead", "reassign"),
-    ("sample", "create"),
-    ("sample", "update"),
-    ("sample", "transition"),
-    ("media", "upload"),
-    // Log audit hanya-dorong: tidak ada di `SNAPSHOT_TABLES` karena tumbuh
-    // tanpa batas dan hanya dibaca dari cloud (layar Audit).
-    ("audit", "record"),
+    ("item", "create"),
+    ("item", "update"),
+    ("item", "delete"),
+    ("activity", "record"),
     ("setting", "update"),
     ("setting", "upsert"),
     ("company-profile", "update"),
@@ -684,9 +492,7 @@ fn apply_table(
             // Jejak `desktop_entity_revision` sudah dimuat di awal apply_snapshot,
             // jadi asal-usul baris diperiksa dari memori, bukan query per baris.
             let came_from_server = hashes.contains_key(&cache_key);
-            // Tabel hanya-baca tidak pernah punya baris buatan perangkat, jadi
-            // cloud menentukan isinya sepenuhnya.
-            if !came_from_server && !definition.read_only {
+            if !came_from_server {
                 // Baris lokal murni yang tidak pernah datang dari server: jangan dihapus.
                 continue;
             }
@@ -741,48 +547,6 @@ pub fn ensure_client_id(state: &MobileState) -> Result<String, CommandError> {
         .map_err(|_| CommandError::internal())
 }
 
-/// Tag perangkat (bagian `<KP>` kode klien) untuk database yang sedang
-/// ditunjuk, atau `None` bila perangkat ini belum pernah mendapatkannya.
-pub fn local_device_tag(state: &MobileState) -> Result<Option<String>, CommandError> {
-    let client_id = ensure_client_id(state)?;
-    let connection = storage::database(&state.data_dir)?;
-    connection
-        .query_row(
-            "SELECT device_tag FROM desktop_client_identity WHERE client_id = ?;",
-            [&client_id],
-            |row| row.get::<_, Option<String>>(0),
-        )
-        .optional()
-        .map(Option::flatten)
-        .map_err(|_| CommandError::internal())
-}
-
-/// Minta tag perangkat ke database bila belum punya. Best effort, dijalankan di
-/// AKHIR siklus sync supaya setting `client_code_web_tag` dari cloud sudah
-/// tertarik lebih dulu: tag Web tidak pernah boleh diberikan ke perangkat.
-async fn ensure_device_tag(state: &MobileState) {
-    if local_device_tag(state).ok().flatten().is_some() {
-        return;
-    }
-    let (Ok(turso), Ok(client_id)) = (state.get_turso_client(), ensure_client_id(state)) else {
-        return;
-    };
-    let web_tag = storage::get_system_setting(&state.data_dir, clients::CLIENT_CODE_WEB_TAG_SETTING)
-        .ok()
-        .flatten()
-        .and_then(|value| clients::normalize_device_tag(&value))
-        .unwrap_or_else(|| clients::DEFAULT_CLIENT_CODE_WEB_TAG.to_owned());
-    let Ok(tag) = turso.register_device_tag(&client_id, &web_tag).await else {
-        return;
-    };
-    if let Ok(connection) = storage::database(&state.data_dir) {
-        let _ = connection.execute(
-            "UPDATE desktop_client_identity SET device_tag = ? WHERE client_id = ?;",
-            params![tag, client_id],
-        );
-    }
-}
-
 pub fn new_event_id(client_id: &str, domain: &str, operation: &str) -> String {
     let nanos = SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
@@ -795,6 +559,15 @@ pub fn new_event_id(client_id: &str, domain: &str, operation: &str) -> String {
     hasher.update(nanos.to_le_bytes());
     hasher.update(std::process::id().to_le_bytes());
     format!("evt-{}", hex::encode(hasher.finalize()))
+}
+
+pub fn new_local_id() -> i64 {
+    let nanos = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .map(|duration| duration.as_nanos())
+        .unwrap_or(1);
+    const MAX_SAFE_JSON_INTEGER: u128 = 9_007_199_254_740_991;
+    -((nanos % (MAX_SAFE_JSON_INTEGER - 1)) as i64 + 1)
 }
 
 pub fn enqueue(
@@ -827,16 +600,14 @@ pub fn enqueue(
     }
     let event_id = new_event_id(client_id, domain, operation);
     let now = storage::now_epoch_seconds();
-    let (operator_id, session_id) = current_actor();
     transaction
         .execute(
             r#"
       INSERT INTO desktop_sync_outbox (
         event_id, client_id, domain, operation, entity_key,
         payload_json, base_revision, status, attempt_count,
-        next_retry_at, last_error, server_revision, created_at, updated_at,
-        operator_id, session_id
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', 0, NULL, NULL, NULL, ?, ?, ?, ?);
+        next_retry_at, last_error, server_revision, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', 0, NULL, NULL, NULL, ?, ?);
       "#,
             params![
                 event_id,
@@ -848,8 +619,6 @@ pub fn enqueue(
                 base_revision,
                 now,
                 now,
-                operator_id,
-                session_id,
             ],
         )
         .map_err(|_| CommandError::internal())?;
@@ -1096,33 +865,7 @@ fn mark_batch_failed(state: &MobileState, event_ids: &[String], message: &str) {
     }
 }
 
-/// Batas ukuran satu batch push (PRD F-07, keputusan C 1.4b). Satu foto
-/// terkirim sebagai ~400 KB base64; tanpa batas ini perangkat yang lama offline
-/// mengirim 50 foto (~20 MB) dalam satu request yang rawan putus di jaringan HP.
-const PUSH_BATCH_MAX_BYTES: usize = 4 * 1024 * 1024;
-
-/// Potong batch agar total payload ≤ `PUSH_BATCH_MAX_BYTES`, minimal satu
-/// event (satu event tidak pernah melebihi batas outbox). `true` = ada event
-/// yang ditinggal untuk batch berikutnya.
-fn limit_batch_by_size(events: Vec<Value>) -> (Vec<Value>, bool) {
-    let mut total = 0usize;
-    let mut kept = Vec::with_capacity(events.len());
-    let count = events.len();
-    for event in events {
-        let size = event.get("payload").map_or(0, |payload| payload.to_string().len());
-        if !kept.is_empty() && total + size > PUSH_BATCH_MAX_BYTES {
-            break;
-        }
-        total += size;
-        kept.push(event);
-    }
-    let truncated = kept.len() < count;
-    (kept, truncated)
-}
-
-/// Event siap kirim, paling banyak 50 dan paling besar `PUSH_BATCH_MAX_BYTES`.
-/// `true` pada nilai ketiga = batch dipotong karena ukuran; masih ada sisa.
-fn pending_events(state: &MobileState) -> Result<(String, Vec<Value>, bool), CommandError> {
+fn pending_events(state: &MobileState) -> Result<(String, Vec<Value>), CommandError> {
     let client_id = ensure_client_id(state)?;
     let connection = storage::database(&state.data_dir)?;
     let mut statement = connection
@@ -1131,9 +874,7 @@ fn pending_events(state: &MobileState) -> Result<(String, Vec<Value>, bool), Com
       SELECT event_id, client_id, domain, operation, entity_key, payload_json,
              base_revision, created_at
       FROM desktop_sync_outbox
-      -- Entri karantina (sesi tersusul, PRD FR-03) tidak pernah didorong
-      -- sampai pemiliknya memilih Kirim.
-      WHERE quarantined_at IS NULL AND (status = 'pending'
+      WHERE status = 'pending'
          OR (status = 'failed' AND next_retry_at IS NOT NULL AND next_retry_at <= ?)
          -- Konflik UNIQUE pada shift/karyawan memang layak dicoba ulang: baris
          -- kembarannya biasanya sudah direkonsiliasi oleh pull berikutnya.
@@ -1146,7 +887,7 @@ fn pending_events(state: &MobileState) -> Result<(String, Vec<Value>, bool), Com
              AND (
               (domain = 'shift' AND last_error LIKE '%UNIQUE constraint failed: tbl_shift.kode_shift%')
               OR (domain = 'employee' AND last_error LIKE '%UNIQUE constraint failed: master_data.id_unik%')
-            )))
+            ))
       ORDER BY
         CASE WHEN domain = 'shift' AND operation = 'create' THEN 0 ELSE 1 END,
         created_at ASC
@@ -1170,11 +911,11 @@ fn pending_events(state: &MobileState) -> Result<(String, Vec<Value>, bool), Com
             }))
         })
         .map_err(|_| CommandError::internal())?;
-    let (events, truncated) = limit_batch_by_size(
+    Ok((
+        client_id,
         rows.collect::<Result<Vec<_>, _>>()
             .map_err(|_| CommandError::internal())?,
-    );
-    Ok((client_id, events, truncated))
+    ))
 }
 
 fn validate_push_results(
@@ -1310,11 +1051,11 @@ fn apply_push_results(
             }
 
             // Titik pasang rekonsiliasi ID. Aplikasi asal memakai blok di sini
-            // untuk menukar id lokal sementara (bernilai negatif) dengan id
-            // yang baru diberikan server, lalu meng-cascade-nya ke tabel anak
-            // dan ke payload outbox yang masih mengantre. Domain MaklonOS
-            // memakai UUID buatan perangkat (`clients::new_uuid`) sehingga
-            // tidak memerlukannya. Kalau domain Anda
+            // untuk menukar id lokal sementara (bernilai negatif, dibuat
+            // `new_local_id`) dengan id yang baru diberikan server, lalu
+            // meng-cascade-nya ke tabel anak dan ke payload outbox yang masih
+            // mengantre. Template ini memakai kunci bisnis (`kode_item`,
+            // `event_key`) sehingga tidak memerlukannya. Kalau domain Anda
             // memakai id numerik dari server, tambahkan penukaran itu di sini —
             // sebelum baris ini, outbox yang mengantre masih memuat id lama.
         } else if sync_status == "conflict" {
@@ -1409,7 +1150,7 @@ pub async fn push_outbox(state: &MobileState) -> Result<(), CommandError> {
         // dikirim, supaya sync idle tidak menambah round-trip ke Turso.
         let mut schema_checked = false;
         for _ in 0..MAX_PUSH_BATCHES_PER_CYCLE {
-            let (_client_id, events, truncated) = pending_events(state)?;
+            let (_client_id, events) = pending_events(state)?;
             if events.is_empty() {
                 return Ok(());
             }
@@ -1441,7 +1182,7 @@ pub async fn push_outbox(state: &MobileState) -> Result<(), CommandError> {
                 );
                 return Err(error);
             }
-            if event_ids.len() < 50 && !truncated {
+            if event_ids.len() < 50 {
                 return Ok(());
             }
         }
@@ -1483,13 +1224,7 @@ pub async fn synchronize(state: &MobileState) -> Result<MobileSyncStatus, Comman
     }
     let _in_flight = SyncInFlightGuard;
 
-    // Sesi tunggal (PRD FR-03): pastikan sesi ini belum tersusul SEBELUM
-    // mendorong apa pun. Pemeriksaan yang gagal (jaringan) melewatkan push
-    // siklus ini, tetapi tidak pernah membatalkan pull (aturan 9).
-    let push_error = match check_session(state).await {
-        Ok(()) => push_outbox(state).await.err(),
-        Err(error) => Some(error),
-    };
+    let push_error = push_outbox(state).await.err();
     let pulled = pull_snapshot(state).await;
 
     // Penegakan RBAC dinamis untuk jalur 2-tier. Sesi Desktop/Mobile hidup di
@@ -1498,316 +1233,14 @@ pub async fn synchronize(state: &MobileState) -> Result<MobileSyncStatus, Comman
     // di perangkatnya. Sisi web sudah memeriksa `rbac_revision` pada setiap
     // request; perangkat memeriksanya sekali per siklus sinkronisasi.
     enforce_rbac_revision(state).await;
-    ensure_device_tag(state).await;
 
-    let superseded = push_error
-        .as_ref()
-        .is_some_and(|error| error.code == "SESSION_SUPERSEDED");
     match pulled {
         Ok(mut status) => {
             status.push_error = push_error.map(|error| error.message);
             Ok(status)
         }
-        // Sesi baru saja tersusul: layar WAJIB menerima `session_superseded`
-        // walau pull gagal, karena sesudah ini tidak ada sesi yang bisa
-        // membaca status lagi.
-        Err(_) if superseded => {
-            let mut status = status(state)?;
-            status.push_error = push_error.map(|error| error.message);
-            Ok(status)
-        }
         Err(pull_error) => Err(push_error.unwrap_or(pull_error)),
     }
-}
-
-/// Operator dan sesi cloud yang sedang login, untuk menandai entri outbox.
-/// Proses aplikasi hanya punya satu sesi, jadi cukup satu nilai global —
-/// `enqueue` dipanggil dengan transaksi saja, tanpa `MobileState`.
-static CURRENT_ACTOR: Mutex<Option<(i64, Option<String>)>> = Mutex::new(None);
-
-/// Alasan sesi terakhir diakhiri dari luar, dilaporkan lewat
-/// `MobileSyncStatus.session_superseded` sampai login berikutnya.
-static SESSION_ENDED: Mutex<Option<String>> = Mutex::new(None);
-
-pub fn set_current_actor(operator_id: Option<i64>, session_id: Option<String>) {
-    if let Ok(mut guard) = CURRENT_ACTOR.lock() {
-        *guard = operator_id.map(|id| (id, session_id));
-    }
-}
-
-fn current_actor() -> (Option<i64>, Option<String>) {
-    CURRENT_ACTOR
-        .lock()
-        .ok()
-        .and_then(|guard| guard.clone())
-        .map_or((None, None), |(id, session)| (Some(id), session))
-}
-
-fn session_ended_reason() -> Option<String> {
-    SESSION_ENDED.lock().ok().and_then(|guard| guard.clone())
-}
-
-/// Dipanggil saat login: tanda "tersusul" milik sesi sebelumnya dihapus.
-pub fn clear_session_ended() {
-    if let Ok(mut guard) = SESSION_ENDED.lock() {
-        *guard = None;
-    }
-}
-
-/// Jenis klien dan label perangkat untuk baris `app_session`.
-pub fn device_identity(state: &MobileState) -> (&'static str, String) {
-    let kind = if cfg!(any(target_os = "android", target_os = "ios")) {
-        "mobile"
-    } else {
-        "desktop"
-    };
-    let client = ensure_client_id(state).unwrap_or_default();
-    let short: String = client.chars().filter(char::is_ascii_alphanumeric).take(8).collect();
-    (kind, format!("{} {}", std::env::consts::OS, short).trim().to_owned())
-}
-
-/// Catat waktu cloud saat sesi operator ini terakhir terbukti berlaku.
-pub fn record_session_contact(state: &MobileState, operator_id: i64, cloud_now: &str) {
-    if cloud_now.is_empty() {
-        return;
-    }
-    if let Ok(connection) = storage::database(&state.data_dir) {
-        let _ = connection.execute(
-            "INSERT INTO desktop_session_contact (operator_id, last_online_at) VALUES (?1, ?2) ON CONFLICT(operator_id) DO UPDATE SET last_online_at = excluded.last_online_at;",
-            params![operator_id, cloud_now],
-        );
-    }
-}
-
-fn session_contact(state: &MobileState, operator_id: i64) -> Option<String> {
-    storage::database(&state.data_dir)
-        .ok()?
-        .query_row(
-            "SELECT last_online_at FROM desktop_session_contact WHERE operator_id = ?;",
-            [operator_id],
-            |row| row.get(0),
-        )
-        .optional()
-        .ok()
-        .flatten()
-}
-
-/// Pemeriksaan sesi tunggal sebelum push (PRD FR-03 butir 2-4).
-///
-/// - Sesi online: dicabut atau hilang di cloud → tersusul.
-/// - Sesi offline yang tersambung lagi: cloud punya sesi operator ini yang
-///   lahir setelah kontak terakhir perangkat → tersusul; bila tidak, sesi ini
-///   dipromosikan ke baris `app_session` TANPA mencabut sesi lain.
-///
-/// Mode Database Lokal dilewati: hub-nya berkas di perangkat yang sama, tidak
-/// ada perangkat lain yang bisa login bersamaan.
-async fn check_session(state: &MobileState) -> Result<(), CommandError> {
-    let Some((operator_id, session_id, mode)) = ({
-        let guard = state.session.lock().map_err(|_| CommandError::internal())?;
-        guard
-            .as_ref()
-            .map(|session| (session.operator.id, session.session_id.clone(), session.mode))
-    }) else {
-        return Ok(());
-    };
-    let Ok(turso) = state.get_turso_client() else {
-        return Ok(());
-    };
-    if turso.is_local() {
-        return Ok(());
-    }
-
-    if let Some(session_id) = session_id {
-        return match turso.check_device_session(&session_id).await? {
-            Ok(cloud_now) => {
-                record_session_contact(state, operator_id, &cloud_now);
-                Ok(())
-            }
-            Err(reason) => Err(supersede(state, operator_id, Some(&session_id), &reason)),
-        };
-    }
-
-    // Sesi tanpa baris cloud: login offline (atau login online sebelum
-    // pembaruan ini) yang baru tersambung.
-    let contact = session_contact(state, operator_id);
-    let (superseded, cloud_now) = turso
-        .offline_session_superseded(operator_id, contact.as_deref())
-        .await?;
-    if superseded {
-        return Err(supersede(state, operator_id, None, "SUPERSEDED"));
-    }
-    let operator = {
-        let guard = state.session.lock().map_err(|_| CommandError::internal())?;
-        match guard.as_ref() {
-            Some(session) if session.operator.id == operator_id => session.operator.clone(),
-            _ => return Ok(()),
-        }
-    };
-    let (kind, label) = device_identity(state);
-    let (new_session, created_at) = turso
-        .open_device_session(&operator, kind, &label, false)
-        .await?;
-    {
-        let mut guard = state.session.lock().map_err(|_| CommandError::internal())?;
-        match guard.as_mut() {
-            Some(session) if session.operator.id == operator_id => {
-                session.session_id = Some(new_session.clone());
-            }
-            _ => return Ok(()),
-        }
-    }
-    set_current_actor(Some(operator_id), Some(new_session));
-    record_session_contact(state, operator_id, if created_at.is_empty() { &cloud_now } else { &created_at });
-    if matches!(mode, SessionMode::Offline) {
-        storage::audit(&state.data_dir, Some(operator_id), "session-offline-promoted", None);
-    }
-    Ok(())
-}
-
-/// Sesi ini tersusul: karantina outbox miliknya, lalu akhiri sesi lokal.
-///
-/// Entri yang belum terkirim (`pending`/`failed`/`conflict`) milik operator
-/// ini — atau tanpa pemilik, dibuat sebelum sesi tunggal ada — ditandai
-/// `quarantined_at`. Tidak didorong, tidak dihapus, dan tetap menjaga baris
-/// lokalnya dari `delete_missing` (aturan 7) sampai pemiliknya memutuskan.
-fn supersede(
-    state: &MobileState,
-    operator_id: i64,
-    session_id: Option<&str>,
-    reason: &str,
-) -> CommandError {
-    if let Ok(connection) = storage::database(&state.data_dir) {
-        let _ = connection.execute(
-            r#"
-      UPDATE desktop_sync_outbox
-      SET quarantined_at = ?1, operator_id = COALESCE(operator_id, ?2),
-          session_id = COALESCE(session_id, ?3), updated_at = ?1
-      WHERE quarantined_at IS NULL
-        AND status IN ('pending', 'failed', 'conflict')
-        AND (operator_id = ?2 OR operator_id IS NULL);
-      "#,
-            params![storage::now_epoch_seconds(), operator_id, session_id],
-        );
-    }
-    if let Ok(mut guard) = state.session.lock() {
-        if guard
-            .as_ref()
-            .is_some_and(|session| session.operator.id == operator_id)
-        {
-            *guard = None;
-        }
-    }
-    set_current_actor(None, None);
-    if let Ok(mut guard) = SESSION_ENDED.lock() {
-        *guard = Some(reason.to_owned());
-    }
-    storage::audit(&state.data_dir, Some(operator_id), "session-superseded", Some(reason));
-    CommandError::new(
-        "SESSION_SUPERSEDED",
-        "Your account signed in on another device. Unsent data is kept and waits for your decision.",
-    )
-}
-
-/// Entri karantina (PRD FR-03 butir 5). Pemegang `sync.retry` melihat semua
-/// entri di perangkat ini; operator lain hanya miliknya sendiri.
-pub fn quarantine_entries(
-    state: &MobileState,
-    operator_id: i64,
-    see_all: bool,
-) -> Result<Value, CommandError> {
-    let connection = storage::database(&state.data_dir)?;
-    let mut statement = connection
-        .prepare(
-            r#"
-      SELECT event_id, domain, operation, entity_key, operator_id, session_id,
-             created_at, quarantined_at
-      FROM desktop_sync_outbox
-      WHERE quarantined_at IS NOT NULL AND (?1 = 1 OR operator_id = ?2)
-      ORDER BY created_at ASC LIMIT 500;
-      "#,
-        )
-        .map_err(|_| CommandError::internal())?;
-    let rows = statement
-        .query_map(params![i64::from(see_all), operator_id], |row| {
-            Ok(json!({
-                "eventId": row.get::<_, String>(0)?,
-                "domain": row.get::<_, String>(1)?,
-                "operation": row.get::<_, String>(2)?,
-                "entityKey": row.get::<_, String>(3)?,
-                "operatorId": row.get::<_, Option<i64>>(4)?,
-                "sessionId": row.get::<_, Option<String>>(5)?,
-                "createdAt": row.get::<_, i64>(6)?,
-                "quarantinedAt": row.get::<_, i64>(7)?,
-            }))
-        })
-        .map_err(|_| CommandError::internal())?;
-    Ok(Value::Array(
-        rows.collect::<Result<Vec<_>, _>>()
-            .map_err(|_| CommandError::internal())?,
-    ))
-}
-
-/// Kirim: lepas tanda karantina, entrinya didorong seperti biasa di siklus
-/// berikutnya (konflik tetap ditangani `base_revision`). Mengembalikan jumlah
-/// entri yang dilepas.
-pub fn release_quarantine(
-    state: &MobileState,
-    event_ids: &[String],
-    operator_id: i64,
-    see_all: bool,
-) -> Result<usize, CommandError> {
-    let mut connection = storage::database(&state.data_dir)?;
-    let transaction = connection
-        .transaction()
-        .map_err(|_| CommandError::internal())?;
-    let now = storage::now_epoch_seconds();
-    let mut changed = 0;
-    for event_id in event_ids {
-        changed += transaction
-            .execute(
-                "UPDATE desktop_sync_outbox SET quarantined_at = NULL, status = CASE WHEN status = 'failed' THEN 'pending' ELSE status END, next_retry_at = NULL, updated_at = ?1 WHERE event_id = ?2 AND quarantined_at IS NOT NULL AND (?3 = 1 OR operator_id = ?4);",
-                params![now, event_id, i64::from(see_all), operator_id],
-            )
-            .map_err(|_| CommandError::internal())?;
-    }
-    transaction.commit().map_err(|_| CommandError::internal())?;
-    Ok(changed)
-}
-
-/// Buang: hapus entri karantina dari outbox di transaksi yang sama dengan
-/// catatan auditnya (`apply`). Data di tabel lokal TIDAK disentuh; pull
-/// berikutnya menyamakannya dengan cloud. Mengembalikan entri yang dibuang.
-pub fn discard_quarantine(
-    transaction: &Transaction<'_>,
-    event_ids: &[String],
-    operator_id: i64,
-    see_all: bool,
-) -> Result<Vec<Value>, CommandError> {
-    let mut discarded = Vec::new();
-    for event_id in event_ids {
-        let row = transaction
-            .query_row(
-                "SELECT domain, operation, entity_key FROM desktop_sync_outbox WHERE event_id = ?1 AND quarantined_at IS NOT NULL AND (?2 = 1 OR operator_id = ?3);",
-                params![event_id, i64::from(see_all), operator_id],
-                |row| {
-                    Ok(json!({
-                        "eventId": event_id,
-                        "domain": row.get::<_, String>(0)?,
-                        "operation": row.get::<_, String>(1)?,
-                        "entityKey": row.get::<_, String>(2)?,
-                    }))
-                },
-            )
-            .optional()
-            .map_err(|_| CommandError::internal())?;
-        if let Some(row) = row {
-            transaction
-                .execute("DELETE FROM desktop_sync_outbox WHERE event_id = ?;", [event_id])
-                .map_err(|_| CommandError::internal())?;
-            discarded.push(row);
-        }
-    }
-    Ok(discarded)
 }
 
 /// Cabut atau segarkan sesi aktif bila katalog RBAC cloud sudah berubah.
@@ -1874,7 +1307,6 @@ async fn enforce_rbac_revision(state: &MobileState) {
                     .is_some_and(|session| session.operator.id == operator_id)
                 {
                     *guard = None;
-                    set_current_actor(None, None);
                 }
             }
             storage::audit(
@@ -1897,7 +1329,7 @@ pub fn status(state: &MobileState) -> Result<MobileSyncStatus, CommandError> {
     let count = |status: &str| -> Result<i64, CommandError> {
         connection
             .query_row(
-                "SELECT COUNT(*) FROM desktop_sync_outbox WHERE status = ? AND quarantined_at IS NULL;",
+                "SELECT COUNT(*) FROM desktop_sync_outbox WHERE status = ?;",
                 [status],
                 |row| row.get(0),
             )
@@ -1929,25 +1361,14 @@ pub fn status(state: &MobileState) -> Result<MobileSyncStatus, CommandError> {
         last_revision,
         last_sync_at,
         table_counts: json!({
-            "clients": table_count("clients"),
-            "leads": table_count("leads"),
-            "masterOptions": table_count("master_option"),
-            "leadInteractions": table_count("lead_interactions"),
-            "sampleRequests": table_count("sample_requests"),
+            "items": table_count("master_item"),
+            "activities": table_count("log_aktivitas"),
         }),
         push_error: None,
         changed_rows: 0,
         local_mode: state
             .turso_config()
             .is_some_and(|config| config.provider.is_local_file()),
-        quarantined: connection
-            .query_row(
-                "SELECT COUNT(*) FROM desktop_sync_outbox WHERE quarantined_at IS NOT NULL;",
-                [],
-                |row| row.get(0),
-            )
-            .map_err(|_| CommandError::internal())?,
-        session_superseded: session_ended_reason(),
     })
 }
 
@@ -2115,167 +1536,6 @@ mod tests {
     /// benar-benar terputus berhenti menguras outbox, berkas hub tertinggal,
     /// lalu ekspor cadangan dan promosi ke cloud kehilangan data tanpa satu pun
     /// pesan error.
-    /// Foto yang sudah pernah diunduh ke perangkat tidak terhapus oleh pull
-    /// berikutnya (permintaan pemilik produk, 1.4b): snapshot hanya membawa
-    /// data ringkas, dan upsert-nya tidak menyentuh `data_base64`.
-    #[test]
-    fn pull_foto_tidak_menghapus_isi_yang_sudah_diunduh() {
-        let directory = tempdir().expect("direktori sementara");
-        storage::initialize(directory.path()).expect("skema lokal");
-        let state = MobileState {
-            server_origin: RwLock::new(
-                crate::mobile::app_identity::DEFAULT_SERVER_ORIGIN.to_owned(),
-            ),
-            offline_max_age_hours: 24,
-            data_dir: directory.path().to_path_buf(),
-            http: Client::new(),
-            turso_config: RwLock::new(None),
-            session: Mutex::new(None),
-            vault_lock: Mutex::new(()),
-        };
-        let meta = |id: &str| {
-            serde_json::json!({
-                "id": id, "owner_type": "sample", "owner_id": "s1", "purpose": "REFERENCE",
-                "mime": "image/webp", "byte_size": 16, "created_by": 7,
-                "created_at": "2026-09-25 01:00:00",
-            })
-        };
-        super::apply_snapshot_with_pulse(
-            &state,
-            &serde_json::json!({ "revision": 1, "mediaAssets": [meta("m1"), meta("m2")] }),
-            None,
-        )
-        .expect("pull pertama");
-        let connection = storage::database(&state.data_dir).expect("db");
-        connection
-            .execute("UPDATE media_asset SET data_base64 = 'UklGRgwAAABXRUJQVlA4TA==' WHERE id = 'm1';", [])
-            .expect("simpan isi foto");
-        drop(connection);
-        super::apply_snapshot_with_pulse(
-            &state,
-            &serde_json::json!({ "revision": 2, "mediaAssets": [meta("m1"), meta("m2")] }),
-            None,
-        )
-        .expect("pull kedua");
-        let connection = storage::database(&state.data_dir).expect("db");
-        let data: Vec<String> = connection
-            .prepare("SELECT data_base64 FROM media_asset ORDER BY id;")
-            .expect("query")
-            .query_map([], |row| row.get(0))
-            .expect("rows")
-            .collect::<Result<_, _>>()
-            .expect("data");
-        assert_eq!(data, vec!["UklGRgwAAABXRUJQVlA4TA==".to_owned(), String::new()]);
-    }
-
-    /// Batch push dibatasi ukuran (keputusan C 1.4b): foto tidak pernah
-    /// terkirim sebagai satu request raksasa, dan event pertama selalu lolos.
-    #[test]
-    fn batch_push_dibatasi_ukuran() {
-        let photo = |id: u32| {
-            serde_json::json!({ "eventId": id, "payload": { "data_base64": "A".repeat(400 * 1024) } })
-        };
-        let small = |id: u32| serde_json::json!({ "eventId": id, "payload": { "x": 1 } });
-        let (kept, truncated) = super::limit_batch_by_size((0..12).map(photo).collect());
-        assert_eq!(kept.len(), 10);
-        assert!(truncated);
-        let (kept, truncated) = super::limit_batch_by_size((0..50).map(small).collect());
-        assert_eq!((kept.len(), truncated), (50, false));
-        let huge = serde_json::json!({ "eventId": 1, "payload": { "data": "A".repeat(5 * 1024 * 1024) } });
-        let (kept, truncated) = super::limit_batch_by_size(vec![huge, small(2)]);
-        assert_eq!((kept.len(), truncated), (1, true));
-    }
-
-    /// Sesi tunggal (PRD FR-03): entri milik sesi yang tersusul dikarantina,
-    /// tidak didorong, dan jumlah outbox tidak berkurang sampai pemiliknya
-    /// memilih Kirim atau Buang. Entri operator lain tidak ikut.
-    #[test]
-    fn sesi_tersusul_mengkarantina_outbox_tanpa_menghapusnya() {
-        let directory = tempdir().expect("direktori sementara");
-        storage::initialize(directory.path()).expect("skema lokal");
-        let state = MobileState {
-            server_origin: RwLock::new(
-                crate::mobile::app_identity::DEFAULT_SERVER_ORIGIN.to_owned(),
-            ),
-            offline_max_age_hours: 24,
-            data_dir: directory.path().to_path_buf(),
-            http: Client::new(),
-            turso_config: RwLock::new(None),
-            session: Mutex::new(None),
-            vault_lock: Mutex::new(()),
-        };
-        let client_id = super::ensure_client_id(&state).expect("client id");
-        let enqueue_as = |operator: Option<i64>, key: &str| {
-            let mut connection = storage::database(&state.data_dir).expect("db");
-            let transaction = connection.transaction().expect("tx");
-            super::set_current_actor(operator, operator.map(|_| "sesi-lama".to_owned()));
-            let id = super::enqueue(
-                &transaction,
-                &client_id,
-                "audit",
-                "record",
-                key,
-                &serde_json::json!({ "id": key }),
-                None,
-            )
-            .expect("enqueue");
-            transaction.commit().expect("commit");
-            id
-        };
-        let milik_7a = enqueue_as(Some(7), "a");
-        let milik_7b = enqueue_as(Some(7), "b");
-        let tanpa_pemilik = enqueue_as(None, "c");
-        let milik_9 = enqueue_as(Some(9), "d");
-        super::set_current_actor(None, None);
-
-        let _ = super::supersede(&state, 7, Some("sesi-lama"), "SUPERSEDED");
-
-        let (_, siap_kirim, _) = super::pending_events(&state).expect("pending");
-        let ids: Vec<&str> = siap_kirim
-            .iter()
-            .filter_map(|event| event["eventId"].as_str())
-            .collect();
-        assert_eq!(ids, vec![milik_9.as_str()]);
-        let status = super::status(&state).expect("status");
-        assert_eq!((status.pending, status.quarantined), (1, 3));
-        assert_eq!(status.session_superseded.as_deref(), Some("SUPERSEDED"));
-
-        // Entri tanpa pemilik diwarisi operator yang tersusul.
-        let milik_sendiri = super::quarantine_entries(&state, 7, false).expect("daftar");
-        assert_eq!(milik_sendiri.as_array().map(Vec::len), Some(3));
-        assert_eq!(
-            super::quarantine_entries(&state, 9, false).expect("daftar").as_array().map(Vec::len),
-            Some(0)
-        );
-
-        // Kirim: kembali ke antrean biasa. Operator lain tidak bisa melepasnya.
-        assert_eq!(
-            super::release_quarantine(&state, &[milik_7a.clone()], 9, false).expect("lepas"),
-            0
-        );
-        assert_eq!(
-            super::release_quarantine(&state, &[milik_7a.clone()], 7, false).expect("lepas"),
-            1
-        );
-        assert_eq!(super::pending_events(&state).expect("pending").1.len(), 2);
-
-        // Buang: hanya entri karantina yang dihapus.
-        let mut connection = storage::database(&state.data_dir).expect("db");
-        let transaction = connection.transaction().expect("tx");
-        let dibuang = super::discard_quarantine(
-            &transaction,
-            &[milik_7b, tanpa_pemilik, milik_7a],
-            7,
-            false,
-        )
-        .expect("buang");
-        transaction.commit().expect("commit");
-        assert_eq!(dibuang.len(), 2);
-        let status = super::status(&state).expect("status");
-        assert_eq!((status.pending, status.quarantined), (2, 0));
-        super::clear_session_ended();
-    }
-
     #[test]
     fn status_menandai_mode_lokal_hanya_untuk_provider_local_file() {
         let directory = tempdir().expect("direktori sementara");
@@ -2324,20 +1584,13 @@ mod tests {
         // Tabel snapshot tanpa route kanonik berarti perangkat bisa menarik
         // baris dari cloud tetapi tidak akan pernah bisa mendorong perubahannya
         // balik — sinkronisasi menjadi satu arah tanpa ada yang menyadarinya.
-        //
-        // Kebalikannya juga dijaga: tabel yang sengaja hanya-baca (direktori
-        // operator) TIDAK boleh punya route, supaya perangkat tidak pernah bisa
-        // mendorong perubahan ke `master_operator`.
         for table in SNAPSHOT_TABLES {
-            let has_route = CANONICAL_SYNC_ROUTES
-                .iter()
-                .any(|(domain, _)| *domain == table.domain);
-            assert_eq!(
-                has_route, !table.read_only,
-                "domain '{}': read_only = {}, tetapi route kanonik {}",
-                table.domain,
-                table.read_only,
-                if has_route { "ada" } else { "tidak ada" }
+            assert!(
+                CANONICAL_SYNC_ROUTES
+                    .iter()
+                    .any(|(domain, _)| *domain == table.domain),
+                "domain '{}' tidak punya route kanonik",
+                table.domain
             );
         }
     }

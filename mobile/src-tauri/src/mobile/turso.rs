@@ -12,8 +12,6 @@ use sha2::{Digest, Sha256};
 use url::Url;
 use zeroize::Zeroizing;
 
-use super::clients;
-use super::samples;
 use super::models::{CommandError, OperatorUser};
 // Seam transport: dekoder sel Hrana dan jalur SQLite lokal. SQL-nya sama,
 // yang berbeda hanya ke mana ia dikirim.
@@ -403,8 +401,8 @@ const LEGACY_STORED_VALUES_MESSAGE: &str = "This database was created by a pre-r
 const DATABASE_CHECK_CORE_TABLES: [&str; 4] = [
     "app_role",
     "master_operator",
-    "clients",
-    "leads",
+    "master_item",
+    "log_aktivitas",
 ];
 
 #[derive(Clone, Debug, Serialize)]
@@ -422,8 +420,8 @@ pub struct DatabaseCheckResult {
     pub superadmin_count: i64,
     pub superadmin_username: Option<String>,
     pub operator_count: i64,
-    pub client_count: i64,
-    pub lead_count: i64,
+    pub karyawan_count: i64,
+    pub attendance_count: i64,
     pub company_name: Option<String>,
     pub error_code: Option<String>,
     pub error_message: Option<String>,
@@ -444,8 +442,8 @@ impl DatabaseCheckResult {
             superadmin_count: 0,
             superadmin_username: None,
             operator_count: 0,
-            client_count: 0,
-            lead_count: 0,
+            karyawan_count: 0,
+            attendance_count: 0,
             company_name: None,
             error_code: Some(error.code.to_owned()),
             error_message: Some(error.message.clone()),
@@ -611,56 +609,14 @@ struct SnapshotSource {
 /// `sync.rs`; ketidakcocokan membuat tabel itu tampak "tidak pernah berubah".
 const SNAPSHOT_SOURCES: &[SnapshotSource] = &[
     SnapshotSource {
-        payload_key: "clients",
-        table: "clients",
-        sql: "SELECT * FROM clients ORDER BY created_at, id;",
+        payload_key: "items",
+        table: "master_item",
+        sql: "SELECT * FROM master_item ORDER BY kode_item;",
     },
     SnapshotSource {
-        payload_key: "leads",
-        table: "leads",
-        sql: "SELECT * FROM leads ORDER BY created_at, id;",
-    },
-    SnapshotSource {
-        payload_key: "leadInteractions",
-        table: "lead_interactions",
-        sql: "SELECT * FROM lead_interactions ORDER BY occurred_at, id;",
-    },
-    SnapshotSource {
-        payload_key: "sampleRequests",
-        table: "sample_requests",
-        sql: "SELECT * FROM sample_requests ORDER BY created_at, id;",
-    },
-    SnapshotSource {
-        payload_key: "sampleFeedbacks",
-        table: "sample_feedbacks",
-        sql: "SELECT * FROM sample_feedbacks ORDER BY recorded_at, id;",
-    },
-    // Hanya data ringkas foto: `data_base64` SENGAJA tidak ikut, isinya
-    // diambil satu per satu (`get_media_data`) lalu disimpan di perangkat.
-    SnapshotSource {
-        payload_key: "mediaAssets",
-        table: "media_asset",
-        sql: "SELECT id, owner_type, owner_id, purpose, mime, byte_size, created_by, created_at FROM media_asset ORDER BY created_at, id;",
-    },
-    SnapshotSource {
-        payload_key: "sampleStatusLog",
-        table: "sample_status_log",
-        sql: "SELECT * FROM sample_status_log ORDER BY recorded_at, id;",
-    },
-    // Direktori operator hanya-baca untuk nama PIC dan pilihan pindah PIC saat
-    // offline. SENGAJA hanya empat kolom: hash password, email, nomor HP, dan
-    // rahasia 2FA tidak pernah meninggalkan cloud.
-    SnapshotSource {
-        payload_key: "operatorDirectory",
-        table: "master_operator",
-        // `role` diisi `role_key` supaya perangkat tahu siapa CRM (PIC CRM
-        // tiket sampel) tanpa ikut menyalin tabel role.
-        sql: "SELECT m.id, m.kode_operator, m.nama_operator, m.status, r.role_key AS role FROM master_operator m LEFT JOIN app_role r ON r.id = m.role_id ORDER BY m.id;",
-    },
-    SnapshotSource {
-        payload_key: "masterOptions",
-        table: "master_option",
-        sql: "SELECT * FROM master_option ORDER BY kind, sort_order, label;",
+        payload_key: "activities",
+        table: "log_aktivitas",
+        sql: "SELECT * FROM log_aktivitas ORDER BY waktu DESC LIMIT 5000;",
     },
     SnapshotSource {
         payload_key: "settings",
@@ -1257,8 +1213,6 @@ impl TursoClient {
                     revoked_at TEXT,
                     revoked_reason TEXT,
                     user_agent_hash TEXT,
-                    client_kind TEXT NOT NULL DEFAULT 'web',
-                    device_label TEXT NOT NULL DEFAULT '',
                     FOREIGN KEY (operator_id) REFERENCES master_operator(id) ON DELETE CASCADE
                 );"#,
                 vec![],
@@ -1388,14 +1342,10 @@ impl TursoClient {
                 r#"INSERT OR IGNORE INTO app_permission (permission_key, nama, grup, deskripsi, is_active, sort_order) VALUES
                 ('home.view', 'Home and navigation access', 'Navigation', 'View home and the app menu.', 1, 10),
                 ('dashboard.view', 'Dashboard access', 'Dashboard', 'View summaries and statistics.', 1, 20),
-                ('clients.view', 'View clients', 'Clients', 'View clients and their leads.', 1, 30),
-                ('clients.manage', 'Manage clients', 'Clients', 'Register new leads and edit client details.', 1, 40),
-                ('master_data.manage', 'Manage master data', 'Master data', 'Maintain lead channels and product categories.', 1, 50),
-                ('leads.view', 'View leads', 'Leads', 'View leads, their interactions, and the Cold queue.', 1, 52),
-                ('leads.manage', 'Manage own leads', 'Leads', 'Record follow ups and client responses on your own leads.', 1, 54),
-                ('leads.reassign', 'Reassign leads', 'Leads', 'Move a lead to another CS and record on any lead.', 1, 56),
-                ('samples.view', 'View sample requests', 'Samples', 'View sample requests and their history.', 1, 58),
-                ('samples.manage', 'Manage sample requests', 'Samples', 'Create sample requests and record each step, including on behalf of RnD and Finance.', 1, 59),
+                ('items.view', 'View items', 'Master data', 'View the item list.', 1, 30),
+                ('items.manage', 'Manage items', 'Master data', 'Add, edit, and deactivate items.', 1, 40),
+                ('activity.view', 'View activity log', 'Operations', 'View activity history.', 1, 50),
+                ('activity.record', 'Record activity', 'Operations', 'Record new activity.', 1, 60),
                 ('password_reset.view', 'View password reset history', 'Operators', 'Review who requested a password recovery, with their verification photo.', 1, 62),
                 ('password_reset.delete', 'Delete password reset history', 'Operators', 'Delete password recovery records and their photos.', 1, 64),
                 ('two_factor.reset', 'Reset another operator''s 2FA', 'Operators', 'Turn off two-step verification for another operator who lost their phone.', 1, 66),
@@ -1403,8 +1353,6 @@ impl TursoClient {
                 ('database_backup.export', 'Export database backup', 'System', 'Export the entire database into one backup file.', 1, 66),
                 ('database_backup.restore', 'Restore database from backup', 'System', 'Replace all device data with the contents of a backup file.', 1, 67),
                 ('operators.view', 'View operators', 'Operators', 'View operator and user account data.', 1, 70),
-                ('sessions.manage', 'Manage active sessions', 'Operators', 'View every operator''s active sessions and end them.', 1, 72),
-                ('audit.view', 'View audit log', 'Operators', 'View who changed clients, leads, and master data, and when.', 1, 74),
                 ('operators.manage', 'Manage operators', 'Operators', 'Add and edit app operators.', 1, 80),
                 ('roles.manage', 'Manage roles and access', 'Roles', 'Set the permission matrix of each role.', 1, 90),
                 ('settings.view', 'View system settings', 'Settings', 'View app and database settings.', 1, 100),
@@ -1427,19 +1375,7 @@ impl TursoClient {
                 WHERE permission_key NOT IN (
                     'roles.manage', 'operators.manage', 'operators.view', 'diagnostics.view',
                     'password_reset.delete', 'two_factor.reset', 'password_reset.approve',
-                    'database_backup.restore', 'settings.manage'
-                );"#,
-                vec![],
-            ),
-            // Operator bawaan bekerja sebagai CS sampai role divisi dibuat
-            // (PRD F-02). WAJIB sama dengan `DEFAULT_ROLE_PERMISSIONS.operator`
-            // di `catalog.ts` dan seed role 3 di `db-schema.ts`.
-            Statement::new(
-                r#"INSERT OR IGNORE INTO role_permission (role_id, permission_key, is_allowed, updated_at, updated_by)
-                SELECT 3, permission_key, 1, datetime('now'), 'system' FROM app_permission
-                WHERE permission_key IN (
-                    'home.view', 'dashboard.view', 'clients.view', 'clients.manage',
-                    'leads.view', 'leads.manage', 'samples.view', 'samples.manage', 'sync.view'
+                    'database_backup.restore', 'items.manage', 'settings.manage'
                 );"#,
                 vec![],
             ),
@@ -1450,31 +1386,6 @@ impl TursoClient {
                 r#"INSERT OR IGNORE INTO setting_gex_system (key, value) VALUES
                 ('app_name', 'App Template'),
                 ('rbac_revision', '1');"#,
-                vec![],
-            ),
-            // Role divisi (PRD FR-02), sekali saja: dijaga penanda
-            // `division_roles_seeded`. WAJIB identik dengan
-            // `DIVISION_ROLE_SEED_SQL` di `db-schema.ts` (dites per karakter).
-            Statement::new(
-                "INSERT OR IGNORE INTO app_role (role_key, nama_role, deskripsi, is_system, is_superadmin, status, created_at, updated_at) SELECT column1, column2, column3, 0, 0, 'Active', datetime('now'), datetime('now') FROM (VALUES ('cs', 'CS', 'Customer service: registers leads and follows them up.'), ('crm', 'CRM', 'Client relationship after the first order.'), ('rnd', 'R&D', 'Formulation and samples.'), ('finance', 'Finance', 'Invoices and payments.'), ('design', 'Design', 'Mockups and dummies.'), ('legal', 'Legal', 'BPOM, halal, and trademark filings.'), ('ppic', 'PPIC', 'Production planning and materials.'), ('production_spv', 'Production SPV', 'Production floor supervision.'), ('qc', 'QC', 'Quality control and claims.'), ('logistics', 'Logistics', 'Shipping and delivery.')) WHERE NOT EXISTS (SELECT 1 FROM setting_gex_system WHERE key = 'division_roles_seeded');",
-                vec![],
-            ),
-            Statement::new(
-                "INSERT OR IGNORE INTO role_permission (role_id, permission_key, is_allowed, updated_at, updated_by) SELECT r.id, p.permission_key, 1, datetime('now'), 'system' FROM app_role r JOIN app_permission p ON p.permission_key IN ('home.view', 'dashboard.view', 'sync.view') OR (r.role_key IN ('cs', 'crm') AND p.permission_key IN ('clients.view', 'leads.view')) OR (r.role_key = 'cs' AND p.permission_key IN ('clients.manage', 'leads.manage')) WHERE r.role_key IN ('cs', 'crm', 'rnd', 'finance', 'design', 'legal', 'ppic', 'production_spv', 'qc', 'logistics') AND NOT EXISTS (SELECT 1 FROM setting_gex_system WHERE key = 'division_roles_seeded');",
-                vec![],
-            ),
-            Statement::new(
-                "INSERT OR IGNORE INTO setting_gex_system (key, value) VALUES ('division_roles_seeded', '1');",
-                vec![],
-            ),
-            // Izin tiket sampel untuk CS/CRM, sekali saja. WAJIB identik dengan
-            // `SAMPLE_PERMISSION_SEED_SQL` di `db-schema.ts` (dites per karakter).
-            Statement::new(
-                "INSERT OR IGNORE INTO role_permission (role_id, permission_key, is_allowed, updated_at, updated_by) SELECT r.id, p.permission_key, 1, datetime('now'), 'system' FROM app_role r JOIN app_permission p ON (r.role_key IN ('cs', 'crm') AND p.permission_key = 'samples.view') OR (r.role_key = 'cs' AND p.permission_key = 'samples.manage') WHERE r.role_key IN ('cs', 'crm') AND NOT EXISTS (SELECT 1 FROM setting_gex_system WHERE key = 'sample_permissions_seeded');",
-                vec![],
-            ),
-            Statement::new(
-                "INSERT OR IGNORE INTO setting_gex_system (key, value) VALUES ('sample_permissions_seeded', '1');",
                 vec![],
             ),
             // Riwayat versi WAJIB lengkap, bukan hanya fondasinya.
@@ -1492,232 +1403,50 @@ impl TursoClient {
             Statement::new(
                 r#"INSERT OR IGNORE INTO schema_migration (version, name, applied_at) VALUES
                 (1, 'template-foundation-v1', datetime('now')),
-                (2, 'password-reset-and-two-factor', datetime('now')),
-                (3, 'clients-leads-master-data', datetime('now')),
-                (4, 'lead-interactions', datetime('now')),
-                (5, 'audit-log-and-division-roles', datetime('now')),
-                (6, 'single-session', datetime('now')),
-                (7, 'sample-requests', datetime('now')),
-                (8, 'media-assets', datetime('now'));"#,
+                (2, 'password-reset-and-two-factor', datetime('now'));"#,
                 vec![],
             ),
-            // ============ DOMAIN MAKLONOS ============
-            // Kolom di sini WAJIB identik dengan `db-schema.ts` dan, untuk tabel
-            // yang ikut sinkronisasi, dengan DDL lokal di `storage.rs` serta
-            // `SNAPSHOT_TABLES` di `sync.rs`. Satu kolom yang berbeda ejaan membuat
-            // push tabel itu gagal permanen. Tanpa CHECK, FOREIGN KEY, dan UNIQUE
-            // (keputusan G): nilai dan keunikan dijaga aplikasi (`clients.rs`).
+            // ============ DOMAIN CONTOH — GANTI DENGAN MILIK ANDA ============
+            // Kolom di sini WAJIB identik dengan DDL lokal di `storage.rs`,
+            // `SNAPSHOT_TABLES` di `sync.rs`, dan `db-schema.ts`. Satu kolom yang
+            // berbeda ejaan membuat push tabel itu gagal permanen.
             Statement::new(
-                r#"CREATE TABLE IF NOT EXISTS clients (
-                    id TEXT PRIMARY KEY,
-                    client_code TEXT NOT NULL,
-                    name TEXT NOT NULL,
-                    phone_normalized TEXT NOT NULL,
-                    address TEXT NOT NULL DEFAULT '',
-                    city TEXT NOT NULL DEFAULT '',
-                    province TEXT NOT NULL DEFAULT '',
-                    lifecycle_status TEXT NOT NULL DEFAULT 'LEAD',
-                    free_revision_limit INTEGER NOT NULL DEFAULT 1,
-                    is_white_label INTEGER NOT NULL DEFAULT 0,
-                    assigned_crm_id INTEGER,
-                    created_by INTEGER,
-                    created_at TEXT NOT NULL,
-                    updated_at TEXT NOT NULL
+                r#"CREATE TABLE IF NOT EXISTS master_item (
+                    id_item INTEGER PRIMARY KEY AUTOINCREMENT,
+                    kode_item TEXT NOT NULL UNIQUE,
+                    nama TEXT NOT NULL,
+                    kategori TEXT,
+                    harga INTEGER NOT NULL DEFAULT 0 CHECK (harga >= 0),
+                    satuan TEXT,
+                    catatan TEXT,
+                    status_aktif TEXT NOT NULL DEFAULT 'Active'
+                        CHECK (status_aktif IN ('Active', 'Inactive')),
+                    update_terakhir TEXT NOT NULL
                 );"#,
                 vec![],
             ),
             Statement::new(
-                r#"CREATE TABLE IF NOT EXISTS leads (
-                    id TEXT PRIMARY KEY,
-                    client_id TEXT NOT NULL,
-                    pic_cs_id INTEGER,
-                    channel_option_id TEXT NOT NULL,
-                    product_category_option_id TEXT NOT NULL,
-                    needs_notes TEXT NOT NULL DEFAULT '',
-                    last_followup_at TEXT NOT NULL DEFAULT '',
-                    last_client_response_at TEXT NOT NULL DEFAULT '',
-                    total_followups INTEGER NOT NULL DEFAULT 0,
-                    created_at TEXT NOT NULL,
-                    updated_at TEXT NOT NULL
+                r#"CREATE TABLE IF NOT EXISTS log_aktivitas (
+                    id_log INTEGER PRIMARY KEY AUTOINCREMENT,
+                    event_key TEXT NOT NULL UNIQUE,
+                    kode_item TEXT NOT NULL,
+                    jenis TEXT NOT NULL,
+                    jumlah INTEGER NOT NULL DEFAULT 0,
+                    keterangan TEXT,
+                    kode_operator TEXT,
+                    waktu TEXT NOT NULL
                 );"#,
                 vec![],
             ),
             Statement::new(
-                r#"CREATE TABLE IF NOT EXISTS master_option (
-                    id TEXT PRIMARY KEY,
-                    kind TEXT NOT NULL,
-                    code TEXT NOT NULL,
-                    label TEXT NOT NULL,
-                    is_active INTEGER NOT NULL DEFAULT 1,
-                    sort_order INTEGER NOT NULL DEFAULT 0,
-                    updated_at TEXT NOT NULL
-                );"#,
-                vec![],
-            ),
-            // Satu baris per follow up CS atau respons klien (PRD FR-05.1).
-            // Ringkasan di `leads` diperbarui handler push dengan aturan yang
-            // aman diulang, bukan dengan menimpa baris lead.
-            Statement::new(
-                r#"CREATE TABLE IF NOT EXISTS lead_interactions (
-                    id TEXT PRIMARY KEY,
-                    lead_id TEXT NOT NULL,
-                    operator_id INTEGER,
-                    direction TEXT NOT NULL,
-                    kind TEXT NOT NULL,
-                    notes TEXT NOT NULL,
-                    occurred_at TEXT NOT NULL,
-                    created_at TEXT NOT NULL
-                );"#,
-                vec![],
-            ),
-            // Log audit domain (PRD FR-10), hanya-tambah: rute `audit/record`
-            // hanya menyisipkan dan tidak ada jalur yang mengubah/menghapus.
-            Statement::new(
-                r#"CREATE TABLE IF NOT EXISTS domain_audit_log (
-                    id TEXT PRIMARY KEY,
-                    actor_operator_id INTEGER,
-                    on_behalf_of_division TEXT NOT NULL DEFAULT '',
-                    action TEXT NOT NULL,
-                    entity_type TEXT NOT NULL,
-                    entity_id TEXT NOT NULL,
-                    summary_json TEXT NOT NULL DEFAULT '{}',
-                    occurred_at TEXT NOT NULL
-                );"#,
-                vec![],
-            ),
-            // Tiket sampel (PRD FR-06): tiket, keputusan klien per iterasi, dan
-            // riwayat langkahnya. WAJIB identik dengan `db-schema.ts`.
-            Statement::new(
-                r#"CREATE TABLE IF NOT EXISTS sample_requests (
-                    id TEXT PRIMARY KEY,
-                    client_id TEXT NOT NULL,
-                    lead_id TEXT NOT NULL DEFAULT '',
-                    sample_kind_option_id TEXT NOT NULL DEFAULT '',
-                    formulation_type_option_id TEXT NOT NULL DEFAULT '',
-                    registration_category_option_id TEXT NOT NULL DEFAULT '',
-                    rnd_product_class TEXT NOT NULL DEFAULT '',
-                    product_category_option_id TEXT NOT NULL,
-                    pic_crm_id INTEGER,
-                    sample_qty INTEGER NOT NULL,
-                    brand_name TEXT NOT NULL,
-                    bpom_product_name TEXT NOT NULL DEFAULT '',
-                    claims TEXT NOT NULL DEFAULT '',
-                    packaging TEXT NOT NULL,
-                    reference_notes TEXT NOT NULL DEFAULT '',
-                    client_budget_idr INTEGER,
-                    special_requests_json TEXT NOT NULL DEFAULT '{}',
-                    deadline_at TEXT NOT NULL,
-                    ship_to_address TEXT NOT NULL,
-                    is_dummy_required INTEGER NOT NULL DEFAULT 0,
-                    is_paid_sample INTEGER NOT NULL DEFAULT 0,
-                    revision_index INTEGER NOT NULL DEFAULT 0,
-                    is_billable INTEGER NOT NULL DEFAULT 0,
-                    status TEXT NOT NULL DEFAULT 'DRAFT',
-                    rnd_lead_time_days INTEGER,
-                    sent_at TEXT NOT NULL DEFAULT '',
-                    status_changed_at TEXT NOT NULL,
-                    created_by INTEGER,
-                    created_at TEXT NOT NULL,
-                    updated_at TEXT NOT NULL
-                );"#,
+                "CREATE INDEX IF NOT EXISTS idx_item_status ON master_item(status_aktif);",
                 vec![],
             ),
             Statement::new(
-                r#"CREATE TABLE IF NOT EXISTS sample_feedbacks (
-                    id TEXT PRIMARY KEY,
-                    sample_request_id TEXT NOT NULL,
-                    iteration_number INTEGER NOT NULL,
-                    client_decision TEXT NOT NULL,
-                    client_notes TEXT NOT NULL DEFAULT '',
-                    recorded_by INTEGER,
-                    recorded_at TEXT NOT NULL
-                );"#,
+                "CREATE INDEX IF NOT EXISTS idx_aktivitas_item_waktu ON log_aktivitas(kode_item, waktu);",
                 vec![],
             ),
-            Statement::new(
-                r#"CREATE TABLE IF NOT EXISTS sample_status_log (
-                    id TEXT PRIMARY KEY,
-                    sample_request_id TEXT NOT NULL,
-                    from_status TEXT NOT NULL,
-                    to_status TEXT NOT NULL,
-                    action TEXT NOT NULL,
-                    notes TEXT NOT NULL,
-                    on_behalf_of_division TEXT NOT NULL DEFAULT '',
-                    recorded_by INTEGER,
-                    recorded_at TEXT NOT NULL
-                );"#,
-                vec![],
-            ),
-            // Foto (PRD FR-07), hanya-tambah. WAJIB identik dengan `db-schema.ts`.
-            Statement::new(
-                r#"CREATE TABLE IF NOT EXISTS media_asset (
-                    id TEXT PRIMARY KEY,
-                    owner_type TEXT NOT NULL,
-                    owner_id TEXT NOT NULL,
-                    purpose TEXT NOT NULL,
-                    mime TEXT NOT NULL,
-                    byte_size INTEGER NOT NULL,
-                    data_base64 TEXT NOT NULL DEFAULT '',
-                    created_by INTEGER,
-                    created_at TEXT NOT NULL
-                );"#,
-                vec![],
-            ),
-            // Cloud-only: tag dua karakter untuk setiap perangkat, bagian `<KP>`
-            // dari kode klien. Tidak ikut sinkronisasi, jadi UNIQUE aman.
-            Statement::new(
-                r#"CREATE TABLE IF NOT EXISTS device_tag_registry (
-                    tag TEXT PRIMARY KEY,
-                    client_id TEXT NOT NULL UNIQUE,
-                    registered_at TEXT NOT NULL
-                );"#,
-                vec![],
-            ),
-            Statement::new(
-                "CREATE INDEX IF NOT EXISTS idx_clients_phone ON clients(phone_normalized);",
-                vec![],
-            ),
-            Statement::new(
-                "CREATE INDEX IF NOT EXISTS idx_clients_code ON clients(client_code);",
-                vec![],
-            ),
-            Statement::new(
-                "CREATE INDEX IF NOT EXISTS idx_leads_client ON leads(client_id);",
-                vec![],
-            ),
-            Statement::new(
-                "CREATE INDEX IF NOT EXISTS idx_master_option_kind ON master_option(kind, sort_order);",
-                vec![],
-            ),
-            Statement::new(
-                "CREATE INDEX IF NOT EXISTS idx_lead_interactions_lead ON lead_interactions(lead_id, occurred_at);",
-                vec![],
-            ),
-            Statement::new(
-                "CREATE INDEX IF NOT EXISTS idx_domain_audit_occurred ON domain_audit_log(occurred_at);",
-                vec![],
-            ),
-            Statement::new(
-                "CREATE INDEX IF NOT EXISTS idx_domain_audit_entity ON domain_audit_log(entity_type, entity_id);",
-                vec![],
-            ),
-            Statement::new(
-                "CREATE INDEX IF NOT EXISTS idx_sample_requests_client ON sample_requests(client_id);",
-                vec![],
-            ),
-            Statement::new(
-                "CREATE INDEX IF NOT EXISTS idx_sample_feedbacks_request ON sample_feedbacks(sample_request_id, iteration_number);",
-                vec![],
-            ),
-            Statement::new(
-                "CREATE INDEX IF NOT EXISTS idx_sample_status_log_request ON sample_status_log(sample_request_id, recorded_at);",
-                vec![],
-            ),
-            Statement::new(
-                "CREATE INDEX IF NOT EXISTS idx_media_asset_owner ON media_asset(owner_type, owner_id);",
-                vec![],
-            ),
-            // =========================================
+            // =================================================================
 
         ];
 
@@ -1800,8 +1529,6 @@ impl TursoClient {
             ("sync_operation_receipt", "actor_operator_id", "ALTER TABLE sync_operation_receipt ADD COLUMN actor_operator_id INTEGER;"),
             ("sync_operation_receipt", "receipt_json", "ALTER TABLE sync_operation_receipt ADD COLUMN receipt_json TEXT NOT NULL DEFAULT '{}';"),
             ("sync_operation_receipt", "processed_at", "ALTER TABLE sync_operation_receipt ADD COLUMN processed_at TEXT;"),
-            ("app_session", "client_kind", "ALTER TABLE app_session ADD COLUMN client_kind TEXT NOT NULL DEFAULT 'web';"),
-            ("app_session", "device_label", "ALTER TABLE app_session ADD COLUMN device_label TEXT NOT NULL DEFAULT '';"),
         ] {
             self.ensure_column(table, column, sql).await?;
         }
@@ -1833,7 +1560,11 @@ impl TursoClient {
         // meskipun tidak ada baris baru, sehingga id melompat (mis. 7 -> 69 -> 111).
         // Dijalankan sekali saja karena ensure_schema hanya dipanggil ketika penanda
         // migrasi -2004 belum ada.
-        for (table, primary_key) in [("master_operator", "id")] {
+        for (table, primary_key) in [
+            ("master_item", "id_item"),
+            ("log_aktivitas", "id_log"),
+            ("master_operator", "id"),
+        ] {
             let realign = format!(
                 "UPDATE sqlite_sequence SET seq = (SELECT COALESCE(MAX({primary_key}), 0) FROM {table}) WHERE name = '{table}' AND seq > (SELECT COALESCE(MAX({primary_key}), 0) FROM {table});"
             );
@@ -1869,36 +1600,6 @@ impl TursoClient {
         .await?;
         self.query_one(
             "INSERT OR IGNORE INTO schema_migration (version, name, applied_at) VALUES (-2010, 'english-stored-values-v1', datetime('now'));",
-            vec![],
-        )
-        .await?;
-        self.query_one(
-            "INSERT OR IGNORE INTO schema_migration (version, name, applied_at) VALUES (-2011, 'clients-leads-master-data-v1', datetime('now'));",
-            vec![],
-        )
-        .await?;
-        self.query_one(
-            "INSERT OR IGNORE INTO schema_migration (version, name, applied_at) VALUES (-2012, 'lead-interactions-v1', datetime('now'));",
-            vec![],
-        )
-        .await?;
-        self.query_one(
-            "INSERT OR IGNORE INTO schema_migration (version, name, applied_at) VALUES (-2013, 'audit-log-and-division-roles-v1', datetime('now'));",
-            vec![],
-        )
-        .await?;
-        self.query_one(
-            "INSERT OR IGNORE INTO schema_migration (version, name, applied_at) VALUES (-2014, 'single-session-v1', datetime('now'));",
-            vec![],
-        )
-        .await?;
-        self.query_one(
-            "INSERT OR IGNORE INTO schema_migration (version, name, applied_at) VALUES (-2015, 'sample-requests-v1', datetime('now'));",
-            vec![],
-        )
-        .await?;
-        self.query_one(
-            "INSERT OR IGNORE INTO schema_migration (version, name, applied_at) VALUES (-2016, 'media-assets-v1', datetime('now'));",
             vec![],
         )
         .await?;
@@ -1951,8 +1652,6 @@ impl TursoClient {
                     revoked_at TEXT,
                     revoked_reason TEXT,
                     user_agent_hash TEXT,
-                    client_kind TEXT NOT NULL DEFAULT 'web',
-                    device_label TEXT NOT NULL DEFAULT '',
                     FOREIGN KEY (operator_id) REFERENCES master_operator(id) ON DELETE CASCADE
                 );"#,
             ),
@@ -2070,7 +1769,7 @@ impl TursoClient {
             .query_one(
                 // Sentinel WAJIB dinaikkan setiap kali ensure_schema menambah
                 // tabel atau kolom — nilainya di sini dan pada INSERT harus sama.
-                "SELECT COUNT(*) AS total FROM schema_migration WHERE version = -2016;",
+                "SELECT COUNT(*) AS total FROM schema_migration WHERE version = -2010;",
                 vec![],
             )
             .await
@@ -2129,8 +1828,8 @@ impl TursoClient {
             superadmin_count: 0,
             superadmin_username: None,
             operator_count: 0,
-            client_count: 0,
-            lead_count: 0,
+            karyawan_count: 0,
+            attendance_count: 0,
             company_name: None,
             error_code: None,
             error_message: None,
@@ -2167,16 +1866,17 @@ impl TursoClient {
                 .count_scalar("SELECT COUNT(*) AS total FROM master_operator WHERE status = 'Active';")
                 .await?;
         }
-        // "Database ini berisi data siapa": jumlah klien dan lead yang sudah ada,
-        // ditampilkan sebelum pengguna menghubungkannya.
-        if has_table("clients") {
-            check.client_count = self
-                .count_scalar("SELECT COUNT(*) AS total FROM clients;")
+        // Statistik domain contoh. Ganti dua blok ini dengan hitungan yang
+        // benar-benar memberi tahu pengguna "database ini berisi data siapa"
+        // sebelum mereka menghubungkannya.
+        if has_table("master_item") {
+            check.karyawan_count = self
+                .count_scalar("SELECT COUNT(*) AS total FROM master_item;")
                 .await?;
         }
-        if has_table("leads") {
-            check.lead_count = self
-                .count_scalar("SELECT COUNT(*) AS total FROM leads;")
+        if has_table("log_aktivitas") {
+            check.attendance_count = self
+                .count_scalar("SELECT COUNT(*) AS total FROM log_aktivitas;")
                 .await?;
         }
         if has_table("setting_gex_system") {
@@ -2194,418 +1894,6 @@ impl TursoClient {
                 .filter(|name| !name.is_empty());
         }
         Ok(check)
-    }
-
-    /// Kode klien lain yang sudah memakai nomor WhatsApp ini, bila ada.
-    async fn phone_owner(&self, phone: &str, client_id: &str) -> Result<Option<String>, CommandError> {
-        if phone.is_empty() {
-            return Ok(None);
-        }
-        Ok(self
-            .query_one(
-                "SELECT client_code FROM clients WHERE phone_normalized = ? AND id <> ? LIMIT 1;",
-                vec![json!(phone), json!(client_id)],
-            )
-            .await?
-            .to_objects()
-            .into_iter()
-            .next()
-            .and_then(|row| row.get("client_code").and_then(Value::as_str).map(str::to_owned)))
-    }
-
-    async fn device_tag_of(&self, client_id: &str) -> Result<Option<String>, CommandError> {
-        Ok(self
-            .query_one(
-                "SELECT tag FROM device_tag_registry WHERE client_id = ? LIMIT 1;",
-                vec![json!(client_id)],
-            )
-            .await?
-            .to_objects()
-            .into_iter()
-            .next()
-            .and_then(|row| row.get("tag").and_then(Value::as_str).map(str::to_owned)))
-    }
-
-    /// Terbitkan tag perangkat (bagian `<KP>` kode klien) untuk `client_id`
-    /// ini, atau kembalikan tag yang sudah pernah diterbitkan.
-    ///
-    /// Tag Web (`client_code_web_tag`) tidak pernah diberikan ke perangkat.
-    /// `INSERT OR IGNORE` + baca ulang membuat dua perangkat yang mendaftar
-    /// bersamaan tidak pernah mendapat tag yang sama: PK `tag` menolak yang
-    /// kalah, dan ia mencoba tag berikutnya.
-    pub async fn register_device_tag(&self, client_id: &str, web_tag: &str) -> Result<String, CommandError> {
-        self.ensure_schema_current().await?;
-        if let Some(tag) = self.device_tag_of(client_id).await? {
-            return Ok(tag);
-        }
-        let taken = self
-            .count_scalar("SELECT COUNT(*) AS total FROM device_tag_registry;")
-            .await?
-            .max(0) as u32;
-        for index in (taken + 1)..=clients::MAX_CLIENT_SEQUENCE {
-            let Some(tag) = clients::device_tag_from_index(index) else {
-                break;
-            };
-            if tag == web_tag {
-                continue;
-            }
-            let _ = self
-                .query_one(
-                    "INSERT OR IGNORE INTO device_tag_registry (tag, client_id, registered_at) VALUES (?, ?, datetime('now'));",
-                    vec![json!(tag), json!(client_id)],
-                )
-                .await;
-            if let Some(tag) = self.device_tag_of(client_id).await? {
-                return Ok(tag);
-            }
-        }
-        Err(CommandError::new(
-            "DEVICE_TAG_EXHAUSTED",
-            "No device tags are left in this database.",
-        ))
-    }
-
-    /// Waktu database, bentuk `datetime('now')`.
-    async fn database_now(&self) -> Result<String, CommandError> {
-        self.query_one("SELECT datetime('now') AS now;", vec![])
-            .await?
-            .to_objects()
-            .into_iter()
-            .next()
-            .and_then(|row| row.get("now").and_then(Value::as_str).map(str::to_owned))
-            .ok_or_else(|| CommandError::new("TURSO_QUERY_EMPTY", "The query result is empty."))
-    }
-
-    /// Buka baris `app_session` untuk perangkat ini (PRD FR-03).
-    ///
-    /// `supersede_others` = login online: sesi lain operator ini dicabut
-    /// (`SUPERSEDED`) dalam transaksi yang sama. Promosi sesi offline memanggil
-    /// dengan `false` — login offline tidak pernah mengusir perangkat lain.
-    /// Mengembalikan id sesi dan waktu cloud saat sesi itu lahir.
-    pub async fn open_device_session(
-        &self,
-        operator: &OperatorUser,
-        client_kind: &str,
-        device_label: &str,
-        supersede_others: bool,
-    ) -> Result<(String, String), CommandError> {
-        self.ensure_schema_current().await?;
-        let session_id = clients::new_uuid();
-        let mut statements = Vec::new();
-        if supersede_others {
-            statements.push(Statement::new(
-                clients::SESSION_SUPERSEDE_SQL,
-                vec![json!(operator.id)],
-            ));
-        }
-        // Perangkat tidak memegang token: kolomnya UNIQUE NOT NULL, dan
-        // awalan `device:` tidak pernah sama dengan hash hex token Web.
-        statements.push(Statement::new(
-            "INSERT INTO app_session (session_id, token_hash, operator_id, permission_revision, created_at, expires_at, last_seen_at, client_kind, device_label) VALUES (?, ?, ?, ?, datetime('now'), '9999-12-31 23:59:59', datetime('now'), ?, ?);",
-            vec![
-                json!(session_id),
-                json!(format!("device:{session_id}")),
-                json!(operator.id),
-                json!(operator.permission_revision),
-                json!(client_kind),
-                json!(device_label),
-            ],
-        ));
-        statements.push(Statement::new(clients::SESSION_PURGE_SQL, vec![]));
-        self.execute_atomic(statements).await?;
-        let created = self
-            .query_one(
-                "SELECT created_at FROM app_session WHERE session_id = ?;",
-                vec![json!(session_id)],
-            )
-            .await?
-            .to_objects()
-            .into_iter()
-            .next()
-            .and_then(|row| row.get("created_at").and_then(Value::as_str).map(str::to_owned))
-            .ok_or_else(|| CommandError::new("TURSO_QUERY_EMPTY", "The query result is empty."))?;
-        Ok((session_id, created))
-    }
-
-    /// Periksa sesi online perangkat ini dan perbarui `last_seen_at` paling
-    /// sering sekali per 5 menit. `Ok(Err(alasan))` = sesinya sudah berakhir.
-    pub async fn check_device_session(
-        &self,
-        session_id: &str,
-    ) -> Result<Result<String, String>, CommandError> {
-        let row = self
-            .query_one(
-                "SELECT datetime('now') AS now, s.session_id AS found, s.revoked_at, s.revoked_reason, CAST((julianday('now') - julianday(s.last_seen_at)) * 86400 AS INTEGER) AS idle FROM (SELECT 1) LEFT JOIN app_session s ON s.session_id = ?;",
-                vec![json!(session_id)],
-            )
-            .await?
-            .to_objects()
-            .into_iter()
-            .next()
-            .ok_or_else(|| CommandError::new("TURSO_QUERY_EMPTY", "The query result is empty."))?;
-        let text = |key: &str| row.get(key).and_then(Value::as_str).map(str::to_owned);
-        if text("found").is_none() {
-            return Ok(Err("SUPERSEDED".into()));
-        }
-        if text("revoked_at").is_some() {
-            return Ok(Err(text("revoked_reason").unwrap_or_else(|| "SUPERSEDED".into())));
-        }
-        let idle = row
-            .get("idle")
-            .and_then(lenient_i64)
-            .unwrap_or(i64::MAX);
-        if idle >= 300 {
-            self.query_one(
-                "UPDATE app_session SET last_seen_at = datetime('now') WHERE session_id = ? AND revoked_at IS NULL;",
-                vec![json!(session_id)],
-            )
-            .await?;
-        }
-        Ok(Ok(text("now").unwrap_or_default()))
-    }
-
-    /// Apakah sesi offline operator ini sudah tersusul (PRD FR-03 butir 3):
-    /// cloud punya sesinya yang lahir SETELAH kontak online terakhir perangkat.
-    /// Tanpa catatan kontak (perangkat dari versi sebelum sesi tunggal), yang
-    /// dihitung hanya sesi yang masih aktif. Mengembalikan juga waktu cloud.
-    pub async fn offline_session_superseded(
-        &self,
-        operator_id: i64,
-        last_contact: Option<&str>,
-    ) -> Result<(bool, String), CommandError> {
-        self.ensure_schema_current().await?;
-        let row = self
-            .query_one(
-                clients::OFFLINE_SESSION_SUPERSEDED_SQL,
-                vec![json!(operator_id), last_contact.map_or(Value::Null, |value| json!(value))],
-            )
-            .await?
-            .to_objects()
-            .into_iter()
-            .next()
-            .ok_or_else(|| CommandError::new("TURSO_QUERY_EMPTY", "The query result is empty."))?;
-        let total = row
-            .get("total")
-            .and_then(lenient_i64)
-            .unwrap_or(0);
-        let now = row.get("now").and_then(Value::as_str).unwrap_or_default().to_owned();
-        Ok((total > 0, now))
-    }
-
-    /// Cabut sesi cloud perangkat ini saat logout. Gagal = dibiarkan: logout
-    /// lokal tidak boleh menunggu jaringan.
-    pub async fn revoke_device_session(&self, session_id: &str) -> Result<(), CommandError> {
-        self.query_one(clients::SESSION_END_SQL, vec![json!(session_id), json!("LOGOUT")])
-            .await
-            .map(|_| ())
-    }
-
-    /// Sesi aktif semua operator (layar Audit & Sesi).
-    pub async fn list_active_sessions(&self) -> Result<Vec<Value>, CommandError> {
-        self.ensure_schema_current().await?;
-        Ok(self
-            .query_one(clients::ACTIVE_SESSION_LIST_SQL, vec![])
-            .await?
-            .to_objects()
-            .into_iter()
-            .map(|row| json!(row))
-            .collect())
-    }
-
-    /// Akhiri satu sesi (`session_id`) atau semua sesi seorang operator
-    /// (`operator_id`), beserta baris log auditnya dalam satu transaksi cloud.
-    /// Mengembalikan jumlah sesi yang benar-benar diakhiri.
-    pub async fn end_sessions(
-        &self,
-        actor: &OperatorUser,
-        session_id: Option<&str>,
-        operator_id: Option<i64>,
-        reason: &str,
-    ) -> Result<i64, CommandError> {
-        self.ensure_schema_current().await?;
-        let (count_sql, target, end_sql, entity_id, target_operator) = match (session_id, operator_id) {
-            (Some(session_id), None) => {
-                let owner = self
-                    .query_one(
-                        "SELECT operator_id FROM app_session WHERE session_id = ? AND revoked_at IS NULL;",
-                        vec![json!(session_id)],
-                    )
-                    .await?
-                    .to_objects()
-                    .into_iter()
-                    .next()
-                    .and_then(|row| row.get("operator_id").and_then(lenient_i64));
-                let Some(owner) = owner else {
-                    return Err(CommandError::new("SESSION_NOT_FOUND", "That session has already ended."));
-                };
-                (
-                    "SELECT COUNT(*) AS total FROM app_session WHERE session_id = ? AND revoked_at IS NULL;",
-                    json!(session_id),
-                    clients::SESSION_END_SQL,
-                    session_id.to_owned(),
-                    owner,
-                )
-            }
-            (None, Some(operator_id)) => (
-                "SELECT COUNT(*) AS total FROM app_session WHERE operator_id = ? AND revoked_at IS NULL;",
-                json!(operator_id),
-                clients::SESSION_END_OPERATOR_SQL,
-                format!("operator:{operator_id}"),
-                operator_id,
-            ),
-            _ => {
-                return Err(CommandError::new(
-                    "VALIDATION_ERROR",
-                    "Choose one session or one operator.",
-                ))
-            }
-        };
-        let ended = self
-            .query_one(count_sql, vec![target.clone()])
-            .await?
-            .to_objects()
-            .into_iter()
-            .next()
-            .and_then(|row| row.get("total").and_then(lenient_i64))
-            .unwrap_or(0);
-        let occurred_at = self.database_now().await?;
-        let summary = json!({
-            "operator_id": target_operator,
-            "reason": reason,
-            "sessions": ended,
-        })
-        .to_string();
-        self.execute_atomic(vec![
-            Statement::new(end_sql, vec![target, json!(clients::SESSION_ENDED_BY_ADMIN)]),
-            Statement::new(
-                clients::DOMAIN_AUDIT_INSERT_SQL,
-                vec![
-                    json!(clients::new_uuid()),
-                    json!(actor.id),
-                    json!(actor.role),
-                    json!(if session_id.is_some() { "session.end" } else { "session.end_all" }),
-                    json!("session"),
-                    json!(entity_id),
-                    json!(summary),
-                    json!(occurred_at),
-                ],
-            ),
-        ])
-        .await?;
-        Ok(ended)
-    }
-
-    /// Pemeriksaan tiket sampel sebelum mutasinya disusun. `Some(pesan)` =
-    /// konflik. Lihat pemanggilnya di `push_events`.
-    async fn sample_guard(
-        &self,
-        operation: &str,
-        entity_key: &str,
-        payload: &Value,
-    ) -> Result<Option<String>, CommandError> {
-        let row = self
-            .query_one(
-                "SELECT s.status, s.is_paid_sample, s.revision_index, s.updated_at, COALESCE(c.free_revision_limit, 0) AS free_revision_limit FROM sample_requests s LEFT JOIN clients c ON c.id = s.client_id WHERE s.id = ?;",
-                vec![json!(entity_key)],
-            )
-            .await?
-            .to_objects()
-            .into_iter()
-            .next();
-        let Some(row) = row else {
-            return Ok(Some("This sample request does not exist in the database.".into()));
-        };
-        let cloud_text = |key: &str| row.get(key).and_then(Value::as_str).unwrap_or_default().to_owned();
-        let cloud_int = |key: &str| row.get(key).and_then(lenient_i64).unwrap_or(0);
-        let payload_text = |key: &str| payload.get(key).and_then(Value::as_str).unwrap_or_default().to_owned();
-        let changed = samples::SAMPLE_CHANGED_ELSEWHERE.to_owned();
-        if operation == "update" {
-            return Ok((cloud_text("updated_at") != payload_text("base_updated_at")).then_some(changed));
-        }
-        let base_index = payload.get("base_revision_index").and_then(Value::as_i64).unwrap_or(-1);
-        if cloud_text("status") != payload_text("base_status") || cloud_int("revision_index") != base_index {
-            return Ok(Some(changed));
-        }
-        let state = samples::SampleActionState {
-            status: &payload_text("base_status"),
-            is_paid_sample: cloud_int("is_paid_sample") != 0,
-            revision_index: cloud_int("revision_index"),
-            free_revision_limit: cloud_int("free_revision_limit"),
-        };
-        let expected = samples::apply_sample_action(
-            &state,
-            &payload_text("action"),
-            payload.get("rnd_lead_time_days").and_then(Value::as_i64),
-        );
-        let matches = expected.as_ref().is_ok_and(|result| {
-            result.status == payload_text("status")
-                && result.revision_index == payload.get("revision_index").and_then(Value::as_i64).unwrap_or(-1)
-                && result.is_billable == payload.get("is_billable").and_then(Value::as_bool)
-        });
-        Ok((!matches).then(|| match expected {
-            Err(message) => message.to_owned(),
-            Ok(_) => "The sample step does not match the company rules in the database.".to_owned(),
-        }))
-    }
-
-    /// Isi satu foto dari cloud (base64), atau `None` bila tidak ada.
-    pub async fn get_media_data(&self, id: &str) -> Result<Option<String>, CommandError> {
-        self.ensure_schema_current().await?;
-        Ok(self
-            .query_one("SELECT data_base64 FROM media_asset WHERE id = ?;", vec![json!(id)])
-            .await?
-            .to_objects()
-            .into_iter()
-            .next()
-            .and_then(|row| row.get("data_base64").and_then(Value::as_str).map(str::to_owned))
-            .filter(|data| !data.is_empty()))
-    }
-
-    /// Log audit domain dari cloud (layar Audit). Parameter sama dengan
-    /// `clients::DOMAIN_AUDIT_LIST_SQL`.
-    pub async fn list_domain_audit(&self, params: Vec<Value>) -> Result<Vec<Value>, CommandError> {
-        self.ensure_schema_current().await?;
-        Ok(self
-            .query_one(clients::DOMAIN_AUDIT_LIST_SQL, params)
-            .await?
-            .to_objects()
-            .into_iter()
-            .map(|row| {
-                let text = |key: &str| row.get(key).and_then(Value::as_str).unwrap_or_default().to_owned();
-                let actor = row
-                    .get("actor_operator_id")
-                    .and_then(lenient_i64);
-                json!({
-                    "id": text("id"),
-                    "actor_operator_id": actor,
-                    "actor_name": row.get("actor_name").and_then(Value::as_str),
-                    "on_behalf_of_division": text("on_behalf_of_division"),
-                    "action": text("action"),
-                    "entity_type": text("entity_type"),
-                    "entity_id": text("entity_id"),
-                    "summary_json": text("summary_json"),
-                    "occurred_at": text("occurred_at"),
-                })
-            })
-            .collect())
-    }
-
-    /// Apakah tag ini sudah diberikan ke salah satu perangkat.
-    pub async fn device_tag_taken(&self, tag: &str) -> Result<bool, CommandError> {
-        self.ensure_schema_current().await?;
-        Ok(self
-            .query_one(
-                "SELECT COUNT(*) AS total FROM device_tag_registry WHERE tag = ?;",
-                vec![json!(tag)],
-            )
-            .await?
-            .to_objects()
-            .into_iter()
-            .next()
-            .and_then(|row| row.get("total").cloned())
-            .and_then(|value| value.as_i64().or_else(|| value.as_str().and_then(|text| text.parse().ok())))
-            .unwrap_or(0)
-            > 0)
     }
 
     async fn count_scalar(&self, sql: &str) -> Result<i64, CommandError> {
@@ -3494,85 +2782,6 @@ impl TursoClient {
             // hierarki prioritas sumber operasional dan konkurensi optimistis
             // ditegakkan SEBELUM mutasi disusun. Tambahkan guard Anda di sini
             // bila domain Anda punya aturan "siapa boleh menimpa siapa".
-            //
-            // Nomor WhatsApp unik per database, dijaga aplikasi (bukan UNIQUE).
-            // Dua perangkat offline yang mendaftarkan nomor sama: yang kedua
-            // tiba menjadi konflik yang menyebut pemilik nomornya (PRD E-04).
-            // ponytail: ada jeda sempit antara pemeriksaan ini dan transaksi
-            // mutasinya; bila dua push untuk nomor sama tiba di milidetik yang
-            // sama, keduanya bisa lolos. Pindahkan ke guard di dalam transaksi
-            // bila itu pernah terjadi.
-            if domain == "client" {
-                let phone = parsed_payload
-                    .get("phone_normalized")
-                    .and_then(Value::as_str)
-                    .unwrap_or_default();
-                if let Some(owner) = self.phone_owner(phone, entity_key).await? {
-                    let message = format!(
-                        "The WhatsApp number {phone} is already registered to client {owner}."
-                    );
-                    push_results.push(json!({
-                        "eventId": event_id,
-                        "status": "conflict",
-                        "reason": message.clone(),
-                        "message": message,
-                        "serverRevision": 0
-                    }));
-                    continue;
-                }
-            }
-
-            // Tiket sampel: langkah dan suntingan hanya berlaku bila tiket di
-            // cloud masih seperti yang dilihat pencatatnya, dan langkahnya
-            // dihitung ulang dengan aturan cloud (PRD FR-06, E-05). Jeda sempit
-            // yang sama dengan guard nomor WhatsApp di atas; WHERE status di
-            // `SAMPLE_TRANSITION_SQL` menutup sisanya.
-            if domain == "sample" && operation != "create" {
-                if let Some(message) = self
-                    .sample_guard(operation, entity_key, &parsed_payload)
-                    .await?
-                {
-                    push_results.push(json!({
-                        "eventId": event_id,
-                        "status": "conflict",
-                        "reason": message.clone(),
-                        "message": message,
-                        "serverRevision": 0
-                    }));
-                    continue;
-                }
-            }
-
-            // Foto hanya untuk tiket yang ada di cloud. Event `sample/create`
-            // tiba lebih dulu di antrean yang sama, jadi urutannya terjaga.
-            if domain == "media" {
-                let owner = parsed_payload
-                    .get("owner_id")
-                    .and_then(Value::as_str)
-                    .unwrap_or_default();
-                let found = self
-                    .query_one(
-                        "SELECT COUNT(*) AS total FROM sample_requests WHERE id = ?;",
-                        vec![json!(owner)],
-                    )
-                    .await?
-                    .to_objects()
-                    .into_iter()
-                    .next()
-                    .and_then(|row| row.get("total").and_then(lenient_i64))
-                    .unwrap_or(0);
-                if found == 0 {
-                    let message = "The sample request for this photo does not exist in the database.".to_owned();
-                    push_results.push(json!({
-                        "eventId": event_id,
-                        "status": "conflict",
-                        "reason": message.clone(),
-                        "message": message,
-                        "serverRevision": 0
-                    }));
-                    continue;
-                }
-            }
 
             let collector = StatementCollector::default();
             if let Err(error) =
@@ -4220,15 +3429,15 @@ impl TursoClient {
                 "The permission list contains inactive or unknown keys.",
             ));
         }
-        // Setiap izin katalog disimpan sebagai baris 0/1, sama dengan jalur Web
-        // (`role-admin.ts`). Izin yang dicabut TIDAK dihapus: seed
-        // `INSERT OR IGNORE` yang berjalan tiap kali skema naik versi akan
-        // memberikannya kembali secara diam-diam bila barisnya hilang.
-        let mut stmts = Vec::with_capacity(available.len() + 1);
-        for p_key in &available {
+        let mut stmts = vec![Statement::new(
+            "DELETE FROM role_permission WHERE role_id = ?;",
+            vec![json!(role_id)],
+        )];
+
+        for p_key in permissions {
             stmts.push(Statement::new(
-                "INSERT INTO role_permission (role_id, permission_key, is_allowed, updated_at, updated_by) VALUES (?, ?, ?, datetime('now'), 'system') ON CONFLICT(role_id, permission_key) DO UPDATE SET is_allowed = excluded.is_allowed, updated_at = excluded.updated_at, updated_by = excluded.updated_by;",
-                vec![json!(role_id), json!(p_key), json!(i64::from(permissions.contains(p_key)))],
+                "INSERT INTO role_permission (role_id, permission_key, is_allowed, updated_at, updated_by) VALUES (?, ?, 1, datetime('now'), 'system');",
+                vec![json!(role_id), json!(p_key)],
             ));
         }
 
@@ -4292,31 +3501,20 @@ impl TursoClient {
 /// Daftar ini WAJIB sama persis dengan `CANONICAL_SYNC_ROUTES` di `sync.rs`.
 fn canonical_sync_route(domain: &str, operation: &str) -> Option<(&'static str, &'static str)> {
     let canonical_domain = match domain {
-        "client" | "clients" => "client",
-        "master-option" | "master_option" => "master-option",
+        "item" | "master_item" => "item",
+        "activity" | "log_aktivitas" | "activity_log" => "activity",
         "setting" | "setting_gex_system" => "setting",
         "company-profile" | "company_profile" => "company-profile",
-        "lead-interaction" | "lead_interactions" => "lead-interaction",
-        "lead" | "leads" => "lead",
-        "sample" | "sample_requests" => "sample",
-        "media" | "media_asset" => "media",
-        "audit" | "domain_audit_log" => "audit",
         _ => return None,
     };
     let canonical_operation = match (canonical_domain, operation) {
-        ("client", "register") => "register",
-        ("client", "update") => "update",
-        ("master-option", "upsert") => "upsert",
+        ("item", "create") => "create",
+        ("item", "update") => "update",
+        ("item", "delete") => "delete",
+        ("activity", "record" | "create") => "record",
         ("setting", "update") => "update",
         ("setting", "upsert") => "upsert",
         ("company-profile", "update") => "update",
-        ("lead-interaction", "record") => "record",
-        ("lead", "reassign") => "reassign",
-        ("sample", "create") => "create",
-        ("sample", "update") => "update",
-        ("sample", "transition") => "transition",
-        ("media", "upload") => "upload",
-        ("audit", "record") => "record",
         _ => return None,
     };
     Some((canonical_domain, canonical_operation))
@@ -4370,469 +3568,101 @@ async fn apply_event_to_turso(
     };
 
     match (domain, operation) {
-        ("client", "register" | "update") => {
-            // Satu event membawa baris `clients` DAN `leads` supaya registrasi
-            // tidak pernah tiba separuh. `client_code`, `created_by`, dan
-            // `created_at` tidak pernah berubah setelah registrasi; kolom
-            // interaksi lead (`last_*`, `total_followups`) milik F-05 dan tidak
-            // ditimpa pengubahan profil dari perangkat lain.
-            let lead_id = text("lead_id");
-            let name = text("name");
-            let phone = text("phone_normalized");
-            let code = text("client_code");
-            let lifecycle = text("lifecycle_status");
-            let valid = !entity_key.is_empty()
-                && !lead_id.is_empty()
-                && !code.is_empty()
-                && name.trim().chars().count() >= clients::CLIENT_NAME_MIN
-                && clients::normalize_whatsapp(&phone).as_deref() == Some(phone.as_str())
-                && !text("channel_option_id").is_empty()
-                && !text("product_category_option_id").is_empty()
-                && clients::CLIENT_LIFECYCLE_STATUSES.contains(&lifecycle.as_str());
-            if !valid {
-                return Err(CommandError::new(
-                    "TURSO_SYNC_PAYLOAD_INVALID",
-                    "The client payload is incomplete or invalid.",
-                ));
-            }
-            let optional_id = |key: &str| -> Value {
-                payload
-                    .get(key)
-                    .filter(|value| value.is_i64())
-                    .cloned()
-                    .unwrap_or(Value::Null)
-            };
-            turso
-                .query_one(
-                    r#"INSERT INTO clients
-                        (id, client_code, name, phone_normalized, address, city, province,
-                         lifecycle_status, free_revision_limit, is_white_label, assigned_crm_id,
-                         created_by, created_at, updated_at)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                       ON CONFLICT(id) DO UPDATE SET
-                         name = excluded.name,
-                         phone_normalized = excluded.phone_normalized,
-                         address = excluded.address,
-                         city = excluded.city,
-                         province = excluded.province,
-                         -- `lifecycle_status` SENGAJA tidak ditimpa: nilainya
-                         -- diturunkan dari tiket sampel di cloud
-                         -- (`CLIENT_LIFECYCLE_FROM_SAMPLES_SQL`), dan salinan
-                         -- perangkat yang menyunting profil bisa sudah basi.
-                         free_revision_limit = excluded.free_revision_limit,
-                         is_white_label = excluded.is_white_label,
-                         assigned_crm_id = excluded.assigned_crm_id,
-                         updated_at = excluded.updated_at;"#,
-                    vec![
-                        json!(entity_key),
-                        json!(code),
-                        json!(name),
-                        json!(phone),
-                        json!(text("address")),
-                        json!(text("city")),
-                        json!(text("province")),
-                        json!(lifecycle),
-                        json!(number("free_revision_limit")),
-                        json!(number("is_white_label")),
-                        optional_id("assigned_crm_id"),
-                        optional_id("created_by"),
-                        json!(text("created_at")),
-                        json!(text("updated_at")),
-                    ],
-                )
-                .await?;
-            turso
-                .query_one(
-                    r#"INSERT INTO leads
-                        (id, client_id, pic_cs_id, channel_option_id, product_category_option_id,
-                         needs_notes, last_followup_at, last_client_response_at, total_followups,
-                         created_at, updated_at)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                       ON CONFLICT(id) DO UPDATE SET
-                         channel_option_id = excluded.channel_option_id,
-                         product_category_option_id = excluded.product_category_option_id,
-                         needs_notes = excluded.needs_notes,
-                         updated_at = excluded.updated_at;"#,
-                    vec![
-                        json!(lead_id),
-                        json!(entity_key),
-                        optional_id("pic_cs_id"),
-                        json!(text("channel_option_id")),
-                        json!(text("product_category_option_id")),
-                        json!(text("needs_notes")),
-                        json!(text("last_followup_at")),
-                        json!(text("last_client_response_at")),
-                        json!(number("total_followups")),
-                        json!(text("created_at")),
-                        json!(text("updated_at")),
-                    ],
-                )
-                .await?;
-        }
-        ("master-option", "upsert") => {
-            let kind = text("kind");
-            let code = text("code");
-            let label = text("label");
-            let valid = !entity_key.is_empty()
-                && clients::MASTER_OPTION_KINDS.contains(&kind.as_str())
-                && clients::normalize_option_code(&code).as_deref() == Some(code.as_str())
-                && !label.trim().is_empty()
-                && label.chars().count() <= clients::OPTION_LABEL_MAX;
-            if !valid {
-                return Err(CommandError::new(
-                    "TURSO_SYNC_PAYLOAD_INVALID",
-                    "The master data option is incomplete or invalid.",
-                ));
-            }
-            // `kind` sengaja tidak ikut DO UPDATE: opsi tidak pernah pindah jenis.
-            turso
-                .query_one(
-                    r#"INSERT INTO master_option (id, kind, code, label, is_active, sort_order, updated_at)
-                       VALUES (?, ?, ?, ?, ?, ?, ?)
-                       ON CONFLICT(id) DO UPDATE SET
-                         code = excluded.code,
-                         label = excluded.label,
-                         is_active = excluded.is_active,
-                         sort_order = excluded.sort_order,
-                         updated_at = excluded.updated_at;"#,
-                    vec![
-                        json!(entity_key),
-                        json!(kind),
-                        json!(code),
-                        json!(label),
-                        json!(i64::from(number("is_active") != 0)),
-                        json!(number("sort_order")),
-                        json!(text("updated_at")),
-                    ],
-                )
-                .await?;
-        }
-        ("lead-interaction", "record") => {
-            // Hanya baris interaksi yang dikirim; ringkasan lead diperbarui di
-            // sini dengan aturan yang aman diulang, sehingga dua perangkat
-            // offline yang mencatat di lead yang sama tidak saling bentrok.
-            let lead_id = text("lead_id");
-            let direction = text("direction");
-            let kind = text("kind");
-            let notes = text("notes");
-            let occurred_at = text("occurred_at");
-            let valid = !entity_key.is_empty()
-                && !lead_id.is_empty()
-                && clients::LEAD_INTERACTION_DIRECTIONS.contains(&direction.as_str())
-                && clients::LEAD_INTERACTION_KINDS.contains(&kind.as_str())
-                && !notes.trim().is_empty()
-                && notes.chars().count() <= clients::INTERACTION_NOTES_MAX
-                // Bentuk kanonik saja: perbandingan `>` di SQL membandingkan teks.
-                && clients::parse_stored_timestamp(&occurred_at)
-                    .map(clients::utc_timestamp)
-                    .as_deref()
-                    == Some(occurred_at.as_str());
-            if !valid {
-                return Err(CommandError::new(
-                    "TURSO_SYNC_PAYLOAD_INVALID",
-                    "The lead interaction is incomplete or invalid.",
-                ));
-            }
-            let operator_id = payload
-                .get("operator_id")
-                .filter(|value| value.is_i64())
-                .cloned()
-                .unwrap_or(Value::Null);
-            turso
-                .query_one(
-                    clients::LEAD_SUMMARY_UPDATE_SQL,
-                    vec![json!(direction), json!(occurred_at), json!(lead_id), json!(entity_key)],
-                )
-                .await?;
-            turso
-                .query_one(
-                    clients::LEAD_INTERACTION_INSERT_SQL,
-                    vec![
-                        json!(entity_key),
-                        json!(lead_id),
-                        operator_id,
-                        json!(direction),
-                        json!(kind),
-                        json!(notes),
-                        json!(occurred_at),
-                        json!(text("created_at")),
-                    ],
-                )
-                .await?;
-        }
-        ("sample", "create" | "update") => {
-            // Draft divalidasi ulang dengan aturan yang sama dengan perangkat
-            // dan Web. `is_paid_sample` sudah diputuskan pembuatnya menurut
-            // setelan saat itu, jadi di sini diperiksa sebagai pilihan tetap.
-            let paid_mode = if payload.get("is_paid_sample").and_then(Value::as_bool) == Some(true) {
-                "PAID"
-            } else {
-                "FREE"
-            };
-            let draft = samples::validate_sample_draft(payload, paid_mode).map_err(|message| {
-                CommandError::new("TURSO_SYNC_PAYLOAD_INVALID", message)
-            })?;
-            let timestamp = text("updated_at");
-            if entity_key.is_empty() || clients::parse_stored_timestamp(&timestamp).is_none() {
-                return Err(CommandError::new(
-                    "TURSO_SYNC_PAYLOAD_INVALID",
-                    "The sample request is incomplete or invalid.",
-                ));
-            }
-            let field = |key: &str| draft.get(key).cloned().unwrap_or(Value::Null);
-            let flag = |key: &str| json!(i64::from(draft[key].as_bool() == Some(true)));
-            if operation == "create" {
-                let client_id = text("client_id");
-                if client_id.is_empty() {
-                    return Err(CommandError::new(
-                        "TURSO_SYNC_PAYLOAD_INVALID",
-                        "The sample request has no client.",
-                    ));
-                }
-                turso
-                    .query_one(
-                        samples::SAMPLE_INSERT_SQL,
-                        vec![
-                            json!(entity_key),
-                            json!(client_id),
-                            json!(text("lead_id")),
-                            field("sample_kind_option_id"),
-                            field("formulation_type_option_id"),
-                            field("registration_category_option_id"),
-                            field("product_category_option_id"),
-                            field("pic_crm_id"),
-                            field("sample_qty"),
-                            field("brand_name"),
-                            field("bpom_product_name"),
-                            field("claims"),
-                            field("packaging"),
-                            field("reference_notes"),
-                            field("client_budget_idr"),
-                            field("special_requests_json"),
-                            field("deadline_at"),
-                            field("ship_to_address"),
-                            flag("is_dummy_required"),
-                            flag("is_paid_sample"),
-                            json!(timestamp),
-                            payload.get("created_by").filter(|value| value.is_i64()).cloned().unwrap_or(Value::Null),
-                        ],
-                    )
-                    .await?;
-                turso
-                    .query_one(
-                        samples::CLIENT_LIFECYCLE_FROM_SAMPLES_SQL,
-                        vec![json!(client_id), json!(timestamp)],
-                    )
-                    .await?;
-            } else {
-                turso
-                    .query_one(
-                        samples::SAMPLE_UPDATE_SQL,
-                        vec![
-                            json!(entity_key),
-                            field("sample_kind_option_id"),
-                            field("formulation_type_option_id"),
-                            field("registration_category_option_id"),
-                            field("product_category_option_id"),
-                            field("sample_qty"),
-                            field("brand_name"),
-                            field("bpom_product_name"),
-                            field("claims"),
-                            field("packaging"),
-                            field("reference_notes"),
-                            field("special_requests_json"),
-                            flag("is_dummy_required"),
-                            flag("is_paid_sample"),
-                            field("pic_crm_id"),
-                            field("client_budget_idr"),
-                            field("deadline_at"),
-                            field("ship_to_address"),
-                            json!(timestamp),
-                        ],
-                    )
-                    .await?;
-            }
-        }
-        ("sample", "transition") => {
-            // Kecocokan dengan status cloud dan aturan diagram sudah diperiksa
-            // guard di `push_events`; WHERE status/revisi di SQL menjaga sisanya.
-            let status = text("status");
-            let base_status = text("base_status");
-            let action = text("action");
-            let changed_at = text("changed_at");
-            let client_id = text("client_id");
-            let log = payload.get("log").filter(|value| value.is_object());
-            let notes = log
-                .and_then(|log| log.get("notes"))
+        ("item", "create" | "update") => {
+            let kode_item = payload
+                .get("kode_item")
                 .and_then(Value::as_str)
-                .and_then(samples::normalize_sample_notes);
-            let valid = !entity_key.is_empty()
-                && !client_id.is_empty()
-                && samples::SAMPLE_STATUSES.contains(&status.as_str())
-                && samples::SAMPLE_STATUSES.contains(&base_status.as_str())
-                && samples::SAMPLE_ACTIONS.contains(&action.as_str())
-                && clients::parse_stored_timestamp(&changed_at).is_some()
-                && notes.is_some();
-            let (Some(log), Some(notes), true) = (log, notes, valid) else {
+                .filter(|value| !value.is_empty())
+                .unwrap_or(entity_key);
+            let nama = text("nama");
+            if kode_item.is_empty() || nama.chars().count() < 2 {
                 return Err(CommandError::new(
                     "TURSO_SYNC_PAYLOAD_INVALID",
-                    "The sample step is incomplete or invalid.",
+                    "Item wajib memiliki kode dan nama minimal dua karakter.",
                 ));
+            }
+            let status = match text("status_aktif").as_str() {
+                "Inactive" => "Inactive",
+                _ => "Active",
             };
-            let optional_int = |value: Option<&Value>| -> Value {
-                value.filter(|value| value.is_i64()).cloned().unwrap_or(Value::Null)
-            };
-            let billable = payload
-                .get("is_billable")
-                .and_then(Value::as_bool)
-                .map_or(Value::Null, |billable| json!(i64::from(billable)));
             turso
                 .query_one(
-                    samples::SAMPLE_TRANSITION_SQL,
+                    r#"INSERT INTO master_item
+                        (kode_item, nama, kategori, harga, satuan, catatan, status_aktif, update_terakhir)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                       ON CONFLICT(kode_item) DO UPDATE SET
+                         nama = excluded.nama,
+                         kategori = excluded.kategori,
+                         harga = excluded.harga,
+                         satuan = excluded.satuan,
+                         catatan = excluded.catatan,
+                         status_aktif = excluded.status_aktif,
+                         update_terakhir = excluded.update_terakhir;"#,
                     vec![
-                        json!(entity_key),
+                        json!(kode_item),
+                        json!(nama),
+                        json!(text("kategori")),
+                        json!(number("harga")),
+                        json!(text("satuan")),
+                        json!(text("catatan")),
                         json!(status),
-                        json!(number("revision_index")),
-                        billable,
-                        optional_int(payload.get("rnd_lead_time_days")),
-                        json!(changed_at),
-                        json!(base_status),
-                        json!(number("base_revision_index")),
-                    ],
-                )
-                .await?;
-            turso
-                .query_one(
-                    samples::SAMPLE_STATUS_LOG_INSERT_SQL,
-                    vec![
-                        json!(log.get("id").and_then(Value::as_str).unwrap_or_default()),
-                        json!(entity_key),
-                        json!(base_status),
-                        json!(status),
-                        json!(action),
-                        json!(notes),
-                        json!(log.get("on_behalf_of_division").and_then(Value::as_str).unwrap_or_default()),
-                        optional_int(log.get("recorded_by")),
-                        json!(changed_at),
-                    ],
-                )
-                .await?;
-            if let Some(feedback) = payload.get("feedback").filter(|value| value.is_object()) {
-                let decision = feedback.get("client_decision").and_then(Value::as_str).unwrap_or_default();
-                if !["ACC", "REVISE", "REJECT"].contains(&decision) {
-                    return Err(CommandError::new(
-                        "TURSO_SYNC_PAYLOAD_INVALID",
-                        "The client decision is invalid.",
-                    ));
-                }
-                turso
-                    .query_one(
-                        samples::SAMPLE_FEEDBACK_INSERT_SQL,
-                        vec![
-                            json!(feedback.get("id").and_then(Value::as_str).unwrap_or_default()),
-                            json!(entity_key),
-                            optional_int(feedback.get("iteration_number")),
-                            json!(decision),
-                            json!(notes),
-                            optional_int(log.get("recorded_by")),
-                            json!(changed_at),
-                        ],
-                    )
-                    .await?;
-            }
-            turso
-                .query_one(
-                    samples::CLIENT_LIFECYCLE_FROM_SAMPLES_SQL,
-                    vec![json!(client_id), json!(changed_at)],
-                )
-                .await?;
-        }
-        ("media", "upload") => {
-            // Hanya-tambah (D-13): kiriman ulang diabaikan. Isinya diperiksa
-            // ulang dengan aturan yang sama dengan Web (`validateMediaUpload`),
-            // dan ukurannya dihitung di sini, bukan dipercaya dari payload.
-            let purpose = text("purpose");
-            let data = text("data_base64");
-            let owner_id = text("owner_id");
-            let created_at = text("created_at");
-            let byte_size = samples::validate_media_upload(&purpose, &data)
-                .map_err(|message| CommandError::new("TURSO_SYNC_PAYLOAD_INVALID", message))?;
-            if entity_key.is_empty()
-                || text("owner_type") != "sample"
-                || owner_id.is_empty()
-                || clients::parse_stored_timestamp(&created_at).is_none()
-            {
-                return Err(CommandError::new(
-                    "TURSO_SYNC_PAYLOAD_INVALID",
-                    "The photo is incomplete or invalid.",
-                ));
-            }
-            turso
-                .query_one(
-                    samples::MEDIA_INSERT_SQL,
-                    vec![
-                        json!(entity_key),
-                        json!(owner_id),
-                        json!(purpose),
-                        json!(byte_size),
-                        json!(data),
-                        payload.get("created_by").filter(|value| value.is_i64()).cloned().unwrap_or(Value::Null),
-                        json!(created_at),
                     ],
                 )
                 .await?;
         }
-        ("audit", "record") => {
-            // Hanya-tambah: kiriman ulang diabaikan, baris yang sudah ada tidak
-            // pernah ditimpa (PRD FR-10.2).
-            let action = text("action");
-            let entity_type = text("entity_type");
-            let entity_id = text("entity_id");
-            let occurred_at = text("occurred_at");
-            let valid = !entity_key.is_empty()
-                && !action.is_empty()
-                && !entity_type.is_empty()
-                && !entity_id.is_empty()
-                && clients::parse_stored_timestamp(&occurred_at).is_some();
-            if !valid {
+        ("item", "delete") => {
+            if entity_key.is_empty() {
                 return Err(CommandError::new(
                     "TURSO_SYNC_PAYLOAD_INVALID",
-                    "The audit entry is incomplete or invalid.",
+                    "Penghapusan item wajib menyertakan kode item.",
                 ));
             }
-            let actor = payload
-                .get("actor_operator_id")
-                .filter(|value| value.is_i64())
-                .cloned()
-                .unwrap_or(Value::Null);
             turso
                 .query_one(
-                    clients::DOMAIN_AUDIT_INSERT_SQL,
-                    vec![
-                        json!(entity_key),
-                        actor,
-                        json!(text("on_behalf_of_division")),
-                        json!(action),
-                        json!(entity_type),
-                        json!(entity_id),
-                        json!(text("summary_json")),
-                        json!(occurred_at),
-                    ],
+                    "DELETE FROM master_item WHERE kode_item = ?;",
+                    vec![json!(entity_key)],
                 )
                 .await?;
         }
-        ("lead", "reassign") => {
-            let pic = payload.get("pic_cs_id").and_then(Value::as_i64).filter(|id| *id > 0);
-            let (Some(pic), false) = (pic, entity_key.is_empty()) else {
+        ("activity", "record") => {
+            let event_key = payload
+                .get("event_key")
+                .and_then(Value::as_str)
+                .filter(|value| !value.is_empty())
+                .unwrap_or(entity_key);
+            let kode_item = text("kode_item");
+            let jenis = text("jenis");
+            if event_key.is_empty() || kode_item.is_empty() || jenis.is_empty() {
                 return Err(CommandError::new(
                     "TURSO_SYNC_PAYLOAD_INVALID",
-                    "The lead reassignment is incomplete or invalid.",
+                    "Aktivitas wajib memiliki event_key, kode item, dan jenis.",
                 ));
+            }
+            let waktu = match text("waktu") {
+                value if value.is_empty() => chrono_like_now_iso(),
+                value => value,
             };
+            // `DO UPDATE` (bukan `DO NOTHING`) supaya pengiriman ulang tetap
+            // menghasilkan mutasi. Statement yang tidak mengubah apa pun akan
+            // membuat event ditandai konflik oleh pemanggil.
             turso
                 .query_one(
-                    "UPDATE leads SET pic_cs_id = ?, updated_at = ? WHERE id = ?;",
-                    vec![json!(pic), json!(text("updated_at")), json!(entity_key)],
+                    r#"INSERT INTO log_aktivitas
+                        (event_key, kode_item, jenis, jumlah, keterangan, kode_operator, waktu)
+                       VALUES (?, ?, ?, ?, ?, ?, ?)
+                       ON CONFLICT(event_key) DO UPDATE SET
+                         jumlah = excluded.jumlah,
+                         keterangan = excluded.keterangan,
+                         waktu = excluded.waktu;"#,
+                    vec![
+                        json!(event_key),
+                        json!(kode_item),
+                        json!(jenis),
+                        json!(number("jumlah")),
+                        json!(text("keterangan")),
+                        json!(text("kode_operator")),
+                        json!(waktu),
+                    ],
                 )
                 .await?;
         }
@@ -5270,13 +4100,6 @@ fn random_request_id() -> String {
     let mut bytes = [0u8; 16];
     OsRng.fill_bytes(&mut bytes);
     hex::encode(bytes)
-}
-
-/// Bilangan bulat dari sel hasil query (angka JSON atau teks berisi angka).
-fn lenient_i64(value: &Value) -> Option<i64> {
-    value
-        .as_i64()
-        .or_else(|| value.as_str().and_then(|text| text.parse().ok()))
 }
 
 fn sha256_hex(value: &str) -> String {
@@ -7284,26 +6107,15 @@ mod tests {
     fn sync_routes_are_canonicalized_and_unsupported_mutations_are_closed() {
         // Alias lama dinormalisasi ke bentuk kanonik...
         assert_eq!(
-            canonical_sync_route("clients", "register"),
-            Some(("client", "register"))
+            canonical_sync_route("master_item", "create"),
+            Some(("item", "create"))
         );
         assert_eq!(
-            canonical_sync_route("master_option", "upsert"),
-            Some(("master-option", "upsert"))
+            canonical_sync_route("log_aktivitas", "create"),
+            Some(("activity", "record"))
         );
         // ...dan pasangan yang tidak terdaftar ditolak, bukan diloloskan.
-        assert_eq!(
-            canonical_sync_route("lead_interactions", "record"),
-            Some(("lead-interaction", "record"))
-        );
-        assert_eq!(canonical_sync_route("leads", "reassign"), Some(("lead", "reassign")));
-        assert_eq!(canonical_sync_route("lead-interaction", "delete"), None);
-        assert_eq!(canonical_sync_route("lead", "update"), None);
-        assert_eq!(canonical_sync_route("domain_audit_log", "record"), Some(("audit", "record")));
-        assert_eq!(canonical_sync_route("audit", "delete"), None);
-        assert_eq!(canonical_sync_route("audit", "update"), None);
-        assert_eq!(canonical_sync_route("client", "delete"), None);
-        assert_eq!(canonical_sync_route("item", "create"), None);
+        assert_eq!(canonical_sync_route("item", "truncate"), None);
         assert_eq!(canonical_sync_route("pelanggan", "create"), None);
     }
 
@@ -7355,16 +6167,8 @@ mod tests {
                 "sync_operation_receipt",
                 "setting_gex_system",
                 "company_profile",
-                "clients",
-                "leads",
-                "master_option",
-                "device_tag_registry",
-                "lead_interactions",
-                "domain_audit_log",
-                "sample_requests",
-                "sample_feedbacks",
-                "sample_status_log",
-                "media_asset",
+                "master_item",
+                "log_aktivitas",
             ] {
                 let ada: i64 = connection
                     .query_row(
@@ -7398,174 +6202,6 @@ mod tests {
                 versi,
                 crate::mobile::sync::CLIENT_SCHEMA_VERSION,
                 "versi skema hasil provisioning lokal berbeda dari versi klien"
-            );
-        });
-    }
-
-    /// Langkah tiket sampel dicek ulang di cloud (PRD FR-06, E-05): langkah
-    /// yang dicatat dari status yang sudah basi, atau yang tidak cocok dengan
-    /// aturan diagram, menjadi konflik, bukan menimpa diam-diam.
-    #[test]
-    fn push_langkah_sampel_dari_status_basi_menjadi_konflik() {
-        let runtime = tokio::runtime::Builder::new_current_thread()
-            .build()
-            .expect("runtime uji");
-        runtime.block_on(async {
-            let dir = tempfile::tempdir().expect("direktori sementara");
-            let hub = dir.path().join("app-hub.db");
-            let client = TursoClient::local_file(
-                Url::parse(LOCAL_FILE_ORIGIN).expect("origin lokal"),
-                &hub,
-                Client::new(),
-            );
-            client.ensure_schema().await.expect("provisioning lokal");
-            {
-                let connection = rusqlite::Connection::open(&hub).expect("buka hub");
-                connection
-                    .execute_batch(
-                        "INSERT INTO clients (id, client_code, name, phone_normalized, lifecycle_status, free_revision_limit, created_at, updated_at) VALUES ('c1', 'KLN-20260925-0101', 'Aura', '6281200000001', 'LEAD', 1, '2026-09-25 01:00:00', '2026-09-25 01:00:00');",
-                    )
-                    .expect("klien uji");
-            }
-            let mut counter = 0u32;
-            let mut event = |operation: &str, payload: Value| {
-                counter += 1;
-                json!({
-                    "eventId": format!("evt-{counter:064x}"),
-                    "clientId": format!("desktop-{:064x}", 1),
-                    "domain": "sample",
-                    "operation": operation,
-                    "entityKey": "s1",
-                    "payload": payload,
-                })
-            };
-            let step = |base: &str, index: i64, action: &str, status: &str, log: &str| {
-                json!({
-                    "id": "s1",
-                    "client_id": "c1",
-                    "action": action,
-                    "base_status": base,
-                    "base_revision_index": index,
-                    "status": status,
-                    "revision_index": index,
-                    "is_billable": Value::Null,
-                    "rnd_lead_time_days": Value::Null,
-                    "changed_at": "2026-09-25 02:00:00",
-                    "log": { "id": log, "notes": "catatan", "on_behalf_of_division": "CS", "recorded_by": 7 },
-                    "feedback": Value::Null,
-                })
-            };
-            let create = event(
-                "create",
-                json!({
-                    "id": "s1",
-                    "client_id": "c1",
-                    "product_category_option_id": "cat",
-                    "sample_qty": 2,
-                    "brand_name": "Aura Glow",
-                    "packaging": "Dropper",
-                    "deadline_at": "2026-10-31",
-                    "ship_to_address": "Bandung",
-                    "is_dummy_required": false,
-                    "is_paid_sample": false,
-                    "special_requests": {},
-                    "created_by": 7,
-                    "updated_at": "2026-09-25 01:30:00",
-                }),
-            );
-            let submit = event("transition", step("DRAFT", 0, "SUBMIT_TO_RND", "RND_REVIEW", "l1"));
-            // Perangkat kedua mencatat dari status lama yang sama.
-            let stale = event("transition", step("DRAFT", 0, "CANCEL", "CANCELLED", "l2"));
-            // Status tujuan yang tidak sesuai diagram.
-            let forged = event("transition", step("RND_REVIEW", 0, "RND_REJECT", "SAMPLE_SENT", "l3"));
-            let results = client
-                .push_events(&[create, submit, stale, forged])
-                .await
-                .expect("push");
-            let statuses: Vec<&str> = results
-                .iter()
-                .map(|result| result["status"].as_str().unwrap_or_default())
-                .collect();
-            assert_eq!(statuses, vec!["applied", "applied", "conflict", "conflict"]);
-            assert_eq!(results[2]["message"], json!(samples::SAMPLE_CHANGED_ELSEWHERE));
-
-            let connection = rusqlite::Connection::open(&hub).expect("buka hub");
-            let (status, lifecycle): (String, String) = connection
-                .query_row(
-                    "SELECT s.status, c.lifecycle_status FROM sample_requests s JOIN clients c ON c.id = s.client_id WHERE s.id = 's1';",
-                    [],
-                    |row| Ok((row.get(0)?, row.get(1)?)),
-                )
-                .expect("tiket");
-            assert_eq!((status.as_str(), lifecycle.as_str()), ("RND_REVIEW", "FIRST_ORDER_ACTIVE"));
-            let logs: i64 = connection
-                .query_row("SELECT COUNT(*) FROM sample_status_log WHERE sample_request_id = 's1';", [], |row| row.get(0))
-                .expect("riwayat");
-            assert_eq!(logs, 1);
-        });
-    }
-
-    /// Foto (PRD FR-07) diperiksa ulang di cloud: bukan WebP atau tiket yang
-    /// tidak ada menjadi konflik; foto sah tersimpan beserta ukuran hitungan cloud.
-    #[test]
-    fn push_foto_diperiksa_ulang_di_cloud() {
-        let runtime = tokio::runtime::Builder::new_current_thread()
-            .build()
-            .expect("runtime uji");
-        runtime.block_on(async {
-            let dir = tempfile::tempdir().expect("direktori sementara");
-            let hub = dir.path().join("app-hub.db");
-            let client = TursoClient::local_file(
-                Url::parse(LOCAL_FILE_ORIGIN).expect("origin lokal"),
-                &hub,
-                Client::new(),
-            );
-            client.ensure_schema().await.expect("provisioning lokal");
-            rusqlite::Connection::open(&hub)
-                .expect("buka hub")
-                .execute_batch(
-                    "INSERT INTO sample_requests (id, client_id, product_category_option_id, sample_qty, brand_name, packaging, deadline_at, ship_to_address, status_changed_at, created_at, updated_at) VALUES ('s1', 'c1', 'cat', 1, 'Aura', 'Jar', '2026-10-31', 'Bandung', '2026-09-25 01:00:00', '2026-09-25 01:00:00', '2026-09-25 01:00:00');",
-                )
-                .expect("tiket uji");
-            let event = |n: u32, owner: &str, data: &str| {
-                json!({
-                    "eventId": format!("evt-{n:064x}"),
-                    "clientId": format!("desktop-{:064x}", 1),
-                    "domain": "media",
-                    "operation": "upload",
-                    "entityKey": format!("m{n}"),
-                    "payload": {
-                        "owner_type": "sample",
-                        "owner_id": owner,
-                        "purpose": "REFERENCE",
-                        "data_base64": data,
-                        "created_by": 7,
-                        "created_at": "2026-09-25 02:00:00",
-                    },
-                })
-            };
-            let results = client
-                .push_events(&[
-                    event(1, "s1", "UklGRgwAAABXRUJQVlA4TA=="),
-                    event(2, "s1", "iVBORw0KGgoAAAANSUhEUg=="),
-                    event(3, "missing", "UklGRgwAAABXRUJQVlA4TA=="),
-                ])
-                .await
-                .expect("push");
-            let statuses: Vec<&str> = results
-                .iter()
-                .map(|result| result["status"].as_str().unwrap_or_default())
-                .collect();
-            assert_eq!(statuses, vec!["applied", "conflict", "conflict"]);
-            assert_eq!(results[1]["message"], json!(samples::MEDIA_NOT_WEBP));
-            let size: i64 = rusqlite::Connection::open(&hub)
-                .expect("buka hub")
-                .query_row("SELECT byte_size FROM media_asset WHERE id = 'm1';", [], |row| row.get(0))
-                .expect("foto");
-            assert_eq!(size, 16);
-            assert_eq!(
-                client.get_media_data("m1").await.expect("ambil"),
-                Some("UklGRgwAAABXRUJQVlA4TA==".to_owned())
             );
         });
     }

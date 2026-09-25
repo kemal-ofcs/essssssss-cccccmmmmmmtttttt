@@ -1,0 +1,132 @@
+mod mobile;
+
+use tauri::Manager;
+
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
+pub fn run() {
+    // WAJIB dipasang sebelum builder Tauri dibuat. Tanpa provider kripto yang
+    // terpasang lebih dulu, koneksi TLS pertama pada Android gagal di dalam
+    // JNI dan aplikasi tertutup tanpa pesan yang berguna.
+    let _ = rustls::crypto::ring::default_provider().install_default();
+    tauri::Builder::default()
+        .setup(|app| {
+            app.handle().plugin(
+                tauri_plugin_log::Builder::default()
+                    .level(log::LevelFilter::Info)
+                    .build(),
+            )?;
+            // Storage Access Framework, hanya pada build Android.
+            //
+            // Inilah yang membuat "Simpan cadangan" benar-benar sampai ke
+            // tangan pengguna: sejak Android 10 (scoped storage) aplikasi tidak
+            // boleh lagi menulis ke /storage/emulated/0/Download, sehingga
+            // berkasnya berakhir di folder privat yang tidak pernah ditemukan
+            // siapa pun. Dengan SAF, penggunalah yang memilih tujuannya dan
+            // izin diberikan per berkas — tanpa satu pun permission manifest.
+            #[cfg(target_os = "android")]
+            app.handle().plugin(tauri_plugin_android_fs::init())?;
+            app.manage(mobile::MobileState::initialize(app.handle())?);
+            Ok(())
+        })
+        .invoke_handler(tauri::generate_handler![
+            // Nama perintah sengaja tetap berawalan `desktop_`: berkas
+            // `commands.rs` disalin apa adanya dari workspace web-desktop oleh
+            // `scripts/sync-rust-modules.ts`, dan gateway frontend memanggil
+            // nama yang sama pada kedua target.
+            mobile::commands::desktop_get_session,
+            mobile::commands::desktop_get_runtime_status,
+            mobile::commands::desktop_get_license_status,
+            mobile::commands::desktop_install_license,
+            mobile::commands::desktop_login,
+            mobile::commands::desktop_logout,
+            // Pemulihan password, konfigurasi email, dan verifikasi dua langkah
+            mobile::commands::desktop_password_reset_approve,
+            mobile::commands::desktop_password_reset_route,
+            mobile::commands::desktop_password_recovery_with_code,
+            mobile::commands::desktop_issue_recovery_codes,
+            mobile::commands::desktop_list_password_reset_history,
+            mobile::commands::desktop_get_password_reset_photo,
+            mobile::commands::desktop_delete_password_reset_history,
+            mobile::commands::desktop_purge_password_reset_history,
+            mobile::commands::desktop_password_reset_lookup,
+            mobile::commands::desktop_password_reset_confirm,
+            mobile::commands::desktop_password_reset_swap_challenge,
+            mobile::commands::desktop_password_reset_verify,
+            mobile::commands::desktop_password_reset_inspect,
+            mobile::commands::desktop_password_reset_complete,
+            mobile::commands::desktop_send_test_mail,
+            mobile::commands::desktop_get_mail_config,
+            mobile::commands::desktop_save_mail_config,
+            mobile::commands::desktop_get_two_factor_status,
+            mobile::commands::desktop_begin_two_factor_setup,
+            mobile::commands::desktop_confirm_two_factor_setup,
+            mobile::commands::desktop_disable_two_factor,
+            mobile::commands::desktop_admin_disable_two_factor,
+            mobile::commands::desktop_get_bootstrap_status,
+            mobile::commands::desktop_bootstrap_superadmin,
+            mobile::commands::desktop_check_bootstrap_database,
+            mobile::commands::desktop_link_bootstrap_database,
+            mobile::commands::desktop_get_turso_url,
+            mobile::commands::desktop_get_database_config,
+            mobile::commands::desktop_save_turso_config,
+            mobile::commands::desktop_test_turso_connection,
+            mobile::commands::desktop_clear_turso_config,
+            mobile::commands::desktop_get_master_operators,
+            mobile::commands::desktop_create_operator,
+            mobile::commands::desktop_update_operator,
+            mobile::commands::desktop_delete_operator,
+            mobile::commands::desktop_get_roles,
+            mobile::commands::desktop_create_role,
+            mobile::commands::desktop_update_role,
+            mobile::commands::desktop_set_role_permissions,
+            mobile::commands::desktop_delete_role,
+            mobile::commands::desktop_sync_now,
+            mobile::commands::desktop_get_sync_status,
+            mobile::commands::desktop_get_sync_conflicts,
+            mobile::commands::desktop_retry_failed_sync,
+            mobile::commands::desktop_resolve_sync_conflicts,
+            mobile::commands::desktop_resolve_sync_conflicts_local,
+            mobile::commands::desktop_clear_failed_sync,
+            mobile::commands::desktop_export_database,
+            mobile::commands::desktop_import_database,
+            mobile::commands::desktop_import_database_bytes,
+            mobile::commands::desktop_get_data_folder,
+            mobile::commands::desktop_get_company_profile,
+            mobile::commands::desktop_update_company_profile,
+            mobile::device_storage::mobile_export_database_to_device,
+            mobile::commands::desktop_get_server_url,
+            mobile::commands::desktop_set_server_url,
+            // Domain contoh — ganti dengan domain aplikasi Anda.
+            mobile::commands::desktop_list_clients,
+            mobile::commands::desktop_register_client,
+            mobile::commands::desktop_update_client,
+            mobile::commands::desktop_list_master_options,
+            mobile::commands::desktop_save_master_option,
+            mobile::commands::desktop_get_client_code_settings,
+            mobile::commands::desktop_save_client_code_settings,
+            mobile::commands::desktop_list_lead_interactions,
+            mobile::commands::desktop_record_lead_interaction,
+            mobile::commands::desktop_list_operator_directory,
+            mobile::commands::desktop_reassign_lead,
+            mobile::commands::desktop_list_audit_log,
+            mobile::commands::desktop_list_quarantine,
+            mobile::commands::desktop_resolve_quarantine,
+            mobile::commands::desktop_list_active_sessions,
+            mobile::commands::desktop_end_session,
+            mobile::commands::desktop_end_operator_sessions,
+            mobile::commands::desktop_get_business_settings,
+            mobile::commands::desktop_save_business_settings,
+            mobile::commands::desktop_list_sample_requests,
+            mobile::commands::desktop_get_sample_request,
+            mobile::commands::desktop_create_sample_request,
+            mobile::commands::desktop_update_sample_request,
+            mobile::commands::desktop_record_sample_step,
+            mobile::commands::desktop_upload_sample_media,
+            mobile::commands::desktop_get_media,
+        ])
+        .run(tauri::generate_context!())
+        .unwrap_or_else(|error| {
+            eprintln!("The mobile app stopped because the Tauri runtime failed: {error}");
+            std::process::exit(1);
+        });
+}
