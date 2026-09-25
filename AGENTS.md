@@ -290,7 +290,18 @@ MaklonOS (PRD F-04, F-12, F-13): `clients` + `leads` (intake lead, satu event
 `clients.rs` dan `src/lib/server/leads.ts`). Segmen Hot/Warm/Cold dihitung
 saat dibaca, tidak pernah disimpan. Direktori operator (`master_operator`)
 ikut snapshot sebagai tabel `read_only`: hanya id, kode, nama, dan status yang
-ditarik, dan tabel `read_only` WAJIB tidak punya rute kanonik. Polanya
+ditarik, dan tabel `read_only` WAJIB tidak punya rute kanonik.
+`domain_audit_log` (F-10) ditulis di transaksi SQLite yang SAMA dengan
+mutasinya lewat `commit_with_outbox(..., Some(AuditEntry))` di Rust dan
+`writeAudit` di Web, didorong lewat rute hanya-tambah `audit/record`, dan
+SENGAJA tidak ada di `SNAPSHOT_TABLES` (tumbuh tanpa batas; layar Audit
+membaca cloud, offline hanya catatan perangkat sendiri). Tidak ada jalur
+aplikasi yang mengubah atau menghapus barisnya. Role divisi (F-02) di-seed
+SEKALI dengan penanda `division_roles_seeded` (`DIVISION_ROLE_SEED_SQL`,
+identik di `db-schema.ts` dan `turso.rs`), dan izin role yang dicabut
+disimpan sebagai `is_allowed = 0`, tidak dihapus: seed `INSERT OR IGNORE`
+yang berjalan tiap skema naik versi akan mengembalikan baris yang hilang.
+Polanya
 dari UI sampai cloud: `src/lib/validations/client.ts` ↔ `desktop/clients.rs`
 (vektor kembar), `src/lib/server/clients.ts` ↔ command `desktop_*_client*` /
 `desktop_*_master_option*` di `commands.rs`, gateway `src/lib/gateways/clients.ts`,

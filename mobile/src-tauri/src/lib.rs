@@ -108,6 +108,7 @@ pub fn run() {
             mobile::commands::desktop_record_lead_interaction,
             mobile::commands::desktop_list_operator_directory,
             mobile::commands::desktop_reassign_lead,
+            mobile::commands::desktop_list_audit_log,
         ])
         .run(tauri::generate_context!())
         .unwrap_or_else(|error| {

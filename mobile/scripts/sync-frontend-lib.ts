@@ -31,6 +31,7 @@ const filesToCopy = [
   "components/clients/ClientCodeCard.tsx",
   "components/clients/ClientWorkspace.tsx",
   "components/clients/LeadDetail.tsx",
+  "components/audit/AuditLog.tsx",
   "components/clients/MasterDataCard.tsx",
   "components/BootstrapPanel.tsx",
   "components/CompanyProfileCard.tsx",
