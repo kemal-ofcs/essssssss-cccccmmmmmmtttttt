@@ -35,6 +35,12 @@ const filesToCopy = [
   "components/audit/ActiveSessions.tsx",
   "components/audit/AuditLog.tsx",
   "components/clients/MasterDataCard.tsx",
+  // Tiket sampel (PRD F-06) dan setelan bisnis (F-11).
+  "components/samples/labels.ts",
+  "components/samples/SampleDetail.tsx",
+  "components/samples/SampleForm.tsx",
+  "components/samples/SampleWorkspace.tsx",
+  "components/BusinessSettingsCard.tsx",
   "components/BootstrapPanel.tsx",
   "components/CompanyProfileCard.tsx",
   "components/DatabaseBackupCard.tsx",

@@ -399,3 +399,19 @@ Detail lengkap ada di `README.md`.
     dihapus, dan tetap menjaga barisnya dari `delete_missing`; hanya
     pemiliknya yang memutuskan Kirim atau Buang (`sync.retry`, tercatat di
     log audit). Mode Database Lokal tidak membuka sesi cloud.
+37. **Tiket sampel (PRD FR-06) dan setelan bisnis (FR-11).** Aturan langkah
+    ada di SATU fungsi per bahasa, `applySampleAction` (`sample.ts`) ↔
+    `apply_sample_action` (`samples.rs`), dengan vektor kembar; UI hanya
+    memakainya untuk menawarkan tombol. Status tiket berubah HANYA lewat rute
+    `sample/transition`, dan cloud memeriksanya ulang di `sample_guard`
+    (`turso.rs`): status/revisi di cloud harus sama dengan yang dilihat
+    pencatat, dan hasil langkah dihitung ulang dengan kuota klien di cloud.
+    Tidak cocok = konflik, tidak pernah menimpa. `clients.lifecycle_status`
+    diturunkan dari tiket (`CLIENT_LIFECYCLE_FROM_SAMPLES_SQL`, aman diulang)
+    dan SENGAJA tidak ditimpa `client/update`. Langkah RnD/Finance dicatat CS
+    atas nama divisi itu (`on_behalf_of_division`, D-23). Angka bisnis yang
+    bisa berbeda antar perusahaan (kuota revisi, mode biaya sampel, batas
+    Hot/Warm) adalah kunci `setting_gex_system` yang dibaca lewat
+    `readBusinessSettings`/`read_business_settings`, bukan konstanta; kuota
+    disalin ke klien saat klien dibuat, jadi mengubah setelan tidak mengubah
+    klien lama.
