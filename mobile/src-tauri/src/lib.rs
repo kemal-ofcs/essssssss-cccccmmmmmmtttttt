@@ -104,6 +104,10 @@ pub fn run() {
             mobile::commands::desktop_save_master_option,
             mobile::commands::desktop_get_client_code_settings,
             mobile::commands::desktop_save_client_code_settings,
+            mobile::commands::desktop_list_lead_interactions,
+            mobile::commands::desktop_record_lead_interaction,
+            mobile::commands::desktop_list_operator_directory,
+            mobile::commands::desktop_reassign_lead,
         ])
         .run(tauri::generate_context!())
         .unwrap_or_else(|error| {

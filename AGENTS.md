@@ -284,7 +284,13 @@ di `web-desktop/src/components/visual/` dengan store di
 Domain contoh template (`master_item`, `log_aktivitas`) sudah diganti domain
 MaklonOS (PRD F-04, F-12, F-13): `clients` + `leads` (intake lead, satu event
 `client/register` membawa keduanya), `master_option` (Master Data), dan
-`device_tag_registry` (cloud-only, tag perangkat untuk kode klien). Polanya
+`device_tag_registry` (cloud-only, tag perangkat untuk kode klien), serta
+`lead_interactions` (F-05, satu event `lead-interaction/record`; ringkasan di
+`leads` diperbarui `LEAD_SUMMARY_UPDATE_SQL` yang aman diulang dan identik di
+`clients.rs` dan `src/lib/server/leads.ts`). Segmen Hot/Warm/Cold dihitung
+saat dibaca, tidak pernah disimpan. Direktori operator (`master_operator`)
+ikut snapshot sebagai tabel `read_only`: hanya id, kode, nama, dan status yang
+ditarik, dan tabel `read_only` WAJIB tidak punya rute kanonik. Polanya
 dari UI sampai cloud: `src/lib/validations/client.ts` ↔ `desktop/clients.rs`
 (vektor kembar), `src/lib/server/clients.ts` ↔ command `desktop_*_client*` /
 `desktop_*_master_option*` di `commands.rs`, gateway `src/lib/gateways/clients.ts`,
