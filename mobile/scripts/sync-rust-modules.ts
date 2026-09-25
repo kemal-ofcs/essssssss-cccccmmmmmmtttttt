@@ -27,6 +27,9 @@ const filesToSync = [
   // Pemeriksa lisensi offline. Wajib identik: satu lisensi dipasang sekali per
   // lembaga dan dibaca Desktop maupun Mobile dari database yang sama.
   "license.rs",
+  // Aturan domain klien (kode klien, normalisasi WhatsApp). Wajib identik:
+  // kode yang dibuat Desktop dan Mobile bertemu di database yang sama.
+  "clients.rs",
 ];
 
 for (const file of filesToSync) {

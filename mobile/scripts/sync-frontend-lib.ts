@@ -1,5 +1,5 @@
 import { cpSync, existsSync, mkdirSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 const desktopSrc = join(__dirname, "../../web-desktop/src");
 const mobileSrc = join(__dirname, "../src");
@@ -27,6 +27,10 @@ const filesToCopy = [
   "components/ui/PageHeader.tsx",
   "components/ui/StatusBadge.tsx",
   "components/AutoSyncRunner.tsx",
+  // Domain MaklonOS: workspace klien dan kartu Pengaturan-nya.
+  "components/clients/ClientCodeCard.tsx",
+  "components/clients/ClientWorkspace.tsx",
+  "components/clients/MasterDataCard.tsx",
   "components/BootstrapPanel.tsx",
   "components/CompanyProfileCard.tsx",
   "components/DatabaseBackupCard.tsx",
@@ -45,6 +49,8 @@ for (const file of filesToCopy) {
   const src = join(desktopSrc, file);
   const dest = join(mobileSrc, file);
   if (existsSync(src)) {
+    // Subfolder komponen (`clients/`) belum tentu ada di Mobile.
+    mkdirSync(dirname(dest), { recursive: true });
     cpSync(src, dest);
     console.log(`Copied ${file} to mobile`);
   }
