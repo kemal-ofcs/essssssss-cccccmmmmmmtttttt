@@ -114,6 +114,13 @@ pub fn run() {
             mobile::commands::desktop_list_active_sessions,
             mobile::commands::desktop_end_session,
             mobile::commands::desktop_end_operator_sessions,
+            mobile::commands::desktop_get_business_settings,
+            mobile::commands::desktop_save_business_settings,
+            mobile::commands::desktop_list_sample_requests,
+            mobile::commands::desktop_get_sample_request,
+            mobile::commands::desktop_create_sample_request,
+            mobile::commands::desktop_update_sample_request,
+            mobile::commands::desktop_record_sample_step,
         ])
         .run(tauri::generate_context!())
         .unwrap_or_else(|error| {

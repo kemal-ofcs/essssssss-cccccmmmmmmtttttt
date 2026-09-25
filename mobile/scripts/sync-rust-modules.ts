@@ -30,6 +30,7 @@ const filesToSync = [
   // Aturan domain klien (kode klien, normalisasi WhatsApp). Wajib identik:
   // kode yang dibuat Desktop dan Mobile bertemu di database yang sama.
   "clients.rs",
+  "samples.rs",
 ];
 
 for (const file of filesToSync) {

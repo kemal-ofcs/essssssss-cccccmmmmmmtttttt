@@ -9,6 +9,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { BusinessSettingsCard } from "@/components/BusinessSettingsCard";
 import { CompanyProfileCard } from "@/components/CompanyProfileCard";
 import { ClientCodeCard } from "@/components/clients/ClientCodeCard";
 import { MasterDataCard } from "@/components/clients/MasterDataCard";
@@ -488,6 +489,7 @@ export default function SettingsPage() {
       {canManage ? <MailSettingsCard /> : null}
 
       {/* Domain MaklonOS: pilihan form intake dan bentuk kode klien. */}
+      <BusinessSettingsCard canManage={canManage} />
       {hasPermission(user, "master_data.manage") ? <MasterDataCard /> : null}
       {canManage ? <ClientCodeCard /> : null}
 
