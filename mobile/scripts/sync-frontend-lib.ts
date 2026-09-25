@@ -30,6 +30,7 @@ const filesToCopy = [
   // Domain MaklonOS: workspace klien dan kartu Pengaturan-nya.
   "components/clients/ClientCodeCard.tsx",
   "components/clients/ClientWorkspace.tsx",
+  "components/clients/LeadDetail.tsx",
   "components/clients/MasterDataCard.tsx",
   "components/BootstrapPanel.tsx",
   "components/CompanyProfileCard.tsx",
