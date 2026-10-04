@@ -53,13 +53,20 @@ Kerjakan berurutan. Berhenti dan laporkan pada langkah pertama yang gagal.
    punya baris `cargo:rustc-env` di `mobile/src-tauri/build.rs` DAN
    `web-desktop/src-tauri/build.rs`, dengan nilai bawaan bila rilis tidak boleh
    tanpanya. Jangan mengandalkan `.cargo/config.toml`: Gradle menjalankan Cargo
-   dari folder lain dan berkas itu tidak terbaca.
+   dari folder lain dan berkas itu tidak terbaca. `cargo:rerun-if-changed`
+   hanya untuk berkas yang ada: berkas yang tidak ada dianggap selalu berubah,
+   dan crate aplikasi dikompilasi ulang di setiap build.
 2. **Pemasangan baru.** Setiap nilai yang dibaca saat start (`config.rs`,
    `secrets.rs`) wajib aman bila kosong atau belum ada. Cari pola
    `unwrap_or(DEFAULT_...)` yang langsung diurai; tambahkan tes seperti
    `instalasi_baru_tanpa_alamat_server_tetap_bisa_start` di `config.rs`.
-3. **Build.** Dari `mobile/`: `bun run tauri:android:build:arm64` (20-25 menit;
-   build universal mengompilasi empat ABI dan lebih dari 30 menit).
+3. **Build.** Dari `mobile/`: `bun run tauri:android:build:arm64` (APK saja;
+   build universal mengompilasi empat ABI dan lebih dari 30 menit). Rust
+   dikompilasi sekali oleh Tauri CLI; putaran Gradle sesudahnya seharusnya
+   selesai dalam detik. Bila putaran itu ikut mengompilasi `companyos_mobile`
+   (sekitar 7 menit, LTO), ulangi dengan
+   `CARGO_LOG=cargo::core::compiler::fingerprint=info` dan cari baris `dirty`
+   atau `stale` untuk melihat apa yang dianggap berubah.
    `mobile/scripts/patch-android.ts` berjalan otomatis lebih dulu: R8 mati dan
    tanda tangan rilis dari `gen/android/keystore.properties`. Nama berkas
    tetap `app-universal-release.apk` walau isinya hanya arm64.

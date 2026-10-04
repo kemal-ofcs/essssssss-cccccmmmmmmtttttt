@@ -49,6 +49,11 @@ tempat dari commit `fbfff74`; penghapusannya disengaja dan ikut di-commit.
   `qrcode`, `@types/qrcode` dan alias zxing di kedua `next.config.ts` dibuang
   (tidak ada pemakainya); skrip `tauri:android:build:arm64` memakai `--apk`
   (tanpa AAB Play Store, satu putaran kompilasi Rust lebih sedikit).
+- **Build lebih cepat:** `build.rs` kedua workspace memantau `../.env` hanya
+  bila berkasnya ada. Sebelumnya `mobile/.env` yang sengaja tidak ada membuat
+  Cargo mengompilasi ulang crate aplikasi di setiap putaran (bukti: log
+  fingerprint `stale: missing ...\.env`). Efeknya baru terlihat di build APK
+  berikutnya: putaran Gradle seharusnya selesai dalam detik.
 - **Dokumen:** aturan 12 (build arm64), 41, 42 di `CLAUDE.md`; `AGENTS.md`
   disamakan dengan `CLAUDE.md`; skill baru `uji-rilis-android` di
   `.claude/skills/` dan `.agents/skills/`.
@@ -57,14 +62,17 @@ tempat dari commit `fbfff74`; penghapusannya disengaja dan ikut di-commit.
 
 - `bun run check` penuh LULUS sebelum perubahan sidebar dan menu Settings:
   490 tes TS, 120 tes Rust Desktop, 120 tes Rust Mobile, seluruh audit.
-- Sesudahnya (hanya TypeScript, konfigurasi, dan dokumen): `check:quick` LULUS
-  (490 tes, seluruh audit), `audit:docs` LULUS, dan `build:web` LULUS setelah
-  paket zxing/qrcode dibuang.
+- `bun run check` penuh terakhir (setelah semua perubahan, termasuk `build.rs`)
+  LULUS: 490 tes TS, 120 tes Rust Desktop, 120 tes Rust Mobile, seluruh audit.
+  `build:web` juga LULUS setelah paket zxing/qrcode dibuang.
 - Telegram: pesan uji grup CS sampai (2026-10-04).
 
 ## Belum diverifikasi di perangkat
 
-Butuh build ulang Desktop dan APK (`bun run tauri:android:build:arm64`):
+Build terbaru (2026-10-04 12:34 dan 12:46) sudah memuat semua perubahan di
+atas kecuali perbaikan waktu build `build.rs` (tidak mengubah isi aplikasi):
+APK `mobile/src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk`
+dan installer `web-desktop/src-tauri/target/release/bundle/nsis/Company OS_0.1.0_x64-setup.exe`.
 
 1. Desktop: sidebar tampil/sembunyi dan pilihannya diingat; membuat operator
    dengan email (mis. `admin@kos.com`) berhasil; galat tampil di dalam form.
@@ -76,17 +84,6 @@ Butuh build ulang Desktop dan APK (`bun run tauri:android:build:arm64`):
 
 ## Tindak lanjut terbuka
 
-- **Keamanan:** token bot Telegram sempat terkirim sebagai pesan di grup.
-  Revoke di @BotFather lalu simpan token baru di Pengaturan.
-- **Telegram:** chat ID grup RnD dan Finance belum diisi.
-- **Ditunda ke sesi khusus (keputusan 2026-10-04):** CSP skrip penuh untuk Web
-  lewat nonce di `proxy.ts`. Rencananya: hanya build Web, uji dulu bahwa
-  berkas itu tidak memecah ekspor statis Desktop, semua halaman Web menjadi
-  dinamis, dan uji Console browser oleh pemilik sebelum deploy. Audit tidak
-  menemukan celah XSS, jadi ini lapisan cadangan.
-- **Pemasangan Desktop lama:** `productName` kini "Company OS", jadi installer
-  baru memasang ke folder baru. Uninstall "companyos" yang lama sekali secara
-  manual; data aman karena lokasi data mengikuti `identifier`.
 - **Fase berikutnya:** v2 PRD (RnD formulasi, HPP & harga, uang masuk dan
   tagihan, desain/dummy, legal, persetujuan klien lewat tautan). Mulai dengan
   skill `kerjakan-fitur-lintas-platform`: analisis dan keputusan berhuruf dulu,

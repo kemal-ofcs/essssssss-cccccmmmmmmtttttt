@@ -129,9 +129,13 @@ untuk database baru, dan `ALTER TABLE` (`ensure_column` di Rust,
     terbaca saat Gradle menjalankan Cargo dari folder lain): build rilis tidak
     punya nilai bawaan, dan tanpanya aplikasi menolak start lalu tertutup
     sendiri. Admin memperpendeknya lewat setelan `offline_login_max_days`.
-    Untuk HP pakai `bun run tauri:android:build:arm64`: build universal
-    mengompilasi Rust untuk empat ABI (dua di antaranya hanya untuk emulator)
-    dan memakan lebih dari 30 menit.
+    Untuk HP pakai `bun run tauri:android:build:arm64` (`--apk`, tanpa AAB
+    Play Store): build universal mengompilasi Rust untuk empat ABI (dua di
+    antaranya hanya untuk emulator) dan memakan lebih dari 30 menit. Profil
+    rilis memakai LTO, jadi SETIAP kompilasi ulang crate aplikasi sekitar 7
+    menit; `build.rs` hanya boleh memantau berkas yang benar-benar ada
+    (`rerun-if-changed` pada berkas yang tidak ada membuat Cargo menganggapnya
+    selalu berubah, dan `mobile/.env` sengaja tidak ada).
 13. Nilai uang disimpan sebagai `INTEGER`, tidak pernah float.
 14. Siklus hidup kamera Android: cleanup unmount di `useEffect` terpisah dengan
     dependency array kosong, terpisah dari listener `visibilitychange`.
