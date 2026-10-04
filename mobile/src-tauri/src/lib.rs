@@ -128,6 +128,7 @@ pub fn run() {
             mobile::commands::desktop_create_sample_request,
             mobile::commands::desktop_update_sample_request,
             mobile::commands::desktop_record_sample_step,
+            mobile::commands::desktop_record_sample_price,
             mobile::commands::desktop_upload_sample_media,
             mobile::commands::desktop_get_media,
         ])

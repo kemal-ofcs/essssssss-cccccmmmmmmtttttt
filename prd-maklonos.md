@@ -39,7 +39,14 @@
 | D-22 | Pilot: Kemal Office Studio (KOS). Catatan di OQ-26. | OQ-17 |
 | D-23 | Di MVP, CS mencatat hasil langkah RnD dan Finance secara manual (FR-06.6). | OQ-18 |
 | D-24 | Cold dihitung dari respons terakhir klien (`last_client_response_at`), sesuai PDF. | OQ-19 |
-| D-26 | Antarmuka berbahasa Inggris. Teks pesan yang dikutip di PRD ini ditulis dalam bahasa Indonesia sebagai makna; teks final di aplikasi berbahasa Inggris. Halaman bawaan template dan pesan error dari Rust yang masih berbahasa Indonesia ikut diterjemahkan (F-13). | D-25 | CS memegang klien sampai order pertama `ORDER_COMPLETED`, lalu diserahkan ke CRM (versi `prd-3`). Kolom PIC CRM di tiket sampel hanya informasi. | OQ-20 |
+| D-26 | Antarmuka berbahasa Inggris. Teks pesan yang dikutip di PRD ini ditulis dalam bahasa Indonesia sebagai makna; teks final di aplikasi berbahasa Inggris. Halaman bawaan template dan pesan error dari Rust yang masih berbahasa Indonesia ikut diterjemahkan (F-13). |
+| D-25 | CS memegang klien sampai order pertama `ORDER_COMPLETED`, lalu diserahkan ke CRM (versi `prd-3`). Kolom PIC CRM di tiket sampel hanya informasi. | OQ-20 |
+| D-27 | Sampel baru boleh dikirim ke klien (`SAMPLE_SENT`) setelah harga satuannya disetujui Finance, untuk sampel gratis maupun berbayar. Sampel berbayar tetap wajib lunas lebih dulu (`WAITING_SAMPLE_PAYMENT`). | OQ-31, 2026-10-04 |
+| D-28 | Pajak adalah daftar di Pengaturan (nama + tarif basis poin), semuanya menambah tagihan; PPN 11% salah satu barisnya. Harga satuan selalu disimpan sebelum pajak. Diskon juga daftar (nama + persen, mis. Lebaran 20%, bayar penuh 3%) yang dikelola role ber-RBAC dan dipilih per tagihan. | OQ-36, 2026-10-04 |
+| D-29 | Kurang bayar butuh persetujuan pemegang izin sensitif baru (`payments.approve_exception`), lalu sisanya menjadi utang yang dicicil. Paket cicilan adalah daftar yang dikelola role ber-RBAC: jumlah cicilan bulanan (1 cicilan = 1 bulan) + bunga %, bunga boleh 0%. Bunga dihitung SEKALI atas sisa lalu dibagi rata per cicilan: sisa 5.000.000, paket 3× bunga 10% = 5.500.000 dalam 3 cicilan; paket 1× bisa 5%; promo 7× bisa 0%. Lebih bayar menjadi deposit setelah dikonfirmasi pemegang izin yang sama; Finance memilih manual tagihan yang dipotong deposit. | OQ-35, 2026-10-04 |
+| D-30 | "Pembayaran Uji" = biaya pengujian sampel. Opsional: "with testing" dipilih saat tiket dibuat, ditagih terpisah sebagai `TEST_FEE`, dan wajib lunas sebelum sampel dikirim. | OQ-23, 2026-10-04 |
+| D-31 | v2 dikerjakan per irisan: v2.1 F-14 → v2.2 F-15/F-16 → v2.3 F-17 → F-19 → F-18/F-20 → F-21 → F-22. Di F-14: izin `rnd.manage` untuk Accept/Reject/Sample ready (CS tidak lagi mencatatnya atas nama RnD); klasifikasi New/Existing wajib saat Accept, opsional saat Reject; alasan tolak dari Master Data `RND_REJECT_REASON` (E-23); konfirmasi Produksi untuk Existing ditulis di catatan; formula per iterasi di `sample_formulas`, `formula_code` tidak unik; antrean RnD berupa tab di Samples; grup CS diberi tahu saat RnD menerima, menolak, dan sampel siap. | analisis v2.1, 2026-10-04 |
+| D-32 | Di F-15/F-16 (v2.2): izin `finance.manage` (harga, tarif revisi, Payment received; CS tidak lagi mencatatnya atas nama Finance) dan `pricing.view` (melihat rincian HPP dan margin). Harga satuan = HPP ÷ (1 − margin), margin atas harga jual (mockup SCR-09: 19.500 dengan 40% = 32.500), dibulatkan ke atas (D-16); HPP = bahan + kemasan + operasional + regulasi & uji (opsional). Satu harga per iterasi tiket di `pricing_formulas` (hanya-tambah, terbaru berlaku, simpan = disetujui), dicatat hanya saat `SAMPLE_READY`; `SAMPLE_SENT` terkunci tanpa harga iterasi itu (D-27). Rincian HPP ikut sinkron supaya Finance tetap bekerja saat listrik/internet mati; siapa yang melihatnya diatur RBAC `pricing.view` per role, yang lain hanya melihat harga jual. Tarif revisi: langkah `SET_REVISION_FEE`, nominal > 0 → menunggu pembayaran, 0 = dibebaskan Finance → `IN_RND`. `valid_until` harga ditunda ke F-18/F-20. Notifikasi: sampel siap → grup Finance; harga tersimpan dan tarif revisi → grup CS. | analisis v2.2, 2026-10-04 |
 
 ---
 
@@ -546,12 +553,13 @@ Konvensi tabel domain:
 
 | Entitas | Field kunci |
 | :-- | :-- |
-| `pricing_formulas` | `sample_feedback_id` (UQ), `base_hpp_unit_idr`, `packaging_cost_unit_idr`, `operational_cost_unit_idr`, `margin_bp`, `final_unit_price_idr` (ceil, D-16), `is_approved`, `valid_until` |
+| `pricing_formulas` | (v2.2, D-32) satu baris per simpan, terbaru per iterasi berlaku: `sample_request_id`, `iteration_number`, `raw_material_cost_idr`, `packaging_cost_idr`, `operational_cost_idr`, `regulatory_cost_idr`, `hpp_unit_idr`, `margin_bp`, `final_unit_price_idr` (ceil, D-16), `notes`, `recorded_by`, `recorded_at`. `valid_until` menyusul di F-18/F-20. Ditambah `sample_requests.revision_fee_idr`. |
 | `incoming_funds` | Sheet Data Uang Masuk: `client_id`, `received_at`, `amount_idr`, `description`, `recorded_by` |
 | `payments` | tagihan: `client_id`, `ref_type` (`SAMPLE_FEE` / `REVISION_FEE` / `DUMMY_FEE` / `TEST_FEE` / `DP_PRODUCTION_LEGAL` / `SETTLEMENT` / `SHIPPING` / `OTHER`), `ref_id`, `amount_idr`, `invoice_number` (UQ), `proof_media_id`, `incoming_fund_id`, `verified_by`, `verified_at`, `status` (`PENDING` / `VERIFIED` / `REJECTED`) |
 | `design_tickets` | `sample_request_id`, `designer_user_id`, `mockup_media_id`, `dummy_print_status`, `dummy_rejection_count`, `dummy_tracking_no`, `client_approval`, `revision_notes` |
 | `production_mou` | `mou_number` (UQ, `MOU-YYYYMMDD-<KP><NN>`), `client_id`, `pricing_formula_id`, `total_units`, `total_production_cost_idr`, `production_lead_time_days`, `dp_bp`, `dp_amount_required_idr`, `dp_payment_id`, `is_dp_cleared`, `status` |
 | `legal_processes` | `mou_id`, `regulatory_path` (`WHITE_LABEL` / `WITH_BPOM`), `sig_status`, `sig_report_no`, `sig_submitted_by` (RnD), `bpom_reg_type` (`MD` / `NA` / `NOT_APPLICABLE`), `bpom_reg_number`, `bpom_submitted_at`, `bpom_issued_at`, `halal_scope` (`BAHAN` / `PRODUK`), `halal_cert_number`, `hki_cert_number`, `legal_officer_id`, `status` |
+| `sample_formulas` | (v2.1, menggantikan kolom formula di `sample_feedbacks`) satu baris per sampel siap: `sample_request_id`, `iteration_number`, `formula_code` (tidak unik, D-31), `product_knowledge`, `rnd_notes`, `recorded_by`, `recorded_at`. Ditambah `sample_requests.rnd_reject_reason_option_id`. |
 | `approval_tokens` | `token_hash` (UQ), `entity_type` (`SAMPLE_APPROVAL` / `DUMMY_APPROVAL` / `MOU_APPROVAL`), `entity_id`, `client_id`, `expires_at` (dihitung database), `used_at`, `channel` (`LINK` / `MANUAL`), `response_json`, `evidence_media_id` |
 
 ### 7.4 v3
@@ -676,7 +684,7 @@ Semua metrik dihitung dari data aplikasi. Target bertanda † berasal dari PRD l
 
 OQ-01 sampai OQ-20 dan OQ-37 sudah dijawab (D-06 sampai D-26). Tenggat jawaban yang tersisa:
 
-- **Sebelum sprint v2:** OQ-16b, 21, 23, 24, 27, 29, 31, 35, 36
+- **Sebelum sprint v2:** OQ-16b, 21, 24, 27, 29 (OQ-23, 31, 35, 36 dijawab 2026-10-04: D-27 s/d D-30)
 - **Sebelum sprint v3:** OQ-22, 30, 33
 - **Sebelum rilis:** OQ-25, 26
 - **Rekomendasinya dipakai sampai dijawab:** OQ-28, 32, 34 (ketiganya sudah berlaku di MVP)

@@ -442,6 +442,25 @@ Detail lengkap ada di `README.md`.
     `readBusinessSettings`/`read_business_settings`, bukan konstanta; kuota
     disalin ke klien saat klien dibuat, jadi mengubah setelan tidak mengubah
     klien lama.
+    Sejak v2.1/v2.2 izin langkah ditentukan SATU fungsi,
+    `sampleActionPermission` ↔ `sample_action_permission`: Accept, Reject,
+    dan Sample ready menuntut `rnd.manage`; Payment received dan
+    `SET_REVISION_FEE` menuntut `finance.manage`; sisanya `samples.manage`.
+    Route Web dan command Rust sama-sama memakainya; menyembunyikan tombol
+    bukan guard. Gerbang harga (D-27): `SAMPLE_SENT` ditolak selama iterasi
+    yang berjalan (`revision_index + 1`) belum punya baris
+    `pricing_formulas`; harga dicatat lewat rute `sample/price`, hanya saat
+    `SAMPLE_READY`, dan harga jualnya selalu dihitung ulang
+    `computeUnitPrice` ↔ `compute_unit_price` (margin atas harga jual,
+    dibulatkan ke atas). Rincian HPP dan margin ikut snapshot supaya Finance
+    bisa bekerja offline, tetapi command dan route detail MEMBUANG
+    `PRICE_COST_COLUMNS` bagi yang tidak memegang `pricing.view`. Isian RnD
+    (klasifikasi, alasan tolak dari Master Data `RND_REJECT_REASON`, formula)
+    diperiksa `validateRndStep` ↔ `validate_rnd_step` di perangkat, Web, dan
+    cloud. Formula disimpan di `sample_formulas` hanya-tambah, satu baris per
+    iterasi, `formula_code` SENGAJA tidak unik. Event `sample/transition`
+    tanpa kunci `rnd` (antrean build lama) diterima tanpa isian RnD, bukan
+    ditolak, supaya tidak macet selamanya di outbox.
 38. **Foto (PRD FR-07).** Kompresi WebP (1280 px, kualitas 75, ≤ 300 KB)
     dikerjakan webview lewat `src/lib/media/compress-image.ts` di ketiga target,
     tanpa encoder di Rust; Web dan cloud memeriksa ulang hasilnya dengan
@@ -456,9 +475,10 @@ Detail lengkap ada di `README.md`.
 39. **Notifikasi divisi (PRD FR-08).** `notification_outbox`,
     `telegram_config`, dan `notification_seen` cloud-only: tidak ada di
     `storage.rs` maupun `SNAPSHOT_TABLES`. Baris notifikasi lahir di transaksi
-    cloud yang SAMA dengan mutasinya (handler push `client/register` dan
-    `sample/transition` di `turso.rs`; `registerClient`/`recordSampleStep` di
-    Web), jadi event yang ditolak sebagai konflik tidak pernah memberi tahu.
+    cloud yang SAMA dengan mutasinya (handler push `client/register`,
+    `sample/transition`, dan `sample/price` di `turso.rs`;
+    `registerClient`/`recordSampleStep`/`recordSamplePrice` di Web), jadi
+    event yang ditolak sebagai konflik tidak pernah memberi tahu.
     `id` sekaligus kunci dedupe. Status Telegram diputuskan saat baris lahir
     (`SKIPPED` bila bot mati atau chat ID divisi kosong, supaya menyalakan bot
     tidak membanjiri grup); lonceng membaca semua baris. Pengirimnya

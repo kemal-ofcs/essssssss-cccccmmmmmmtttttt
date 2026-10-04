@@ -41,6 +41,7 @@ const filesToCopy = [
   "components/samples/SampleDetail.tsx",
   "components/samples/SampleForm.tsx",
   "components/samples/SamplePhotos.tsx",
+  "components/samples/SamplePricing.tsx",
   "components/samples/SampleWorkspace.tsx",
   "components/BusinessSettingsCard.tsx",
   "components/BootstrapPanel.tsx",
