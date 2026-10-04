@@ -31,6 +31,7 @@ const filesToSync = [
   // kode yang dibuat Desktop dan Mobile bertemu di database yang sama.
   "clients.rs",
   "samples.rs",
+  "notifications.rs",
 ];
 
 for (const file of filesToSync) {

@@ -150,6 +150,13 @@ Font: `body-*` dan `headline-*` memakai `font-sans`; `code-*` dan `label-caps` m
 - Tidak ada scroll horizontal halaman di lebar 360 px; tabel lebar boleh scroll di dalam wadahnya sendiri.
 - Fokus keyboard selalu terlihat (`outline` 2 px `secondary`), jangan dihapus.
 
+**Navigasi**
+
+- Desktop dan Web (`web-desktop/src/components/AppShell.tsx`): menu di sidebar kiri, bukan di header. Header hanya berisi tombol menu, nama aplikasi, pemegang lisensi, indikator sinkronisasi, lonceng, dan akun. Sidebar bisa disembunyikan; pilihan itu disimpan di `localStorage` per perangkat dan tidak pernah ikut sinkronisasi. Di bawah 1024 px sidebar menjadi laci yang menutup sendiri setelah menu dipilih.
+- Android (`mobile/src/components/MobileAppShell.tsx`): area utama di navigasi bawah. Yang menggulir adalah dokumen, bukan `<main>`.
+- Halaman yang berisi banyak kartu (Pengaturan Android) dipecah menjadi menu berkelompok: setiap baris berisi ikon, judul, keterangan singkat, dan chevron. Bagian yang dibuka ditandai hash `#id`, sehingga tombol Back Android kembali ke menu tanpa menambah rute baru di ekspor statis. Judul kelompok memakai `body-sm` tebal, bukan `label-caps`.
+- Item navigasi (sidebar, menu berkelompok, navigasi bawah) boleh berikon di setiap baris: di sana ikon membantu mengenali tujuan, bukan hiasan.
+
 **Ikon**
 
 - `components/ui/Icon.tsx` (SVG inline, garis 1.8 px), bukan font Material Symbols: font itu sekitar 3 MB untuk puluhan ikon. Ikon baru ditambahkan ke berkas itu dengan gaya garis yang sama. Ikon hanya bila memperjelas isi (status, aksi); tidak sebagai hiasan di setiap tombol.

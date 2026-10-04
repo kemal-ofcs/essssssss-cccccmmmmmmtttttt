@@ -1,4 +1,4 @@
-# App Template — Kerangka Aplikasi 2-Tier (Web + Desktop + Android)
+# Company OS — Kerangka Aplikasi 2-Tier (Web + Desktop + Android)
 
 Template siap pakai untuk membangun aplikasi offline-first yang berjalan di
 **Web**, **Desktop** (Windows/macOS/Linux), dan **Android** dari satu basis kode,

@@ -540,7 +540,7 @@ Konvensi tabel domain:
 | `media_asset` | `owner_type`, `owner_id`, `purpose` (`REFERENCE` / `PAYMENT_PROOF` / `MOCKUP` / `RECEIPT` / `COMPLAINT`), `mime`, `byte_size` (≤ 307200), `data_base64`, `created_by`, `created_at` |
 | `notification_outbox` | `event_type`, `target_division`, `payload_json`, `occurred_at`, `dedupe_key` (UQ), `claimed_at`, `sent_at`, `attempts`, `last_error`, `status` |
 | `domain_audit_log` | `actor_operator_id`, `on_behalf_of_division`, `action`, `entity_type`, `entity_id`, `summary_json`, `occurred_at` |
-| `telegram_config` | cloud-only, di luar `SNAPSHOT_TABLES`: `bot_token_encrypted`, `is_active`, `updated_by`, `updated_at` |
+| `telegram_config` | cloud-only, di luar `SNAPSHOT_TABLES`: `bot_token` (teks biasa, sama dengan `app_mail_config.api_key`; tidak pernah dikirim ke frontend, lihat aturan 11 `CLAUDE.md`), `is_active`, `updated_by`, `updated_at` |
 
 ### 7.3 v2
 

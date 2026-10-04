@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   type FormEvent,
+  type ReactNode,
   useCallback,
   useEffect,
   useRef,
@@ -18,9 +19,10 @@ import { LicenseCard } from "@/components/license/LicenseCard";
 import { MailSettingsCard } from "@/components/MailSettingsCard";
 import { MobileAppShell } from "@/components/MobileAppShell";
 import { PasswordRecoveryCard } from "@/components/PasswordRecoveryCard";
+import { TelegramSettingsCard } from "@/components/TelegramSettingsCard";
 import { TwoFactorCard } from "@/components/TwoFactorCard";
 import { FeedbackBanner } from "@/components/ui/FeedbackBanner";
-import { Icon } from "@/components/ui/Icon";
+import { Icon, type IconName } from "@/components/ui/Icon";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { canAccessArea, hasPermission } from "@/lib/auth/access";
 import { triggerHaptic } from "@/lib/client/haptics";
@@ -48,6 +50,23 @@ import {
 } from "@/lib/validations/database-endpoint";
 
 type Feedback = { type: "success" | "error"; message: string } | null;
+
+interface SettingsItem {
+  id: string;
+  title: string;
+  description: string;
+  icon: IconName;
+  show: boolean;
+  /** Isi bagian, dibuka lewat `#id`. */
+  content?: ReactNode;
+  /** Halaman lain; dipakai sebagai pengganti `content`. */
+  href?: string;
+}
+
+interface SettingsGroup {
+  title: string;
+  items: SettingsItem[];
+}
 
 /**
  * Pengaturan versi Mobile. Diturunkan dari halaman Web-Desktop (src/app tidak
@@ -77,6 +96,18 @@ export default function SettingsPage() {
   const [sync, setSync] = useState<SyncStatus | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [feedback, setFeedback] = useState<Feedback>(null);
+  const [section, setSection] = useState("");
+
+  useEffect(() => {
+    const read = () => {
+      setSection(window.location.hash.slice(1));
+      setFeedback(null);
+      window.scrollTo(0, 0);
+    };
+    read();
+    window.addEventListener("hashchange", read);
+    return () => window.removeEventListener("hashchange", read);
+  }, []);
 
   const providerInfo = describeProvider(provider);
   // Cermin sisi klien dari `normalize_database_url` di Rust. Backend tetap
@@ -241,304 +272,446 @@ export default function SettingsPage() {
   if (authLoading || !isAuthenticated || !canView)
     return <div className="min-h-dvh bg-background" />;
 
+  const database = (
+    <section className="app-panel p-4 sm:p-5">
+      <h2 className="text-headline-md text-on-surface">
+        Database connection (LibSQL)
+      </h2>
+      <p className="mt-1 max-w-2xl text-body-md text-on-surface-variant">
+        The app talks directly to a LibSQL database over the HTTP pipeline:
+        Turso Cloud or your own libSQL server at the office, at home, or on a
+        VPS. Credentials are stored in an AES-256-GCM encrypted vault on this
+        device.
+      </p>
+
+      <form onSubmit={handleSave} className="mt-4 space-y-4">
+        <fieldset className="space-y-2">
+          <legend className="app-label mb-2">Database type</legend>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {DATABASE_PROVIDER_OPTIONS.map((option) => (
+              <label
+                key={option.value}
+                className={`grid min-w-0 cursor-pointer gap-1 rounded-md border p-3 text-body-sm transition-colors ${
+                  provider === option.value
+                    ? "border-secondary bg-secondary-fixed text-on-secondary-fixed-variant"
+                    : "border-outline-variant bg-surface-container-lowest text-on-surface-variant hover:border-outline"
+                }`}
+              >
+                <span className="flex items-center gap-2 text-body-md font-semibold">
+                  <input
+                    type="radio"
+                    name="database-provider"
+                    value={option.value}
+                    checked={provider === option.value}
+                    onChange={() => {
+                      setProvider(option.value);
+                      setAllowInsecure(false);
+                      setConnection(null);
+                    }}
+                    className="size-4 shrink-0 accent-secondary"
+                  />
+                  <span className="min-w-0 truncate">{option.label}</span>
+                </span>
+                <span>{option.description}</span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+
+        {providerNeedsEndpoint(provider) ? (
+          <>
+            <label className="app-label grid gap-1.5">
+              {provider === "turso"
+                ? "Turso database URL"
+                : "Your database server address"}
+              <input
+                type="text"
+                inputMode="url"
+                value={databaseUrl}
+                onChange={(event) => {
+                  setDatabaseUrl(event.target.value);
+                  setConnection(null);
+                }}
+                placeholder={providerInfo.urlPlaceholder}
+                className="app-input font-mono text-code-md font-normal"
+              />
+              {databaseUrl.trim().length > 0 && endpoint.issue ? (
+                <span className="font-normal text-error">
+                  {endpoint.issue.message}
+                </span>
+              ) : null}
+            </label>
+
+            <label className="app-label grid gap-1.5">
+              {endpoint.tokenRequired
+                ? "Auth Token"
+                : "Auth Token (optional for servers without authentication)"}
+              <div className="relative">
+                <input
+                  type={showToken ? "text" : "password"}
+                  value={authToken}
+                  onChange={(event) => setAuthToken(event.target.value)}
+                  placeholder={
+                    tokenSaved
+                      ? "•••••••••••••••• (saved in the vault)"
+                      : providerInfo.tokenPlaceholder
+                  }
+                  autoComplete="off"
+                  className="app-input pr-20 font-mono text-code-md font-normal"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowToken((value) => !value)}
+                  aria-pressed={showToken}
+                  className="absolute right-1 top-1/2 min-h-9 -translate-y-1/2 rounded-md px-3 text-body-sm font-semibold text-on-surface-variant hover:bg-surface-container-low"
+                >
+                  {showToken ? "Hide" : "Show"}
+                </button>
+              </div>
+              <span className="font-normal text-on-surface-variant">
+                A saved token is never shown again. Leave this empty to keep it.
+              </span>
+            </label>
+          </>
+        ) : (
+          <p className="rounded-md border border-secondary/20 bg-secondary-fixed p-3 text-body-md text-on-secondary-fixed-variant">
+            All data is stored in a SQLite file on this device. No server
+            address or Auth Token is needed, and the app runs fully without
+            internet.
+          </p>
+        )}
+
+        {provider === "self_hosted" &&
+        (endpoint.issue?.code === "INSECURE_PUBLIC" || allowInsecure) ? (
+          <label className="flex items-start gap-2 rounded-md border border-error/30 bg-error-container p-3 text-body-md font-semibold text-on-error-container">
+            <input
+              type="checkbox"
+              checked={allowInsecure}
+              onChange={(event) => {
+                setAllowInsecure(event.target.checked);
+                setConnection(null);
+              }}
+              className="mt-0.5 size-4 shrink-0 accent-error"
+            />
+            <span>
+              Allow an unencrypted connection to a public address. The Auth
+              Token and all data will be sent as plain text that anyone on the
+              network path can read. The safe options are HTTPS on the server or
+              a LAN/VPN address.
+            </span>
+          </label>
+        ) : null}
+
+        {connection ? (
+          <div
+            role={connection.connected ? "status" : "alert"}
+            className={`rounded-md border p-3 text-body-md font-semibold ${
+              connection.connected
+                ? "border-success/30 bg-success-container text-on-success-container"
+                : "border-error/30 bg-error-container text-on-error-container"
+            }`}
+          >
+            {connection.connected
+              ? `Connected to ${providerInfo.label} (latency ${connection.latency_ms ?? 0} ms)`
+              : `Connection failed: ${connection.error_message ?? "check the URL and token"}`}
+          </div>
+        ) : null}
+
+        <div className="flex flex-wrap items-center gap-2 pt-1">
+          <button
+            type="submit"
+            disabled={busy || testing}
+            className="app-btn app-btn-primary"
+          >
+            {busy ? "Saving..." : "Save connection"}
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleTest()}
+            disabled={busy || testing}
+            className="app-btn app-btn-secondary"
+          >
+            {testing ? "Testing..." : "Test connection"}
+          </button>
+          {databaseUrl ? (
+            <button
+              type="button"
+              onClick={() => void handleReset()}
+              disabled={busy || testing}
+              className="app-btn app-btn-secondary text-error"
+            >
+              Reset connection
+            </button>
+          ) : null}
+        </div>
+      </form>
+    </section>
+  );
+
+  const syncPanel = (
+    <section className="app-panel p-4 sm:p-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-headline-md text-on-surface">Sync</h2>
+          <p className="mt-1 text-body-md text-on-surface-variant">
+            The local queue is sent to the cloud, then cloud changes are pulled
+            to this device.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => void handleSyncNow()}
+          disabled={syncing}
+          className="app-btn app-btn-secondary"
+        >
+          {syncing ? "Syncing..." : "Sync now"}
+        </button>
+      </div>
+      {sync ? (
+        <dl className="mt-4 grid grid-cols-2 gap-3 border-t border-surface-container pt-4 sm:grid-cols-4">
+          {[
+            { label: "Pending", value: sync.pending },
+            { label: "Sent", value: sync.synced },
+            { label: "Failed", value: sync.failed },
+            { label: "Conflicts", value: sync.conflict },
+          ].map((entry) => (
+            <div key={entry.label}>
+              <dt className="font-mono text-label-caps uppercase text-on-surface-variant">
+                {entry.label}
+              </dt>
+              <dd className="font-mono text-headline-lg tabular-nums text-on-surface">
+                {String(entry.value)}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      ) : null}
+      {sync?.pushError ? (
+        <p className="mt-3 rounded-md border border-tertiary-fixed-dim bg-tertiary-fixed p-3 text-body-md text-on-tertiary-fixed">
+          The last push failed: {sync.pushError}. Cloud data is still pulled,
+          and the local queue is retried automatically.
+        </p>
+      ) : null}
+    </section>
+  );
+
+  // Menu dikelompokkan: satu halaman berisi belasan kartu terlalu panjang
+  // untuk dicari di HP. Bagian yang dibuka disimpan di hash URL supaya tombol
+  // Back Android kembali ke menu, tanpa rute baru di ekspor statis.
+  const groups: SettingsGroup[] = [
+    {
+      title: "Company",
+      items: [
+        {
+          id: "company",
+          title: "Company profile",
+          description: "Name, address, logo, and signature",
+          icon: "home",
+          show: canManage,
+          content: <CompanyProfileCard />,
+        },
+        {
+          id: "business",
+          title: "Business settings",
+          description: "Revision quota, sample fee, lead segments, groups",
+          icon: "tools",
+          show: true,
+          content: <BusinessSettingsCard canManage={canManage} />,
+        },
+        {
+          id: "master-data",
+          title: "Master data",
+          description: "Options shown in the lead intake form",
+          icon: "document",
+          show: hasPermission(user, "master_data.manage"),
+          content: <MasterDataCard />,
+        },
+        {
+          id: "client-code",
+          title: "Client code",
+          description: "How new client codes are formed",
+          icon: "dashboard",
+          show: canManage,
+          content: <ClientCodeCard />,
+        },
+      ],
+    },
+    {
+      title: "Notifications",
+      items: [
+        {
+          id: "telegram",
+          title: "Telegram",
+          description: "Bot token, division groups, and delivery status",
+          icon: "bell",
+          show: canManage,
+          content: <TelegramSettingsCard />,
+        },
+        {
+          id: "mail",
+          title: "Email",
+          description: "Provider used to send password reset links",
+          icon: "share",
+          show: canManage,
+          content: <MailSettingsCard />,
+        },
+      ],
+    },
+    {
+      title: "Account & security",
+      items: [
+        {
+          id: "two-factor",
+          title: "Two-step verification",
+          description: "Authenticator code when signing in",
+          icon: "lock",
+          show: true,
+          content: <TwoFactorCard />,
+        },
+        {
+          id: "recovery",
+          title: "Recovery codes",
+          description: "Printed codes to sign in without a reset request",
+          icon: "reset",
+          show: true,
+          content: <PasswordRecoveryCard />,
+        },
+        {
+          id: "password-resets",
+          title: "Password resets",
+          description: "Who requested it, the face photo, and the result",
+          icon: "history",
+          show: canViewResetHistory,
+          href: "/password-reset-history",
+        },
+      ],
+    },
+    {
+      title: "Data & device",
+      items: [
+        {
+          id: "database",
+          title: "Database connection",
+          description: "Turso Cloud, your own server, or this device only",
+          icon: "database",
+          show: isDesktop && canManage,
+          content: database,
+        },
+        {
+          id: "sync",
+          title: "Sync",
+          description: "Queue status and manual sync",
+          icon: "sync",
+          show: isDesktop,
+          content: syncPanel,
+        },
+        {
+          id: "backup",
+          title: "Backup",
+          description: "Export or restore this device's database",
+          icon: "download",
+          show: true,
+          content: <DatabaseBackupCard provider={provider} />,
+        },
+        {
+          id: "license",
+          title: "License",
+          description: "License holder, devices, and validity",
+          icon: "check",
+          show: true,
+          content: <LicenseCard />,
+        },
+      ],
+    },
+  ];
+  const opened = groups
+    .flatMap((group) => group.items)
+    .find((item) => item.show && item.content && item.id === section);
+
+  const feedbackBanner = feedback ? (
+    <FeedbackBanner tone={feedback.type} onDismiss={() => setFeedback(null)}>
+      {feedback.message}
+    </FeedbackBanner>
+  ) : null;
+
+  if (opened) {
+    return (
+      <MobileAppShell title={opened.title}>
+        <button
+          type="button"
+          onClick={() => window.history.back()}
+          className="flex min-h-11 items-center gap-2 self-start text-body-md font-semibold text-secondary"
+        >
+          <Icon name="arrow-left" className="size-5" />
+          Settings
+        </button>
+        {feedbackBanner}
+        {opened.content}
+      </MobileAppShell>
+    );
+  }
+
   return (
     <MobileAppShell>
       <PageHeader
         title="Settings"
-        description="Database connection, account security, and sync status for this device."
+        description="Company, notifications, account security, and this device."
       />
-
-      {feedback ? (
-        <FeedbackBanner
-          tone={feedback.type}
-          onDismiss={() => setFeedback(null)}
-        >
-          {feedback.message}
-        </FeedbackBanner>
-      ) : null}
-
-      {!isDesktop ? (
-        <section className="app-panel p-4 sm:p-5">
-          <h2 className="text-headline-md text-on-surface">Database</h2>
-          <p className="mt-1 text-body-md text-on-surface-variant">
-            In the Web build, the database is set through server environment
-            variables (
-            <code className="text-on-surface">APP_DATABASE_PROVIDER</code>,{" "}
-            <code className="text-on-surface">TURSO_DATABASE_URL</code>,{" "}
-            <code className="text-on-surface">TURSO_AUTH_TOKEN</code>), not on
-            this screen. The credential vault only exists in the Desktop and
-            Mobile apps.
-          </p>
-        </section>
-      ) : null}
-
-      {isDesktop && canManage ? (
-        <section className="app-panel p-4 sm:p-5">
-          <h2 className="text-headline-md text-on-surface">
-            Database connection (LibSQL)
-          </h2>
-          <p className="mt-1 max-w-2xl text-body-md text-on-surface-variant">
-            The app talks directly to a LibSQL database over the HTTP pipeline:
-            Turso Cloud or your own libSQL server at the office, at home, or on
-            a VPS. Credentials are stored in an AES-256-GCM encrypted vault on
-            this device.
-          </p>
-
-          <form onSubmit={handleSave} className="mt-4 space-y-4">
-            <fieldset className="space-y-2">
-              <legend className="app-label mb-2">Database type</legend>
-              <div className="grid gap-2 sm:grid-cols-2">
-                {DATABASE_PROVIDER_OPTIONS.map((option) => (
-                  <label
-                    key={option.value}
-                    className={`grid min-w-0 cursor-pointer gap-1 rounded-md border p-3 text-body-sm transition-colors ${
-                      provider === option.value
-                        ? "border-secondary bg-secondary-fixed text-on-secondary-fixed-variant"
-                        : "border-outline-variant bg-surface-container-lowest text-on-surface-variant hover:border-outline"
-                    }`}
-                  >
-                    <span className="flex items-center gap-2 text-body-md font-semibold">
-                      <input
-                        type="radio"
-                        name="database-provider"
-                        value={option.value}
-                        checked={provider === option.value}
-                        onChange={() => {
-                          setProvider(option.value);
-                          setAllowInsecure(false);
-                          setConnection(null);
-                        }}
-                        className="size-4 shrink-0 accent-secondary"
-                      />
-                      <span className="min-w-0 truncate">{option.label}</span>
-                    </span>
-                    <span>{option.description}</span>
-                  </label>
-                ))}
-              </div>
-            </fieldset>
-
-            {providerNeedsEndpoint(provider) ? (
-              <>
-                <label className="app-label grid gap-1.5">
-                  {provider === "turso"
-                    ? "Turso database URL"
-                    : "Your database server address"}
-                  <input
-                    type="text"
-                    inputMode="url"
-                    value={databaseUrl}
-                    onChange={(event) => {
-                      setDatabaseUrl(event.target.value);
-                      setConnection(null);
-                    }}
-                    placeholder={providerInfo.urlPlaceholder}
-                    className="app-input font-mono text-code-md font-normal"
-                  />
-                  {databaseUrl.trim().length > 0 && endpoint.issue ? (
-                    <span className="font-normal text-error">
-                      {endpoint.issue.message}
-                    </span>
-                  ) : null}
-                </label>
-
-                <label className="app-label grid gap-1.5">
-                  {endpoint.tokenRequired
-                    ? "Auth Token"
-                    : "Auth Token (optional for servers without authentication)"}
-                  <div className="relative">
-                    <input
-                      type={showToken ? "text" : "password"}
-                      value={authToken}
-                      onChange={(event) => setAuthToken(event.target.value)}
-                      placeholder={
-                        tokenSaved
-                          ? "•••••••••••••••• (saved in the vault)"
-                          : providerInfo.tokenPlaceholder
-                      }
-                      autoComplete="off"
-                      className="app-input pr-20 font-mono text-code-md font-normal"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowToken((value) => !value)}
-                      aria-pressed={showToken}
-                      className="absolute right-1 top-1/2 min-h-9 -translate-y-1/2 rounded-md px-3 text-body-sm font-semibold text-on-surface-variant hover:bg-surface-container-low"
-                    >
-                      {showToken ? "Hide" : "Show"}
-                    </button>
-                  </div>
-                  <span className="font-normal text-on-surface-variant">
-                    A saved token is never shown again. Leave this empty to keep
-                    it.
+      {feedbackBanner}
+      {groups.map((group) => {
+        const items = group.items.filter((item) => item.show);
+        if (items.length === 0) return null;
+        return (
+          <section key={group.title} className="grid gap-2">
+            <h2 className="mt-2 px-1 text-body-sm font-semibold text-on-surface-variant">
+              {group.title}
+            </h2>
+            {items.map((item) => {
+              const row = (
+                <>
+                  <span className="grid size-11 shrink-0 place-items-center rounded-md bg-secondary-fixed text-on-secondary-fixed-variant">
+                    <Icon name={item.icon} className="size-5" />
                   </span>
-                </label>
-              </>
-            ) : (
-              <p className="rounded-md border border-secondary/20 bg-secondary-fixed p-3 text-body-md text-on-secondary-fixed-variant">
-                All data is stored in a SQLite file on this device. No server
-                address or Auth Token is needed, and the app runs fully without
-                internet.
-              </p>
-            )}
-
-            {provider === "self_hosted" &&
-            (endpoint.issue?.code === "INSECURE_PUBLIC" || allowInsecure) ? (
-              <label className="flex items-start gap-2 rounded-md border border-error/30 bg-error-container p-3 text-body-md font-semibold text-on-error-container">
-                <input
-                  type="checkbox"
-                  checked={allowInsecure}
-                  onChange={(event) => {
-                    setAllowInsecure(event.target.checked);
-                    setConnection(null);
-                  }}
-                  className="mt-0.5 size-4 shrink-0 accent-error"
-                />
-                <span>
-                  Allow an unencrypted connection to a public address. The Auth
-                  Token and all data will be sent as plain text that anyone on
-                  the network path can read. The safe options are HTTPS on the
-                  server or a LAN/VPN address.
-                </span>
-              </label>
-            ) : null}
-
-            {connection ? (
-              <div
-                role={connection.connected ? "status" : "alert"}
-                className={`rounded-md border p-3 text-body-md font-semibold ${
-                  connection.connected
-                    ? "border-success/30 bg-success-container text-on-success-container"
-                    : "border-error/30 bg-error-container text-on-error-container"
-                }`}
-              >
-                {connection.connected
-                  ? `Connected to ${providerInfo.label} (latency ${connection.latency_ms ?? 0} ms)`
-                  : `Connection failed: ${connection.error_message ?? "check the URL and token"}`}
-              </div>
-            ) : null}
-
-            <div className="flex flex-wrap items-center gap-2 pt-1">
-              <button
-                type="submit"
-                disabled={busy || testing}
-                className="app-btn app-btn-primary"
-              >
-                {busy ? "Saving..." : "Save connection"}
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleTest()}
-                disabled={busy || testing}
-                className="app-btn app-btn-secondary"
-              >
-                {testing ? "Testing..." : "Test connection"}
-              </button>
-              {databaseUrl ? (
-                <button
-                  type="button"
-                  onClick={() => void handleReset()}
-                  disabled={busy || testing}
-                  className="app-btn app-btn-secondary text-error"
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-body-md font-semibold text-on-surface">
+                      {item.title}
+                    </span>
+                    <span className="block text-body-sm text-on-surface-variant">
+                      {item.description}
+                    </span>
+                  </span>
+                  <Icon
+                    name="chevron-right"
+                    className="size-5 shrink-0 text-on-surface-variant"
+                  />
+                </>
+              );
+              const rowClass = "app-panel flex items-center gap-3 p-4";
+              // Bagian di halaman ini memakai <a> biasa: hanya navigasi hash
+              // bawaan browser yang memicu `hashchange`.
+              return item.href ? (
+                <Link
+                  key={item.id}
+                  href={item.href}
+                  onClick={() => triggerHaptic("light")}
+                  className={rowClass}
                 >
-                  Reset connection
-                </button>
-              ) : null}
-            </div>
-          </form>
-        </section>
-      ) : null}
-
-      {/* Keamanan akun sendiri: tidak dijaga izin apa pun, karena setiap
-          operator berhak mengamankan akunnya — termasuk role paling terbatas. */}
-      <LicenseCard />
-      <TwoFactorCard />
-      <PasswordRecoveryCard />
-      <DatabaseBackupCard provider={provider} />
-
-      {canViewResetHistory ? (
-        <section className="app-panel flex items-center justify-between gap-3 p-4">
-          <div className="flex min-w-0 items-center gap-3">
-            <span className="grid size-10 shrink-0 place-items-center rounded-md bg-surface-container-low text-on-surface-variant">
-              <Icon name="lock" className="size-5" />
-            </span>
-            <div className="min-w-0">
-              <h2 className="text-headline-md text-on-surface">
-                Password resets
-              </h2>
-              <p className="text-body-sm text-on-surface-variant">
-                Who requested it, the face photo, and the verification result
-              </p>
-            </div>
-          </div>
-          <Link
-            href="/password-reset-history"
-            onClick={() => triggerHaptic("light")}
-            className="app-btn app-btn-secondary shrink-0"
-          >
-            Open
-          </Link>
-        </section>
-      ) : null}
-
-      {/* Identitas perusahaan dibaca siapa pun yang punya sesi — nilainya
-          muncul di kop dokumen — tetapi hanya pemegang settings.manage yang
-          boleh menyuntingnya, dan itulah gerbang di sini. */}
-      {canManage ? <CompanyProfileCard /> : null}
-
-      {canManage ? <MailSettingsCard /> : null}
-
-      {/* Domain MaklonOS: pilihan form intake dan bentuk kode klien. */}
-      <BusinessSettingsCard canManage={canManage} />
-      {hasPermission(user, "master_data.manage") ? <MasterDataCard /> : null}
-      {canManage ? <ClientCodeCard /> : null}
-
-      {isDesktop ? (
-        <section className="app-panel p-4 sm:p-5">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <h2 className="text-headline-md text-on-surface">Sync</h2>
-              <p className="mt-1 text-body-md text-on-surface-variant">
-                The local queue is sent to the cloud, then cloud changes are
-                pulled to this device.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => void handleSyncNow()}
-              disabled={syncing}
-              className="app-btn app-btn-secondary"
-            >
-              {syncing ? "Syncing..." : "Sync now"}
-            </button>
-          </div>
-          {sync ? (
-            <dl className="mt-4 grid grid-cols-2 gap-3 border-t border-surface-container pt-4 sm:grid-cols-4">
-              {[
-                { label: "Pending", value: sync.pending },
-                { label: "Sent", value: sync.synced },
-                { label: "Failed", value: sync.failed },
-                { label: "Conflicts", value: sync.conflict },
-              ].map((entry) => (
-                <div key={entry.label}>
-                  <dt className="font-mono text-label-caps uppercase text-on-surface-variant">
-                    {entry.label}
-                  </dt>
-                  <dd className="font-mono text-headline-lg tabular-nums text-on-surface">
-                    {String(entry.value)}
-                  </dd>
-                </div>
-              ))}
-            </dl>
-          ) : null}
-          {sync?.pushError ? (
-            <p className="mt-3 rounded-md border border-tertiary-fixed-dim bg-tertiary-fixed p-3 text-body-md text-on-tertiary-fixed">
-              The last push failed: {sync.pushError}. Cloud data is still
-              pulled, and the local queue is retried automatically.
-            </p>
-          ) : null}
-        </section>
-      ) : null}
+                  {row}
+                </Link>
+              ) : (
+                <a
+                  key={item.id}
+                  href={`#${item.id}`}
+                  onClick={() => triggerHaptic("light")}
+                  className={rowClass}
+                >
+                  {row}
+                </a>
+              );
+            })}
+          </section>
+        );
+      })}
     </MobileAppShell>
   );
 }

@@ -1,5 +1,5 @@
 {
-  "name": "app-template-root",
+  "name": "companyos-root",
   "private": true,
   "scripts": {
     "setup": "bun install --cwd web-desktop && bun install --cwd mobile",

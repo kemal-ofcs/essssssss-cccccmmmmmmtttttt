@@ -304,7 +304,7 @@ export default function LoginPage() {
       <div className="mx-auto my-auto flex w-full max-w-sm flex-col gap-4">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h1 className="text-headline-xl text-on-surface">App Template</h1>
+            <h1 className="text-headline-xl text-on-surface">Company OS</h1>
             <p className="mt-1 text-body-md text-on-surface-variant">
               Sign in to continue.
             </p>

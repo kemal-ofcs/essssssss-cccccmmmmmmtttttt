@@ -1,5 +1,8 @@
 pub mod app_identity;
+// Aturan domain klien: SALINAN `desktop/clients.rs` oleh sync-rust-modules.ts.
 pub mod clients;
+// Aturan tiket sampel: SALINAN `desktop/samples.rs` oleh sync-rust-modules.ts.
+pub mod samples;
 pub mod commands;
 pub mod config;
 // Khusus Mobile: TIDAK ada padanannya di web-desktop dan TIDAK ikut disalin
@@ -8,6 +11,8 @@ pub mod device_storage;
 // Lisensi offline Ed25519: SALINAN `desktop/license.rs` oleh sync-rust-modules.ts.
 pub mod license;
 pub mod models;
+// Notifikasi divisi: SALINAN `desktop/notifications.rs` oleh sync-rust-modules.ts.
+pub mod notifications;
 pub mod portability;
 pub mod secrets;
 pub mod sql_backend;

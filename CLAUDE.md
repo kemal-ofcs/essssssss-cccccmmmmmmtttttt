@@ -51,7 +51,8 @@ pengecualian, dan jangan pernah ditambah: halaman yang melanggar diperbaiki.
 
 Skill agent untuk repo ini ada di `.agents/skills/` (Codex dan agent lain) dan
 `.claude/skills/` (Claude Code): `kerjakan-fitur-lintas-platform`,
-`audit-lalu-perbaiki`, dan `resolve-sync-schema-mismatch`. Kedua folder wajib
+`audit-lalu-perbaiki`, `resolve-sync-schema-mismatch`, dan `uji-rilis-android`
+(daftar periksa APK rilis dan diagnosis bug dari HP). Kedua folder wajib
 identik; `audit:docs` menagihnya, sekaligus memeriksa setiap berkas yang dirujuk
 skill.
 
@@ -107,8 +108,30 @@ untuk database baru, dan `ALTER TABLE` (`ensure_column` di Rust,
 11. Kredensial tidak pernah disimpan sebagai teks biasa dan tidak pernah dikirim
     balik ke frontend. Token kosong pada penyimpanan berarti "pertahankan yang
     lama", bukan "kosongkan".
+    Pengecualian yang disengaja: kredensial bersama di tabel cloud-only
+    (`app_mail_config.api_key`, `telegram_config.bot_token`) disimpan apa
+    adanya, karena server Web DAN setiap perangkat harus bisa memakainya, dan
+    di arsitektur 2-tier tidak ada tempat kunci enkripsi bersama selain
+    database itu sendiri; mengenkripsi dengan kunci di database yang sama
+    hanya kosmetik. Penjaganya: tidak pernah ke frontend, tidak pernah ke
+    snapshot perangkat, dan siapa pun yang bisa membacanya sudah memegang
+    seluruh data. Bocor = ganti di penyedianya (Revoke di @BotFather, kunci
+    baru di Resend/Brevo). Kredensial di perangkat tetap lewat vault
+    terenkripsi (`secrets.rs`).
 12. Android: `isMinifyEnabled = false`; pakai `webpki-roots`, bukan
     `rustls-platform-verifier`; pasang provider kripto `ring` di awal `run()`.
+    `src-tauri/gen/` diabaikan git, jadi `mobile/scripts/patch-android.ts`
+    (otomatis sebelum setiap `tauri:android:build*`) memasang ulang R8 mati dan
+    tanda tangan rilis dari `gen/android/keystore.properties`; kunci `.jks` dan
+    password-nya tidak pernah masuk repo.
+    Masa login offline (`APP_OFFLINE_AUTH_MAX_AGE_HOURS`, batas 168 jam)
+    ditanam `build.rs` KEDUA workspace (bukan `.cargo/config.toml`, yang tidak
+    terbaca saat Gradle menjalankan Cargo dari folder lain): build rilis tidak
+    punya nilai bawaan, dan tanpanya aplikasi menolak start lalu tertutup
+    sendiri. Admin memperpendeknya lewat setelan `offline_login_max_days`.
+    Untuk HP pakai `bun run tauri:android:build:arm64`: build universal
+    mengompilasi Rust untuk empat ABI (dua di antaranya hanya untuk emulator)
+    dan memakan lebih dari 30 menit.
 13. Nilai uang disimpan sebagai `INTEGER`, tidak pernah float.
 14. Siklus hidup kamera Android: cleanup unmount di `useEffect` terpisah dengan
     dependency array kosong, terpisah dari listener `visibilitychange`.
@@ -426,3 +449,55 @@ Detail lengkap ada di `README.md`.
     perangkat sehingga sesudahnya terlihat offline, dan pull berikutnya tidak
     pernah menimpanya karena kolom itu tidak ada di daftar kolom snapshot.
     Batch push dibatasi `PUSH_BATCH_MAX_BYTES` (4 MB), bukan hanya 50 event.
+39. **Notifikasi divisi (PRD FR-08).** `notification_outbox`,
+    `telegram_config`, dan `notification_seen` cloud-only: tidak ada di
+    `storage.rs` maupun `SNAPSHOT_TABLES`. Baris notifikasi lahir di transaksi
+    cloud yang SAMA dengan mutasinya (handler push `client/register` dan
+    `sample/transition` di `turso.rs`; `registerClient`/`recordSampleStep` di
+    Web), jadi event yang ditolak sebagai konflik tidak pernah memberi tahu.
+    `id` sekaligus kunci dedupe. Status Telegram diputuskan saat baris lahir
+    (`SKIPPED` bila bot mati atau chat ID divisi kosong, supaya menyalakan bot
+    tidak membanjiri grup); lonceng membaca semua baris. Pengirimnya
+    `notifications::dispatch` di akhir `synchronize` (best effort, aturan 9)
+    dan `after()` di route Web (query lonceng tiap 60 dtk, registrasi, langkah
+    tiket) — tidak ada worker latar. Klaim `UPDATE … claimed_at` hanya
+    dimenangkan satu pengirim; klaim > 10 menit boleh diambil ulang (duplikat
+    langka, disengaja), 5 kali gagal = `FAILED` dan tampil di Pengaturan.
+    Seluruh SQL dan teks pesan identik di `validations/notification.ts` ↔
+    `notifications.rs` (dites per karakter). Izin lonceng berakhiran `.view`
+    (`notifications_cs.view`, dst.) supaya tetap terbaca di mode baca-saja
+    lisensi. Token bot tidak pernah dikirim ke frontend; kosong = pertahankan.
+40. **Impor CSV klien (PRD FR-09).** Layar (`ClientImport.tsx`) hanya
+    membaca berkas, menebak pemetaan header dan urutan tanggal, lalu
+    memetakan nilai PIC/Kode Asal Lead/Kategori ke id; ia tidak memutuskan
+    validitas apa pun. Backend (`importClients` ↔ `desktop_import_clients`)
+    dipanggil DUA kali dengan pemeriksaan yang sama — `dry_run: true` untuk
+    pratinjau, `false` untuk simpan dalam satu transaksi — jadi yang lolos
+    pratinjau adalah yang tersimpan. Aturan per baris ada di fungsi kembar
+    `validateImportRow`/`parseSheetDate`/`normalizeImportPhone` ↔
+    `validate_import_row`/`parse_sheet_date`/`normalize_import_phone`
+    (`clients.rs`, vektor kembar). Urutan tanggal (DMY/MDY) WAJIB dipilih,
+    tidak pernah ditebak diam-diam: `12/5/2026` sah di kedua urutan. Hanya
+    menambah: kode (tanpa membedakan huruf besar-kecil) atau nomor yang sudah
+    ada dilewati. Jawaban PIC menjadi interaksi `INBOUND`/`OTHER` pada waktu
+    respons terakhir supaya Jumlah FU dari sheet tidak bertambah di cloud.
+    Payload `client/register` hasil impor membawa `imported: true` dan handler
+    push TIDAK menulis notifikasi untuknya. Impor menuntut `clients.manage`
+    DAN `leads.reassign`, karena ia menetapkan PIC untuk operator lain.
+41. **Cabang Desktop gateway memetakan field satu per satu.** Cabang Web
+    biasanya meneruskan seluruh draft, sedangkan cabang `invokeDesktop`
+    menyalin field ke nama snake_case secara manual. Field yang lupa disalin
+    hilang tanpa galat: Web lulus, Desktop gagal. Contoh nyata:
+    `createOperator`/`updateMasterOperator` tidak mengirim `email`/`no_hp`,
+    sehingga setiap operator baru di Desktop ditolak "Enter a valid operator
+    email." dan suntingan kontak tidak pernah tersimpan. Menambah field di
+    sebuah draft berarti memeriksa KEDUA cabang gatewaynya dan field yang
+    dibaca command Rust-nya.
+42. **Layar yang menampilkan data sinkron memuat ulang pada
+    `SYNC_COMPLETED_EVENT`.** Kartu yang membaca sekali saat mount (misalnya
+    Company profile) tetap menampilkan nilai lama walau pull sudah membawa
+    yang baru, dan itu terlihat persis seperti sinkronisasi yang rusak. Muat
+    ulang hanya bila formulir belum disunting: pola `loadedRef` di
+    `CompanyProfileCard.tsx` mengganti isi form hanya selama form masih sama
+    dengan nilai terakhir dari backend. Kerangka layar dan pola menu ada di
+    bagian "Navigasi" `DESIGN.md`.

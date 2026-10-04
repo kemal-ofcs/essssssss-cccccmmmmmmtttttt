@@ -30,6 +30,7 @@ const filesToCopy = [
   "components/QuarantineBanner.tsx",
   // Domain MaklonOS: workspace klien dan kartu Pengaturan-nya.
   "components/clients/ClientCodeCard.tsx",
+  "components/clients/ClientImport.tsx",
   "components/clients/ClientWorkspace.tsx",
   "components/clients/LeadDetail.tsx",
   "components/audit/ActiveSessions.tsx",
@@ -47,6 +48,8 @@ const filesToCopy = [
   "components/DatabaseBackupCard.tsx",
   "components/LivenessCapture.tsx",
   "components/MailSettingsCard.tsx",
+  "components/NotificationBell.tsx",
+  "components/TelegramSettingsCard.tsx",
   "components/PasswordRecoveryCard.tsx",
   "components/SyncIndicator.tsx",
   "components/TwoFactorCard.tsx",

@@ -111,40 +111,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "330a5ed07fa54e4702c9d6c4174f74427fc0ef6e214bbd677ae50a5099946470"
 
 [[package]]
-name = "app_template_mobile"
-version = "0.1.0"
-dependencies = [
- "aes-gcm",
- "argon2",
- "base64 0.22.1",
- "dotenvy",
- "hex",
- "hmac",
- "log",
- "pbkdf2",
- "rand_core 0.6.4",
- "reqwest",
- "ring",
- "rusqlite",
- "rust_decimal",
- "rustls",
- "serde",
- "serde_json",
- "sha1",
- "sha2",
- "tauri",
- "tauri-build",
- "tauri-plugin-android-fs",
- "tauri-plugin-log",
- "tempfile",
- "tokio",
- "url",
- "webpki-roots 0.26.11",
- "windows-registry",
- "zeroize",
-]
-
-[[package]]
 name = "argon2"
 version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -590,6 +556,40 @@ checksum = "cfc320937d09e6de266b31b9afb480f197d7a861be86be7cb2ea7e5d1bfffc5e"
 dependencies = [
  "bytes",
  "memchr",
+]
+
+[[package]]
+name = "companyos_mobile"
+version = "0.1.0"
+dependencies = [
+ "aes-gcm",
+ "argon2",
+ "base64 0.22.1",
+ "dotenvy",
+ "hex",
+ "hmac",
+ "log",
+ "pbkdf2",
+ "rand_core 0.6.4",
+ "reqwest",
+ "ring",
+ "rusqlite",
+ "rust_decimal",
+ "rustls",
+ "serde",
+ "serde_json",
+ "sha1",
+ "sha2",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-android-fs",
+ "tauri-plugin-log",
+ "tempfile",
+ "tokio",
+ "url",
+ "webpki-roots 0.26.11",
+ "windows-registry",
+ "zeroize",
 ]
 
 [[package]]

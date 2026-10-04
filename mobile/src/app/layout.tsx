@@ -18,7 +18,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "App Template",
+  title: "Company OS",
   description: "Offline-first operations app for Android.",
 };
 

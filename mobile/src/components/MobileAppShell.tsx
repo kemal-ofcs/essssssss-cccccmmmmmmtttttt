@@ -7,6 +7,7 @@ import { type AppArea, canAccessArea } from "@/lib/auth/access";
 import { useAuth } from "@/lib/context/AuthContext";
 import { AutoSyncRunner } from "./AutoSyncRunner";
 import { LicenseHolderLabel, LicenseNotice } from "./license/LicenseNotice";
+import { NotificationBell } from "./NotificationBell";
 import { QuarantineBanner } from "./QuarantineBanner";
 import { SyncIndicator } from "./SyncIndicator";
 
@@ -34,6 +35,11 @@ interface MobileAppShellProps {
  * Navigasi bawah dijaga permission yang sama dengan Desktop lewat
  * `canAccessArea`, sehingga satu perubahan role langsung berlaku di kedua
  * target. Menyembunyikan menu tetap bukan pengganti guard di backend Rust.
+ *
+ * Yang digulir dokumennya, bukan `<main>`. Kerangkanya `min-h-dvh`, jadi
+ * `<main>` ber-`overflow-y-auto` tidak pernah punya isi yang meluap, dan
+ * `overscroll-contain` di sana menahan gulir dokumen di WebView Android:
+ * halaman tidak bisa digeser sama sekali.
  */
 export function MobileAppShell({ children, title }: MobileAppShellProps) {
   const { user } = useAuth();
@@ -46,9 +52,12 @@ export function MobileAppShell({ children, title }: MobileAppShellProps) {
       <header className="sticky top-0 z-30 border-b border-surface-container bg-surface-container-lowest px-4 py-2 shadow-[0_1px_8px_rgb(0_0_0/0.04)]">
         <div className="flex items-center justify-between gap-2">
           <p className="truncate text-headline-md font-bold text-on-surface">
-            {title ?? "App Template"}
+            {title ?? "Company OS"}
           </p>
-          <SyncIndicator />
+          <div className="flex shrink-0 items-center gap-1">
+            <SyncIndicator />
+            <NotificationBell />
+          </div>
         </div>
         {user ? (
           <p className="mt-0.5 truncate text-body-sm text-on-surface-variant">
@@ -62,7 +71,7 @@ export function MobileAppShell({ children, title }: MobileAppShellProps) {
 
       <main
         id="main-content"
-        className="flex min-h-0 flex-1 touch-pan-y flex-col gap-3 overflow-y-auto overscroll-contain px-4 py-3 pb-24"
+        className="flex flex-1 flex-col gap-3 px-4 py-3 pb-24"
       >
         {children}
       </main>

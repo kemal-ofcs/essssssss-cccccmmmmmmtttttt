@@ -13,11 +13,11 @@
 //! `bun run rename` mengganti keduanya sekaligus.
 
 /// Nama mesin produk: huruf kecil, angka, dan tanda hubung.
-pub const APP_SLUG: &str = "app-template";
+pub const APP_SLUG: &str = "companyos";
 
 /// Nama yang dilihat pengguna.
 #[allow(dead_code)]
-pub const APP_DISPLAY_NAME: &str = "App Template";
+pub const APP_DISPLAY_NAME: &str = "Company OS";
 
 /// Alamat server aplikasi bawaan.
 ///
@@ -25,11 +25,6 @@ pub const APP_DISPLAY_NAME: &str = "App Template";
 /// produk turunan diam-diam menunjuk deployment milik orang lain sampai
 /// seseorang menyadarinya.
 pub const DEFAULT_SERVER_ORIGIN: &str = "";
-
-/// Pengenal klien vault Stronghold.
-pub fn vault_client_id() -> Vec<u8> {
-    format!("{APP_SLUG}-desktop-auth-v1").into_bytes()
-}
 
 /// Pemisah domain untuk kunci identitas offline.
 ///
