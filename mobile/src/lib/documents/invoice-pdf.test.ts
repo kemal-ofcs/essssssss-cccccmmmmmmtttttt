@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   buildInvoicePdf,
+  buildMouPdf,
   type InvoicePdfData,
   textWidth,
   toPdfText,
@@ -96,4 +97,35 @@ describe("invoice PDF", () => {
       wrapText("x".repeat(60), 10, 50).every((line) => line.length > 0),
     ).toBe(true);
   });
+});
+
+test("MoU PDF: struktur sah, isi dan tanda tangan tercetak", () => {
+  const pdf = latin1(
+    buildMouPdf({
+      company: data.company,
+      logo: null,
+      mou_number: "MOU-20261009-WB01",
+      issued_on: "2026-10-09",
+      stamp: "ACCEPTED",
+      client: ["KLN-20261008-WB01 · Aura Beauty", "Bandung"],
+      terms: [
+        { label: "Units", value: "10.000" },
+        { label: "Contract value", value: "Rp 325.000.000" },
+        { label: "Down payment (50%)", value: "Rp 162.500.000" },
+      ],
+      notes: "Box 30 ml",
+      footer: "The down payment is invoiced separately.",
+      signatures: ["For Company Name", "For Aura Beauty"],
+    }),
+  );
+  expectValidXref(pdf);
+  for (const text of [
+    "(PRODUCTION MOU)",
+    "(MOU-20261009-WB01)",
+    "(ACCEPTED)",
+    "(Rp 162.500.000)",
+    "(For Aura Beauty)",
+  ]) {
+    expect(pdf).toContain(text);
+  }
 });

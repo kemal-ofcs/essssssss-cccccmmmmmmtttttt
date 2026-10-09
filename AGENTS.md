@@ -582,3 +582,86 @@ Detail lengkap ada di `README.md`.
     hanya pemegang `design.override_dummy_limit` (ikut paket Admin, tidak
     di-seed ke role divisi); payload membawa `override_limit` dan auditnya.
     Kuota foto berlaku per jenis foto. Gerbang MoU (E-20) menyusul di F-20.
+45. **MoU produksi dan DP (PRD F-20, v2.5a, D-37).** Aturan di SATU modul
+    per bahasa, `validations/mou.ts` ↔ `desktop/mou.rs` (vektor kembar, SQL
+    dites per karakter). Satu MoU per order (OQ-22) dan satu MoU aktif per
+    tiket sampel (`production_mou`, tanpa UNIQUE; `MOU_ACTIVE_SQL` di
+    perangkat, Web, dan `mou_guard` cloud). MoU hanya untuk tiket
+    `CLIENT_ACC`; dikirim ke klien hanya bila dummy tidak diminta atau sudah
+    `DUMMY_ACC` (E-20, `dummy_ready`). Total = unit × harga satuan sebelum
+    pajak dan DP = `applyRate(total, dp_bp)` SELALU dihitung
+    `validateMouTerms` ↔ `validate_mou_terms`, termasuk di cloud; payload
+    tidak dipercaya. Harga satuan bawaan = harga sampel terakhir, persen DP
+    bawaan = setelan `dp_percentage_bp`; keduanya hanya diubah pemegang
+    `finance.manage` (`merge_mou_terms`/`mergeTerms`), sisanya `mou.manage`.
+    Suntingan hanya pada draf, dijaga `updated_at` (rute `mou/update`);
+    langkah lewat `applyMouAction` ↔ `apply_mou_action` dan rute
+    `mou/transition`, ditulis ke `sample_status_log` tiket sampelnya.
+    Tagihan `DP_PRODUCTION_LEGAL` hanya untuk MoU `ACCEPTED`; "DP lunas"
+    dihitung (`dp_cleared` di `MOU_LIST_SQL`, `dp_paid` di
+    `SAMPLE_LIST_SQL`), tidak disimpan, dan dipakai gerbang F-21. PDF MoU
+    memakai penulis PDF v2.3c (`buildMouPdf`, kop bersama `drawHeader`).
+46. **Persetujuan klien: tautan dan jalur manual (PRD F-18, v2.5b, D-38).**
+    Satu mesin untuk tiga hal yang menunggu jawaban klien: sampel
+    `SAMPLE_SENT`, dummy `DUMMY_SENT`, MoU `SENT`. `approval_tokens`
+    cloud-only (tidak di `storage.rs` maupun snapshot) dan hanya memegang
+    hash token. Tautan dibuat LANGSUNG di cloud (`create_approval_link` di
+    `turso.rs`, `createApprovalLink` di Web), hanya online dan bukan di Mode
+    Database Lokal; `APPROVAL_INSERT_SQL` hanya menulis bila hal itu di
+    cloud sedang menunggu klien, kedaluwarsa dihitung database
+    (`approval_token_ttl_days`), tautan baru mencabut yang lama. Alamatnya
+    dari setelan `approval_web_url` (`normalizeApprovalWebUrl` ↔
+    `normalize_approval_web_url`, wajib `https://`, kosong = hanya manual).
+    Halaman `/approve` (Web saja) dan `/api/approval/query|respond` terbuka
+    tanpa login, dijaga rate limit login (hanya token tidak sah yang
+    dihitung) dan dicatat di audit (`approval.invalid`). Jawaban diterapkan
+    Web dengan fungsi langkah YANG SAMA (`recordSampleStep`,
+    `recordDesignStep`, `recordMouStep` dengan `{ transaction, viaLink }`)
+    di satu transaksi bersama pemakaian token dan notifikasi CS; pelakunya
+    `{ id: null, role: "Client" }`. Token gugur bila status atau putaran
+    hal itu sudah berubah, termasuk karena jawaban dicatat manual. Langkah
+    jawaban klien yang dicatat staf (`CLIENT_DECISION_ACTIONS`) WAJIB
+    membawa tangkapan layar `CLIENT_RESPONSE` (`clientEvidence` ↔
+    `client_evidence`), disimpan di transaksi langkahnya dan dibawa payload;
+    cloud menyimpannya bila ada dan menerima event lama tanpanya.
+47. **Dokumen legal (PRD F-21, v2.6, D-39).** Aturan di SATU modul per
+    bahasa, `validations/legal.ts` ↔ `desktop/legal.rs` (vektor kembar, SQL
+    dites per karakter). Satu baris `legal_documents` per dokumen per MoU:
+    White Label hanya Halal bahan; Dengan BPOM SIG, BPOM, HKI, dan Halal
+    produk (`requiredLegalKinds`, `halalScope`). Semuanya terkunci sampai DP
+    Produksi & Legal lunas (E-21, `dp_cleared` dari aturan 45, tidak
+    disimpan); BPOM menunggu SIG final (`ISSUED` atau `NOT_REQUIRED`), HKI
+    dan Halal bebas urutan (`legalGateError` ↔ `legal_gate_error`). Status
+    `SUBMITTED` → `ISSUED`, atau `NOT_REQUIRED` dengan alasan (bukan untuk
+    BPOM); koreksi hanya selama `SUBMITTED`, dan final tidak bisa diubah.
+    Satu rute `legal/record` membawa `base_updated_at`: `LEGAL_UPSERT_SQL`
+    hanya menimpa bila `updated_at` di cloud sama dan barisnya belum final,
+    `legal_guard` (`turso.rs`) menghitung ulang gerbangnya dengan data cloud,
+    dan jenis yang sama dengan `id` lain dari perangkat kedua menjadi
+    konflik. Izinnya `legalKindPermission` ↔ `legal_kind_permission`: SIG
+    `rnd.manage`, sisanya `legal.manage` (seed role Legal bersama
+    `samples.view` dan `clients.view`, `LEGAL_PERMISSION_SEED_SQL` sekali
+    dengan penanda `legal_permissions_seeded`). Foto dokumen opsional
+    (`LEGAL_DOCUMENT`), langkahnya ditulis ke `sample_status_log` tiket
+    (`LEGAL_<KIND>`), dan `legal_open` di `SAMPLE_LIST_SQL` mengisi tab Legal
+    queue. `legalComplete` disiapkan untuk gerbang PPIC v3.
+48. **Impor sheet lama (PRD F-22, v2.7, D-40).** Data Uang Masuk menjadi
+    `incoming_funds` lewat rute `fund/record` yang SUDAH ADA (payload
+    `imported: true`, tanpa foto); Database Formulasi dan Database Desain
+    menjadi arsip hanya-tambah `imported_records` (jenis `FORMULA`/`DESIGN`,
+    snapshot, rute `imported-record/record`) yang hanya tampil di detail
+    klien, tanpa HPP/margin dan tanpa sunting/hapus. Aturannya di SATU modul
+    per bahasa, `validations/sheet-import.ts` ↔ `desktop/sheet_import.rs`
+    (vektor kembar, SQL dites per karakter): `parseSheetAmount` (Rp, titik
+    atau koma ribuan, `,00`/`,-` dibuang, sen bukan nol ditolak),
+    `parseSheetDay`, `validateSheetRow`, `sheetRowKey`, dan
+    `planSheetImport`, yang dipanggil perangkat dan Web untuk pratinjau DAN
+    simpan (pola aturan 40, satu transaksi, satu audit `sheet.import`).
+    Impor ulang menambah nol: uang masuk dilewati per (tanggal, nominal,
+    keterangan), arsip per (jenis, klien, kode, judul, tanggal), tanpa
+    membedakan huruf besar-kecil; duplikat DI DALAM berkas sengaja tidak
+    dilewati. Kode Klien wajib dan harus terdaftar untuk arsip, opsional
+    untuk uang masuk. Izin per jenis `sheetImportPermission` ↔
+    `sheet_import_permission` (`finance.manage`, `rnd.manage`,
+    `design.manage`); izin PRD `data_import.run` tidak dipakai. Cloud
+    memeriksa ulang arsip dengan `archive_payload_error` (khusus Rust).

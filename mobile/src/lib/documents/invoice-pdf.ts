@@ -219,11 +219,25 @@ function assemble(objects: (string | Uint8Array[])[]): Uint8Array {
   return out;
 }
 
-export function buildInvoicePdf(data: InvoicePdfData): Uint8Array {
-  const page = new Page();
-  let top = PAGE_HEIGHT - MARGIN;
+interface Letterhead {
+  company: { name: string; lines: string[] };
+  logo: PdfLogo | null;
+  stamp: string;
+  stamp_note: string;
+}
 
-  // Kop: logo (paling besar 140 x 56) lalu identitas perusahaan.
+/**
+ * Kop dokumen: logo (paling besar 140 x 56) dan identitas perusahaan di kiri,
+ * judul, baris identitas dokumen, dan cap di kanan. Mengembalikan posisi
+ * baris berikutnya di bawah garis pemisah.
+ */
+function drawHeader(
+  page: Page,
+  data: Letterhead,
+  title: string,
+  meta: string[],
+): number {
+  let top = PAGE_HEIGHT - MARGIN;
   let headerX = MARGIN;
   if (data.logo && data.logo.width > 0 && data.logo.height > 0) {
     const scale = Math.min(140 / data.logo.width, 56 / data.logo.height, 1);
@@ -243,12 +257,13 @@ export function buildInvoicePdf(data: InvoicePdfData): Uint8Array {
     }
   }
 
-  // Judul dan identitas tagihan, rata kanan.
-  page.textRight(RIGHT, top - 18, "INVOICE", 20, true);
-  page.textRight(RIGHT, top - 36, data.invoice_number, 10, true);
-  page.textRight(RIGHT, top - 50, `Issued ${data.issued_on}`, 9);
-  page.textRight(RIGHT, top - 62, `Due ${data.due_on}`, 9);
-  let rightY = top - 82;
+  page.textRight(RIGHT, top - 18, title, 20, true);
+  let rightY = top - 36;
+  meta.forEach((line, index) => {
+    page.textRight(RIGHT, rightY, line, index === 0 ? 10 : 9, index === 0);
+    rightY -= index === 0 ? 14 : 12;
+  });
+  rightY -= 8;
   if (data.stamp) {
     page.color(0.75, 0.1, 0.1);
     page.textRight(RIGHT, rightY, data.stamp, 14, true);
@@ -262,7 +277,45 @@ export function buildInvoicePdf(data: InvoicePdfData): Uint8Array {
 
   top = Math.min(companyY, rightY, top - 70) - 16;
   page.line(MARGIN, top, RIGHT, top);
-  top -= 18;
+  return top - 18;
+}
+
+/** Satu halaman A4 + font standar + logo opsional menjadi berkas PDF. */
+function finishPage(page: Page, logo: PdfLogo | null): Uint8Array {
+  const content = latin1(page.ops.join("\n"));
+  const resources = logo
+    ? "/Font << /F1 4 0 R /F2 5 0 R >> /XObject << /Im1 7 0 R >>"
+    : "/Font << /F1 4 0 R /F2 5 0 R >>";
+  const objects: (string | Uint8Array[])[] = [
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+    `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PAGE_WIDTH} ${PAGE_HEIGHT}] /Resources << ${resources} >> /Contents 6 0 R >>`,
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>",
+    [
+      latin1(`<< /Length ${content.length} >>\nstream\n`),
+      content,
+      latin1("\nendstream"),
+    ],
+  ];
+  if (logo) {
+    objects.push([
+      latin1(
+        `<< /Type /XObject /Subtype /Image /Width ${logo.width} /Height ${logo.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${logo.jpeg.length} >>\nstream\n`,
+      ),
+      logo.jpeg,
+      latin1("\nendstream"),
+    ]);
+  }
+  return assemble(objects);
+}
+export function buildInvoicePdf(data: InvoicePdfData): Uint8Array {
+  const page = new Page();
+  let top = drawHeader(page, data, "INVOICE", [
+    data.invoice_number,
+    `Issued ${data.issued_on}`,
+    `Due ${data.due_on}`,
+  ]);
 
   page.text(MARGIN, top, "Bill to", 9, true);
   top -= 14;
@@ -326,30 +379,84 @@ export function buildInvoicePdf(data: InvoicePdfData): Uint8Array {
     }
   }
 
-  const content = latin1(page.ops.join("\n"));
-  const resources = data.logo
-    ? "/Font << /F1 4 0 R /F2 5 0 R >> /XObject << /Im1 7 0 R >>"
-    : "/Font << /F1 4 0 R /F2 5 0 R >>";
-  const objects: (string | Uint8Array[])[] = [
-    "<< /Type /Catalog /Pages 2 0 R >>",
-    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
-    `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PAGE_WIDTH} ${PAGE_HEIGHT}] /Resources << ${resources} >> /Contents 6 0 R >>`,
-    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
-    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>",
-    [
-      latin1(`<< /Length ${content.length} >>\nstream\n`),
-      content,
-      latin1("\nendstream"),
-    ],
-  ];
-  if (data.logo) {
-    objects.push([
-      latin1(
-        `<< /Type /XObject /Subtype /Image /Width ${data.logo.width} /Height ${data.logo.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${data.logo.jpeg.length} >>\nstream\n`,
-      ),
-      data.logo.jpeg,
-      latin1("\nendstream"),
-    ]);
+  return finishPage(page, data.logo);
+}
+
+export interface MouPdfData {
+  company: { name: string; lines: string[] };
+  logo: PdfLogo | null;
+  mou_number: string;
+  issued_on: string;
+  /** "DRAFT", "ACCEPTED", "REJECTED", "CANCELLED", atau "". */
+  stamp: string;
+  client: string[];
+  /** Baris isi MoU: label di kiri, nilai rata kanan. */
+  terms: { label: string; value: string }[];
+  notes: string;
+  /** Kalimat penutup, mis. DP ditagih terpisah. */
+  footer: string;
+  signatures: [string, string];
+}
+
+/**
+ * MoU produksi satu halaman (v2.5a, PRD F-20): kop yang sama dengan invoice,
+ * isi MoU, catatan, dan dua kotak tanda tangan.
+ */
+export function buildMouPdf(data: MouPdfData): Uint8Array {
+  const page = new Page();
+  let top = drawHeader(page, { ...data, stamp_note: "" }, "PRODUCTION MOU", [
+    data.mou_number,
+    `Date ${data.issued_on}`,
+  ]);
+
+  page.text(MARGIN, top, "Client", 9, true);
+  top -= 14;
+  for (const line of data.client) {
+    for (const part of wrapText(line, 10, RIGHT - MARGIN)) {
+      page.text(MARGIN, top, part, 10);
+      top -= 13;
+    }
   }
-  return assemble(objects);
+  top -= 12;
+
+  page.text(MARGIN, top, "Terms", 9, true);
+  top -= 6;
+  page.line(MARGIN, top, RIGHT, top);
+  top -= 14;
+  for (const row of data.terms) {
+    page.text(MARGIN, top, row.label, 10);
+    const parts = wrapText(row.value, 10, 260);
+    for (const part of parts) {
+      page.textRight(RIGHT, top, part, 10, true);
+      top -= 13;
+    }
+    top -= 3;
+  }
+  page.line(MARGIN, top + 4, RIGHT, top + 4);
+  top -= 14;
+
+  if (data.notes.trim()) {
+    page.text(MARGIN, top, "Notes", 9, true);
+    top -= 14;
+    for (const part of wrapText(data.notes, 9, RIGHT - MARGIN)) {
+      page.text(MARGIN, top, part, 9);
+      top -= 12;
+    }
+    top -= 8;
+  }
+  for (const part of wrapText(data.footer, 9, RIGHT - MARGIN)) {
+    page.text(MARGIN, top, part, 9);
+    top -= 12;
+  }
+
+  // Dua kotak tanda tangan di bawah halaman.
+  const signY = Math.min(top - 40, 170);
+  const half = (RIGHT - MARGIN) / 2;
+  data.signatures.forEach((label, index) => {
+    const x = MARGIN + index * half;
+    page.text(x, signY, label, 9, true);
+    page.line(x, signY - 60, x + half - 30, signY - 60);
+    page.text(x, signY - 72, "Name and date", 8);
+  });
+  return finishPage(page, data.logo);
 }

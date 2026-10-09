@@ -1953,7 +1953,7 @@ pub async fn desktop_update_company_profile(
 //   4. Picu sinkronisasi latar setelah commit, jangan sebelum.
 // ===========================================================================
 
-use super::{clients, design, finance, samples};
+use super::{approval, clients, design, finance, legal, mou, samples, sheet_import};
 
 fn draft_text(draft: &Value, key: &str) -> String {
     draft
@@ -2653,6 +2653,209 @@ pub async fn desktop_import_clients(
     }
     let _ = sync::synchronize(&state).await;
     Ok(plan.report(false, rows.len()))
+}
+
+/// Impor CSV Data Uang Masuk, Database Formulasi, atau Database Desain (PRD
+/// F-22, v2.7). Pola `desktop_import_clients`: `dry_run: true` = pratinjau,
+/// `false` = simpan baris yang sama dalam SATU transaksi dengan satu entri
+/// audit. Izinnya per jenis (`sheet_import_permission`, keputusan G). Uang
+/// masuk memakai rute `fund/record` yang sudah ada; arsip memakai rute
+/// hanya-tambah `imported-record/record`. Cermin `importSheet`.
+#[tauri::command]
+pub async fn desktop_import_sheet(
+    state: State<'_, MobileState>,
+    import: Value,
+) -> Result<Value, CommandError> {
+    let invalid = |message: &str| CommandError::new("SHEET_IMPORT_INVALID", message.to_owned());
+    let kind = draft_text(&import, "kind");
+    let permission =
+        sheet_import::sheet_import_permission(&kind).ok_or_else(|| invalid("Choose which sheet to import."))?;
+    let operator = require_permission(&state, permission)?;
+    let dry_run = import.get("dry_run").and_then(Value::as_bool) != Some(false);
+    let date_order = draft_text(&import, "date_order");
+    if !clients::DATE_ORDERS.contains(&date_order.as_str()) {
+        return Err(invalid("Choose the date order used in the sheet."));
+    }
+    let file_name: String = draft_text(&import, "file_name").chars().take(200).collect();
+    let rows = import
+        .get("rows")
+        .and_then(Value::as_array)
+        .filter(|rows| !rows.is_empty())
+        .ok_or_else(|| invalid("The file has no data rows."))?;
+    if rows.len() > clients::IMPORT_MAX_ROWS {
+        return Err(invalid("One import can hold at most 5000 rows. Split the file and import each part."));
+    }
+    // Tarik data cloud dulu supaya yang sudah ada terlihat "dilewati".
+    if dry_run {
+        let _ = sync::synchronize(&state).await;
+    }
+
+    let plan = {
+        let connection = storage::database(&state.data_dir)?;
+        let codes: std::collections::HashMap<String, String> =
+            query_json(&connection, sheet_import::SHEET_CLIENTS_SQL, &[])?
+                .into_iter()
+                .map(|row| {
+                    (
+                        row["client_code"].as_str().unwrap_or_default().to_lowercase(),
+                        row["id"].as_str().unwrap_or_default().to_owned(),
+                    )
+                })
+                .collect();
+        let text = |row: &Value, key: &str| row[key].as_str().unwrap_or_default().to_owned();
+        let existing: std::collections::HashSet<String> = if kind == "FUNDS" {
+            query_json(&connection, sheet_import::SHEET_FUND_KEYS_SQL, &[])?
+                .iter()
+                .map(|row| {
+                    sheet_import::sheet_row_key(
+                        "FUNDS",
+                        "",
+                        &text(row, "received_on"),
+                        "",
+                        "",
+                        row["amount_idr"].as_i64(),
+                        &text(row, "description"),
+                    )
+                })
+                .collect()
+        } else {
+            query_json(&connection, sheet_import::SHEET_ARCHIVE_KEYS_SQL, &[])?
+                .iter()
+                .map(|row| {
+                    sheet_import::sheet_row_key(
+                        &text(row, "kind"),
+                        &text(row, "client_id"),
+                        &text(row, "record_date"),
+                        &text(row, "code"),
+                        &text(row, "title"),
+                        None,
+                        "",
+                    )
+                })
+                .collect()
+        };
+        sheet_import::plan_sheet_import(&kind, rows, &date_order, &codes, &existing)
+    };
+    let report = |dry_run: bool| {
+        let count = |status: &str| plan.results.iter().filter(|result| result["status"] == status).count();
+        json!({
+            "dry_run": dry_run,
+            "total": rows.len(),
+            "added": plan.valid.len(),
+            "skipped": count("skipped"),
+            "invalid": count("invalid"),
+            "results": plan.results,
+        })
+    };
+    if dry_run || plan.valid.is_empty() {
+        return Ok(report(dry_run));
+    }
+
+    let client_id = sync::ensure_client_id(&state)?;
+    let now = clients::utc_timestamp(storage::now_epoch_seconds());
+    {
+        let mut connection = storage::database(&state.data_dir)?;
+        let transaction = connection.transaction().map_err(|_| CommandError::internal())?;
+        let failed = || CommandError::new("SHEET_IMPORT_FAILED", "The import could not be saved. Nothing was saved.");
+        for (row, owner) in &plan.valid {
+            let id = clients::new_uuid();
+            if kind == "FUNDS" {
+                transaction
+                    .execute(
+                        finance::FUND_INSERT_SQL,
+                        rusqlite::params![&id, owner, &row.date, row.amount_idr, &row.notes, "", operator.id, &now],
+                    )
+                    .map_err(|_| failed())?;
+                sync::enqueue(
+                    &transaction,
+                    &client_id,
+                    "fund",
+                    "record",
+                    &id,
+                    &json!({
+                        "id": id,
+                        "client_id": owner,
+                        "received_on": row.date,
+                        "amount_idr": row.amount_idr,
+                        "description": row.notes,
+                        "proof": Value::Null,
+                        "recorded_by": operator.id,
+                        "created_at": now,
+                        "imported": true,
+                    }),
+                    None,
+                )?;
+            } else {
+                transaction
+                    .execute(
+                        sheet_import::IMPORTED_RECORD_INSERT_SQL,
+                        rusqlite::params![
+                            &id, &kind, owner, &row.date, &row.code, &row.title, row.amount_idr, &row.notes,
+                            &file_name, operator.id, &now
+                        ],
+                    )
+                    .map_err(|_| failed())?;
+                sync::enqueue(
+                    &transaction,
+                    &client_id,
+                    "imported-record",
+                    "record",
+                    &id,
+                    &json!({
+                        "id": id,
+                        "kind": kind,
+                        "client_id": owner,
+                        "record_date": row.date,
+                        "code": row.code,
+                        "title": row.title,
+                        "amount_idr": row.amount_idr,
+                        "notes": row.notes,
+                        "source_file": file_name,
+                        "imported_by": operator.id,
+                        "created_at": now,
+                    }),
+                    None,
+                )?;
+            }
+        }
+        let result = report(false);
+        write_audit(
+            &transaction,
+            &client_id,
+            AuditEntry {
+                actor: &operator,
+                action: "sheet.import",
+                entity_type: if kind == "FUNDS" { "fund" } else { "imported_record" },
+                entity_id: "import",
+                summary: json!({
+                    "kind": kind,
+                    "file_name": file_name,
+                    "added": result["added"],
+                    "skipped": result["skipped"],
+                    "invalid": result["invalid"],
+                }),
+                on_behalf_of: None,
+            },
+        )?;
+        transaction.commit().map_err(|_| failed())?;
+    }
+    let _ = sync::synchronize(&state).await;
+    Ok(report(false))
+}
+
+/// Arsip impor satu klien (v2.7), terbaru dulu. Cermin `listImportedRecords`.
+#[tauri::command]
+pub fn desktop_list_imported_records(
+    state: State<'_, MobileState>,
+    client_id: String,
+) -> Result<Value, CommandError> {
+    require_permission(&state, "clients.view")?;
+    let connection = storage::database(&state.data_dir)?;
+    Ok(Value::Array(query_json(
+        &connection,
+        sheet_import::IMPORTED_RECORD_LIST_SQL,
+        &[&client_id.trim()],
+    )?))
 }
 
 /// Ubah data kontak klien dan kebutuhan lead-nya. Kode klien, pembuat, dan
@@ -3574,6 +3777,25 @@ pub fn desktop_get_sample_request(state: State<'_, MobileState>, id: String) -> 
         "invoices": invoices,
         "design": design,
         "max_dummy_rejections": business_settings(&connection).max_dummy_rejections,
+        // MoU aktif, atau yang terakhir dibatalkan/ditolak (v2.5a).
+        "mou": query_json(
+            &connection,
+            &format!(
+                "{} WHERE m.sample_request_id = ? ORDER BY m.status IN ('CANCELLED', 'REJECTED'), m.created_at DESC, m.rowid DESC LIMIT 1;",
+                mou::MOU_LIST_SQL
+            ),
+            &[&id],
+        )?
+        .into_iter()
+        .next(),
+        "dp_percentage_bp": business_settings(&connection).dp_percentage_bp,
+        "approval_link_enabled": !business_settings(&connection).approval_web_url.is_empty(),
+        // Dokumen legal semua MoU tiket ini (v2.6).
+        "legal_documents": query_json(
+            &connection,
+            &format!("{} WHERE l.sample_request_id = ? ORDER BY l.created_at, l.rowid;", legal::LEGAL_LIST_SQL),
+            &[&id],
+        )?,
     }))
 }
 
@@ -3861,8 +4083,10 @@ pub async fn desktop_record_sample_step(
     lead_time_days: Option<i64>,
     rnd: Option<Value>,
     revision_fee_idr: Option<i64>,
+    evidence_base64: Option<String>,
 ) -> Result<Value, CommandError> {
     let operator = require_permission(&state, samples::sample_action_permission(&action))?;
+    let evidence = client_evidence(&action, evidence_base64)?;
     let notes = samples::normalize_sample_notes(&notes)
         .ok_or_else(|| sample_invalid("Notes are required, up to 1000 characters."))?;
     let rnd_step = samples::validate_rnd_step(&action, rnd.as_ref()).map_err(sample_invalid)?;
@@ -3935,6 +4159,7 @@ pub async fn desktop_record_sample_step(
         },
         "formula_id": formula_id,
     });
+    let payload = with_evidence(payload, &evidence);
     let audit = AuditEntry {
         actor: &operator,
         action: "sample.step",
@@ -3955,6 +4180,7 @@ pub async fn desktop_record_sample_step(
         on_behalf_of: division,
     };
     commit_with_outbox(&state, "sample", "transition", &id, payload, Some(audit), |transaction| {
+        insert_evidence(transaction, "CLIENT_RESPONSE", &evidence, &id, operator.id, &now)?;
         let changed = transaction
             .execute(
                 samples::SAMPLE_TRANSITION_SQL,
@@ -4120,8 +4346,10 @@ pub async fn desktop_record_design_step(
     action: String,
     notes: String,
     tracking_no: Option<String>,
+    evidence_base64: Option<String>,
 ) -> Result<Value, CommandError> {
     let operator = require_permission(&state, design::design_action_permission(&action))?;
+    let evidence = client_evidence(&action, evidence_base64)?;
     let notes = samples::normalize_sample_notes(&notes)
         .ok_or_else(|| sample_invalid("Notes are required, up to 1000 characters."))?;
     let tracking = design::normalize_tracking_no(tracking_no.map(Value::String).as_ref())
@@ -4169,6 +4397,7 @@ pub async fn desktop_record_design_step(
         "changed_at": now,
         "log": { "id": log_id, "notes": notes, "recorded_by": operator.id },
     });
+    let payload = with_evidence(payload, &evidence);
     let audit = AuditEntry {
         actor: &operator,
         action: "design.step",
@@ -4188,6 +4417,7 @@ pub async fn desktop_record_design_step(
         on_behalf_of: None,
     };
     commit_with_outbox(&state, "design", "transition", &id, payload, Some(audit), |transaction| {
+        insert_evidence(transaction, "CLIENT_RESPONSE", &evidence, &sample_id, operator.id, &now)?;
         let changed = transaction
             .execute(
                 design::DESIGN_TRANSITION_SQL,
@@ -4226,6 +4456,530 @@ pub async fn desktop_record_design_step(
     })?;
     let _ = sync::synchronize(&state).await;
     Ok(json!({ "status": result.status, "rejection_count": result.rejection_count }))
+}
+
+/// Padanan `clientEvidence`: jawaban klien yang dicatat staf WAJIB membawa
+/// tangkapan layar balasannya (v2.5b, keputusan N). `(id, data, ukuran)`.
+fn client_evidence(action: &str, data: Option<String>) -> Result<Option<(String, String, i64)>, CommandError> {
+    if !approval::is_client_decision_action(action) {
+        return Ok(None);
+    }
+    let data = data
+        .filter(|data| !data.is_empty())
+        .ok_or_else(|| sample_invalid(approval::CLIENT_EVIDENCE_REQUIRED))?;
+    let size = samples::validate_media_upload("CLIENT_RESPONSE", &data).map_err(sample_invalid)?;
+    Ok(Some((clients::new_uuid(), data, size as i64)))
+}
+
+/// Bawa tangkapan layar di payload supaya cloud menyimpannya di transaksi yang sama.
+fn with_evidence(mut payload: Value, evidence: &Option<(String, String, i64)>) -> Value {
+    if let Some((id, data, _)) = evidence {
+        payload["evidence"] = json!({ "id": id, "data_base64": data });
+    }
+    payload
+}
+
+/// Simpan tangkapan layar di transaksi lokal langkahnya.
+fn insert_evidence(
+    transaction: &rusqlite::Transaction<'_>,
+    purpose: &str,
+    evidence: &Option<(String, String, i64)>,
+    sample_id: &str,
+    operator_id: i64,
+    now: &str,
+) -> Result<(), CommandError> {
+    if let Some((id, data, size)) = evidence {
+        transaction
+            .execute(
+                samples::MEDIA_INSERT_SQL,
+                rusqlite::params![id, sample_id, purpose, size, data, operator_id, now],
+            )
+            .map_err(|_| CommandError::internal())?;
+    }
+    Ok(())
+}
+
+/// Status dokumen legal sebuah MoU per jenis; untuk baris ganda dari dua
+/// perangkat, yang tertua menang (sama dengan `LEGAL_EXISTING_SQL`).
+fn legal_statuses(
+    connection: &rusqlite::Connection,
+    mou_id: &str,
+) -> Result<std::collections::HashMap<String, String>, CommandError> {
+    let mut statuses = std::collections::HashMap::new();
+    for row in query_json(
+        connection,
+        "SELECT kind, status FROM legal_documents WHERE mou_id = ? ORDER BY created_at DESC, rowid DESC;",
+        &[&mou_id],
+    )? {
+        statuses.insert(
+            row["kind"].as_str().unwrap_or_default().to_owned(),
+            row["status"].as_str().unwrap_or_default().to_owned(),
+        );
+    }
+    Ok(statuses)
+}
+
+/// Catat satu dokumen legal (v2.6, PRD F-21, keputusan D/E/F): SIG oleh RnD,
+/// BPOM/Halal/HKI oleh Legal; terkunci sampai DP lunas (E-21). Foto dokumen
+/// opsional. Cermin `recordLegalDocument`.
+#[tauri::command]
+pub async fn desktop_record_legal_document(
+    state: State<'_, MobileState>,
+    mou_id: String,
+    document: Value,
+    evidence_base64: Option<String>,
+) -> Result<Value, CommandError> {
+    let record = legal::validate_legal_record(&document).map_err(sample_invalid)?;
+    let operator = require_permission(&state, legal::legal_kind_permission(record.kind))?;
+    let evidence = match evidence_base64.filter(|data| !data.is_empty()) {
+        Some(data) => {
+            let size = samples::validate_media_upload("LEGAL_DOCUMENT", &data).map_err(sample_invalid)?;
+            Some((clients::new_uuid(), data, size as i64))
+        }
+        None => None,
+    };
+    let now = clients::utc_timestamp(storage::now_epoch_seconds());
+    let (current, existing) = {
+        let connection = storage::database(&state.data_dir)?;
+        let current = query_json(&connection, &format!("{} WHERE m.id = ?;", mou::MOU_LIST_SQL), &[&mou_id])?
+            .into_iter()
+            .next()
+            .ok_or_else(|| CommandError::new("MOU_NOT_FOUND", "MoU not found."))?;
+        let statuses = legal_statuses(&connection, &mou_id)?;
+        let gate = legal::LegalGateState {
+            mou_status: current["status"].as_str().unwrap_or_default(),
+            regulatory_path: current["regulatory_path"].as_str().unwrap_or_default(),
+            dp_cleared: current["dp_cleared"].as_i64() == Some(1),
+            statuses: &statuses,
+        };
+        if let Some(message) = legal::legal_gate_error(&gate, record.kind) {
+            return Err(sample_invalid(message));
+        }
+        let existing = query_json(&connection, legal::LEGAL_EXISTING_SQL, &[&mou_id, &record.kind])?
+            .into_iter()
+            .next();
+        (current, existing)
+    };
+    let id = existing
+        .as_ref()
+        .and_then(|row| row["id"].as_str())
+        .map_or_else(clients::new_uuid, str::to_owned);
+    let base_updated_at = existing
+        .as_ref()
+        .and_then(|row| row["updated_at"].as_str())
+        .unwrap_or_default()
+        .to_owned();
+    let base_status = existing
+        .as_ref()
+        .and_then(|row| row["status"].as_str())
+        .unwrap_or_default()
+        .to_owned();
+    let sample_id = current["sample_request_id"].as_str().unwrap_or_default().to_owned();
+    let notes = legal::legal_log_notes(&record);
+    let log_id = clients::new_uuid();
+    let payload = json!({
+        "id": id,
+        "mou_id": mou_id,
+        "sample_request_id": sample_id,
+        "record": record.to_json(),
+        "base_status": base_status,
+        "base_updated_at": base_updated_at,
+        "updated_at": now,
+        "recorded_by": operator.id,
+        "log": { "id": log_id },
+    });
+    let payload = with_evidence(payload, &evidence);
+    let audit = AuditEntry {
+        actor: &operator,
+        action: "legal.record",
+        entity_type: "sample",
+        entity_id: &sample_id,
+        summary: json!({
+            "client_code": current["client_code"],
+            "brand_name": current["brand_name"],
+            "mou_number": current["mou_number"],
+            "record": record.to_json(),
+        }),
+        on_behalf_of: None,
+    };
+    let action = format!("LEGAL_{}", record.kind);
+    commit_with_outbox(&state, "legal", "record", &id, payload, Some(audit), |transaction| {
+        let changed = transaction
+            .execute(
+                legal::LEGAL_UPSERT_SQL,
+                rusqlite::params![
+                    &id,
+                    &mou_id,
+                    &sample_id,
+                    record.kind,
+                    record.status,
+                    &record.reference_no,
+                    &record.certificate_no,
+                    &record.bpom_type,
+                    &record.submitted_on,
+                    &record.issued_on,
+                    &record.expires_on,
+                    &record.notes,
+                    operator.id,
+                    &now,
+                    &base_updated_at,
+                ],
+            )
+            .map_err(|_| CommandError::internal())?;
+        if changed == 0 {
+            return Err(sample_invalid(legal::LEGAL_CHANGED_ELSEWHERE));
+        }
+        insert_evidence(transaction, "LEGAL_DOCUMENT", &evidence, &sample_id, operator.id, &now)?;
+        transaction
+            .execute(
+                samples::SAMPLE_STATUS_LOG_INSERT_SQL,
+                rusqlite::params![&log_id, &sample_id, &base_status, record.status, &action, &notes, "", operator.id, &now],
+            )
+            .map_err(|_| CommandError::internal())?;
+        Ok(())
+    })?;
+    let _ = sync::synchronize(&state).await;
+    Ok(json!({ "id": id, "status": record.status }))
+}
+
+/// Tautan persetujuan klien (v2.5b, PRD F-18, keputusan J/K/L). Hanya saat
+/// online dan di database cloud: antrean dikirim dulu supaya cloud melihat
+/// status terbaru, lalu token ditulis langsung di cloud. Cermin
+/// `createApprovalLink`.
+#[tauri::command]
+pub async fn desktop_create_approval_link(
+    state: State<'_, MobileState>,
+    entity_type: String,
+    entity_id: String,
+) -> Result<Value, CommandError> {
+    if !approval::APPROVAL_ENTITY_TYPES.contains(&entity_type.as_str()) {
+        return Err(sample_invalid("This item cannot be sent for approval."));
+    }
+    let operator = require_permission(&state, approval::approval_permission(&entity_type))?;
+    let settings = {
+        let connection = storage::database(&state.data_dir)?;
+        business_settings(&connection)
+    };
+    if settings.approval_web_url.is_empty() {
+        return Err(sample_invalid(approval::APPROVAL_LINK_DISABLED));
+    }
+    if state.turso_config().is_some_and(|config| config.provider.is_local_file()) {
+        return Err(sample_invalid(
+            "Approval links need the cloud database. Send the WhatsApp message instead.",
+        ));
+    }
+    let _ = sync::synchronize(&state).await;
+    let created = state
+        .get_turso_client()?
+        .create_approval_link(&entity_type, &entity_id, settings.approval_token_ttl_days, operator.id)
+        .await
+        .map_err(|error| {
+            CommandError::new(
+                "APPROVAL_OFFLINE",
+                format!(
+                    "The approval link needs a connection to the database. Send the WhatsApp message instead. ({})",
+                    error.message
+                ),
+            )
+        })?;
+    let (token, expires_at) = created.ok_or_else(|| sample_invalid(approval::APPROVAL_LINK_UNAVAILABLE))?;
+    Ok(json!({
+        "url": approval::approval_url(&settings.approval_web_url, &token),
+        "expires_at": expires_at,
+    }))
+}
+
+/// Isi MoU dari form. Harga satuan dan persen DP hanya diambil dari form bila
+/// pencatat memegang `finance.manage`; selain itu dari `fallback` (keputusan D).
+fn merge_mou_terms(input: &Value, fallback: &Value, can_edit: bool, can_price: bool) -> Value {
+    let mut merged = fallback.clone();
+    let mut take = |keys: &[&str]| {
+        for key in keys {
+            merged[*key] = input.get(*key).cloned().unwrap_or(Value::Null);
+        }
+    };
+    if can_edit {
+        take(&["total_units", "production_lead_time_days", "regulatory_path", "notes"]);
+    }
+    if can_price {
+        take(&["unit_price_idr", "dp_bp"]);
+    }
+    merged
+}
+
+/// Draf MoU untuk tiket sampel yang sudah disetujui klien (v2.5a, PRD F-20,
+/// keputusan C/D). Harga satuan bawaan = harga sampel terakhir, persen DP
+/// bawaan = setelan. Cermin `createMou`.
+#[tauri::command]
+pub async fn desktop_create_mou(
+    state: State<'_, MobileState>,
+    sample_id: String,
+    terms: Value,
+) -> Result<Value, CommandError> {
+    let operator = require_permission(&state, "mou.manage")?;
+    let can_price = require_permission(&state, "finance.manage").is_ok();
+    let tag = sync::local_device_tag(&state)?.ok_or_else(|| {
+        CommandError::new(
+            "DEVICE_TAG_MISSING",
+            "This device has no code tag yet. Connect it to the database once to get one.",
+        )
+    })?;
+    let now = storage::now_epoch_seconds();
+    let timestamp = clients::utc_timestamp(now);
+    let (current, checked, number) = {
+        let connection = storage::database(&state.data_dir)?;
+        let current = query_json(&connection, &format!("{SAMPLE_LIST_SQL} WHERE s.id = ?;"), &[&sample_id])?
+            .into_iter()
+            .next()
+            .ok_or_else(|| CommandError::new("SAMPLE_NOT_FOUND", "Sample request not found."))?;
+        let active: i64 = connection
+            .query_row(mou::MOU_ACTIVE_SQL, [sample_id.as_str(), ""], |row| row.get(0))
+            .map_err(|_| CommandError::internal())?;
+        if let Some(message) = mou::mou_request_error(current["status"].as_str().unwrap_or_default(), active) {
+            return Err(sample_invalid(message));
+        }
+        let fallback = json!({
+            "unit_price_idr": current["unit_price_idr"],
+            "dp_bp": business_settings(&connection).dp_percentage_bp,
+        });
+        let checked = mou::validate_mou_terms(&merge_mou_terms(&terms, &fallback, true, can_price))
+            .map_err(sample_invalid)?;
+        let stamp = clients::company_date_stamp(now, &company_timezone(&connection));
+        let mut statement = connection
+            .prepare("SELECT mou_number FROM production_mou WHERE mou_number LIKE ?;")
+            .map_err(|_| CommandError::internal())?;
+        let numbers = statement
+            .query_map([format!("%-{stamp}-{tag}__")], |row| row.get::<_, String>(0))
+            .map_err(|_| CommandError::internal())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|_| CommandError::internal())?;
+        let number = clients::next_client_sequence(numbers.iter().map(String::as_str), &stamp, &tag)
+            .and_then(|sequence| clients::format_client_code(mou::MOU_NUMBER_PREFIX, &stamp, &tag, sequence))
+            .ok_or_else(|| sample_invalid("This device has used up its MoU numbers for today."))?;
+        (current, checked, number)
+    };
+    let id = clients::new_uuid();
+    let log_id = clients::new_uuid();
+    let client_id = current["client_id"].as_str().unwrap_or_default().to_owned();
+    let payload = json!({
+        "id": id,
+        "mou_number": number,
+        "sample_request_id": sample_id,
+        "client_id": client_id,
+        "terms": checked.to_json(),
+        "created_by": operator.id,
+        "created_at": timestamp,
+        "log": { "id": log_id },
+    });
+    let audit = AuditEntry {
+        actor: &operator,
+        action: "mou.create",
+        entity_type: "sample",
+        entity_id: &sample_id,
+        summary: json!({
+            "client_code": current["client_code"],
+            "brand_name": current["brand_name"],
+            "mou_number": number,
+            "terms": checked.to_json(),
+        }),
+        on_behalf_of: None,
+    };
+    commit_with_outbox(&state, "mou", "create", &id, payload, Some(audit), |transaction| {
+        transaction
+            .execute(
+                mou::MOU_INSERT_SQL,
+                rusqlite::params![
+                    &id,
+                    &number,
+                    &sample_id,
+                    &client_id,
+                    checked.total_units,
+                    checked.unit_price_idr,
+                    checked.total_production_cost_idr,
+                    checked.production_lead_time_days,
+                    checked.regulatory_path,
+                    checked.dp_bp,
+                    checked.dp_amount_required_idr,
+                    &checked.notes,
+                    &timestamp,
+                    operator.id,
+                ],
+            )
+            .map_err(|_| CommandError::internal())?;
+        transaction
+            .execute(
+                samples::SAMPLE_STATUS_LOG_INSERT_SQL,
+                rusqlite::params![
+                    &log_id,
+                    &sample_id,
+                    "",
+                    "DRAFT",
+                    mou::MOU_CREATE_ACTION,
+                    format!("MoU {number}"),
+                    "",
+                    operator.id,
+                    &timestamp,
+                ],
+            )
+            .map_err(|_| CommandError::internal())?;
+        Ok(())
+    })?;
+    let _ = sync::synchronize(&state).await;
+    Ok(json!({ "id": id, "mou_number": number }))
+}
+
+/// Ubah draf MoU. `mou.manage` mengubah unit, lead time, jalur, dan catatan;
+/// `finance.manage` mengubah harga satuan dan persen DP. Cermin `updateMou`.
+#[tauri::command]
+pub async fn desktop_update_mou(
+    state: State<'_, MobileState>,
+    id: String,
+    terms: Value,
+) -> Result<Value, CommandError> {
+    let can_price = require_permission(&state, "finance.manage").is_ok();
+    let (operator, can_edit) = match require_permission(&state, "mou.manage") {
+        Ok(operator) => (operator, true),
+        Err(_) if can_price => (require_permission(&state, "finance.manage")?, false),
+        Err(error) => return Err(error),
+    };
+    let now = clients::utc_timestamp(storage::now_epoch_seconds());
+    let current = {
+        let connection = storage::database(&state.data_dir)?;
+        query_json(&connection, &format!("{} WHERE m.id = ?;", mou::MOU_LIST_SQL), &[&id])?
+            .into_iter()
+            .next()
+            .ok_or_else(|| CommandError::new("MOU_NOT_FOUND", "MoU not found."))?
+    };
+    if current["status"].as_str() != Some("DRAFT") {
+        return Err(sample_invalid(mou::MOU_NOT_EDITABLE));
+    }
+    let checked = mou::validate_mou_terms(&merge_mou_terms(&terms, &current, can_edit, can_price))
+        .map_err(sample_invalid)?;
+    let sample_id = current["sample_request_id"].as_str().unwrap_or_default().to_owned();
+    let base_updated_at = current["updated_at"].as_str().unwrap_or_default().to_owned();
+    let payload = json!({
+        "id": id,
+        "sample_request_id": sample_id,
+        "terms": checked.to_json(),
+        "base_updated_at": base_updated_at,
+        "updated_at": now,
+    });
+    let audit = AuditEntry {
+        actor: &operator,
+        action: "mou.update",
+        entity_type: "sample",
+        entity_id: &sample_id,
+        summary: json!({
+            "client_code": current["client_code"],
+            "brand_name": current["brand_name"],
+            "mou_number": current["mou_number"],
+            "terms": checked.to_json(),
+        }),
+        on_behalf_of: None,
+    };
+    commit_with_outbox(&state, "mou", "update", &id, payload, Some(audit), |transaction| {
+        let changed = transaction
+            .execute(
+                mou::MOU_UPDATE_SQL,
+                rusqlite::params![
+                    &id,
+                    checked.total_units,
+                    checked.unit_price_idr,
+                    checked.total_production_cost_idr,
+                    checked.production_lead_time_days,
+                    checked.regulatory_path,
+                    checked.dp_bp,
+                    checked.dp_amount_required_idr,
+                    &checked.notes,
+                    &now,
+                    &base_updated_at,
+                ],
+            )
+            .map_err(|_| CommandError::internal())?;
+        if changed == 0 {
+            return Err(sample_invalid(mou::MOU_CHANGED_ELSEWHERE));
+        }
+        Ok(())
+    })?;
+    let _ = sync::synchronize(&state).await;
+    Ok(json!({ "id": id }))
+}
+
+/// Satu langkah MoU (keputusan E). Catatan wajib; revisi menyimpan catatan
+/// klien. Cermin `recordMouStep`.
+#[tauri::command]
+pub async fn desktop_record_mou_step(
+    state: State<'_, MobileState>,
+    id: String,
+    action: String,
+    notes: String,
+    evidence_base64: Option<String>,
+) -> Result<Value, CommandError> {
+    let operator = require_permission(&state, "mou.manage")?;
+    let evidence = client_evidence(&action, evidence_base64)?;
+    let notes = samples::normalize_sample_notes(&notes)
+        .ok_or_else(|| sample_invalid("Notes are required, up to 1000 characters."))?;
+    let now = clients::utc_timestamp(storage::now_epoch_seconds());
+    let current = {
+        let connection = storage::database(&state.data_dir)?;
+        query_json(&connection, &format!("{} WHERE m.id = ?;", mou::MOU_LIST_SQL), &[&id])?
+            .into_iter()
+            .next()
+            .ok_or_else(|| CommandError::new("MOU_NOT_FOUND", "MoU not found."))?
+    };
+    let base_status = current["status"].as_str().unwrap_or_default().to_owned();
+    let status = mou::apply_mou_action(&base_status, current["dummy_ready"].as_i64() == Some(1), &action)
+        .map_err(sample_invalid)?;
+    let sample_id = current["sample_request_id"].as_str().unwrap_or_default().to_owned();
+    let revision_notes = (action == "MOU_REVISE").then(|| notes.clone());
+    let log_id = clients::new_uuid();
+    let payload = json!({
+        "id": id,
+        "sample_request_id": sample_id,
+        "action": action,
+        "base_status": base_status,
+        "status": status,
+        "changed_at": now,
+        "log": { "id": log_id, "notes": notes, "recorded_by": operator.id },
+    });
+    let payload = with_evidence(payload, &evidence);
+    let audit = AuditEntry {
+        actor: &operator,
+        action: "mou.step",
+        entity_type: "sample",
+        entity_id: &sample_id,
+        summary: json!({
+            "client_code": current["client_code"],
+            "brand_name": current["brand_name"],
+            "mou_number": current["mou_number"],
+            "action": action,
+            "from": base_status,
+            "to": status,
+            "notes": notes,
+        }),
+        on_behalf_of: None,
+    };
+    commit_with_outbox(&state, "mou", "transition", &id, payload, Some(audit), |transaction| {
+        insert_evidence(transaction, "CLIENT_RESPONSE", &evidence, &sample_id, operator.id, &now)?;
+        let changed = transaction
+            .execute(
+                mou::MOU_TRANSITION_SQL,
+                rusqlite::params![&id, status, revision_notes.as_deref(), &now, &base_status],
+            )
+            .map_err(|_| CommandError::internal())?;
+        if changed == 0 {
+            return Err(sample_invalid(mou::MOU_CHANGED_ELSEWHERE));
+        }
+        transaction
+            .execute(
+                samples::SAMPLE_STATUS_LOG_INSERT_SQL,
+                rusqlite::params![&log_id, &sample_id, &base_status, status, &action, &notes, "", operator.id, &now],
+            )
+            .map_err(|_| CommandError::internal())?;
+        Ok(())
+    })?;
+    let _ = sync::synchronize(&state).await;
+    Ok(json!({ "status": status }))
 }
 
 /// Simpan harga Finance untuk iterasi tiket yang sedang berjalan (v2.2, PRD
@@ -4483,6 +5237,7 @@ pub async fn desktop_create_invoice(
             is_test_requested: row["is_test_requested"].as_i64() == Some(1),
             revision_fee_idr: row["revision_fee_idr"].as_i64(),
             dummy_round: row["dummy_round"].as_i64(),
+            mou_accepted: row["mou_status"].as_str() == Some("ACCEPTED"),
         });
         if let Some(message) = finance::invoice_type_error(&ref_type, rules_ticket.as_ref()) {
             return Err(finance_invalid(message));

@@ -5,6 +5,12 @@ import type { InvoiceRecord } from "@/lib/gateways/finance";
 import { isDesktopRuntime } from "@/lib/runtime/app-runtime";
 import { invokeDesktop } from "@/lib/runtime/desktop-commands";
 import type { DesignAction, DesignStatus } from "@/lib/validations/design";
+import type { LegalRecord } from "@/lib/validations/legal";
+import type {
+  MouAction,
+  MouStatus,
+  RegulatoryPath,
+} from "@/lib/validations/mou";
 import type {
   BusinessSettings,
   SampleAction,
@@ -72,6 +78,14 @@ export interface SampleRequestRecord {
   dummy_round: number | null;
   /** 1 = tiket tidak butuh mockup atau mockup sudah diunggah (D-36). */
   mockup_ready: number;
+  /** Status MoU aktif (v2.5a); null = belum ada. */
+  mou_status: string | null;
+  /** Nominal DP dari MoU yang disetujui klien; null = belum ada. */
+  mou_dp_idr: number | null;
+  /** 1 = tagihan DP Produksi & Legal lunas atau dijadwal ulang. */
+  dp_paid: number;
+  /** Dokumen legal wajib yang belum final (v2.6); null = belum ada MoU disetujui. */
+  legal_open: number | null;
 }
 
 /**
@@ -171,6 +185,69 @@ export interface SampleDetail {
   design: DesignTicketRecord | null;
   /** Setelan `max_dummy_rejections`; 0 = tanpa batas. */
   max_dummy_rejections: number;
+  /** MoU aktif, atau yang terakhir dibatalkan/ditolak (v2.5a); null = belum ada. */
+  mou: MouRecord | null;
+  /** Setelan persen DP bawaan, untuk form MoU baru. */
+  dp_percentage_bp: number;
+  /** Alamat Web persetujuan disetel: tombol tautan ditawarkan (v2.5b). */
+  approval_link_enabled: boolean;
+  /** Dokumen legal semua MoU tiket ini (v2.6). */
+  legal_documents: LegalDocumentRecord[];
+}
+
+/** Satu baris `LEGAL_LIST_SQL` (v2.6, PRD F-21). */
+export interface LegalDocumentRecord extends LegalRecord {
+  id: string;
+  mou_id: string;
+  sample_request_id: string;
+  updated_by: number | null;
+  updated_by_name: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Satu baris `MOU_LIST_SQL` (v2.5a, PRD F-20). */
+export interface MouRecord {
+  id: string;
+  mou_number: string;
+  sample_request_id: string;
+  client_id: string;
+  total_units: number;
+  unit_price_idr: number;
+  total_production_cost_idr: number;
+  production_lead_time_days: number;
+  regulatory_path: RegulatoryPath;
+  dp_bp: number;
+  dp_amount_required_idr: number;
+  notes: string;
+  status: MouStatus;
+  revision_notes: string;
+  status_changed_at: string;
+  created_by: number | null;
+  created_at: string;
+  updated_at: string;
+  brand_name: string;
+  client_code: string | null;
+  client_name: string | null;
+  client_address: string | null;
+  client_city: string | null;
+  client_province: string | null;
+  /** 1 = tiket tidak meminta dummy atau dummy sudah di-ACC (E-20). */
+  dummy_ready: number;
+  /** 1 = tagihan DP sudah diterbitkan. */
+  dp_invoiced: number;
+  /** 1 = tagihan DP lunas atau sisanya dijadwal ulang (keputusan F). */
+  dp_cleared: number;
+}
+
+/** Isi form MoU; harga satuan dan persen DP hanya dibaca untuk `finance.manage`. */
+export interface MouTermsInput {
+  total_units: number;
+  unit_price_idr: number;
+  production_lead_time_days: number;
+  regulatory_path: RegulatoryPath;
+  dp_bp: number;
+  notes: string;
 }
 
 /** Satu baris `DESIGN_LIST_SQL` (v2.4, PRD F-19). */
@@ -288,6 +365,8 @@ export interface SampleStepInput {
   };
   /** Wajib untuk `SET_REVISION_FEE` (0 = dibebaskan); diabaikan aksi lain. */
   revision_fee_idr: number | null;
+  /** Tangkapan layar balasan klien (WebP base64); wajib untuk jawaban klien (v2.5b). */
+  evidence_base64: string;
 }
 
 export async function recordSampleStep(
@@ -306,6 +385,7 @@ export async function recordSampleStep(
         product_knowledge: step.rnd.product_knowledge,
       },
       revisionFeeIdr: step.revision_fee_idr,
+      evidenceBase64: step.evidence_base64 || null,
     });
   }
   return requestWebApi("/api/samples/step", "POST", step);
@@ -331,6 +411,8 @@ export async function recordDesignStep(step: {
   action: DesignAction;
   notes: string;
   tracking_no: string;
+  /** Wajib untuk jawaban klien atas dummy (v2.5b). */
+  evidence_base64: string;
 }): Promise<{ status: string; rejection_count: number }> {
   if (isDesktopRuntime()) {
     return invokeDesktop("desktop_record_design_step", {
@@ -338,9 +420,77 @@ export async function recordDesignStep(step: {
       action: step.action,
       notes: step.notes,
       trackingNo: step.tracking_no,
+      evidenceBase64: step.evidence_base64 || null,
     });
   }
   return requestWebApi("/api/samples/design/step", "POST", step);
+}
+
+/** Draf MoU untuk tiket yang sudah disetujui klien (v2.5a). */
+export async function createMou(
+  sampleId: string,
+  terms: MouTermsInput,
+): Promise<{ id: string; mou_number: string }> {
+  const body = { ...terms };
+  if (isDesktopRuntime()) {
+    return invokeDesktop("desktop_create_mou", { sampleId, terms: body });
+  }
+  return requestWebApi("/api/samples/mou", "POST", {
+    sample_id: sampleId,
+    terms: body,
+  });
+}
+
+/** Ubah draf MoU. */
+export async function updateMou(
+  id: string,
+  terms: MouTermsInput,
+): Promise<{ id: string }> {
+  const body = { ...terms };
+  if (isDesktopRuntime()) {
+    return invokeDesktop("desktop_update_mou", { id, terms: body });
+  }
+  return requestWebApi("/api/samples/mou/update", "POST", { id, terms: body });
+}
+
+/** Satu langkah MoU: kirim, jawaban klien, atau batal. */
+export async function recordMouStep(step: {
+  id: string;
+  action: MouAction;
+  notes: string;
+  /** Wajib untuk jawaban klien atas MoU (v2.5b). */
+  evidence_base64: string;
+}): Promise<{ status: string }> {
+  if (isDesktopRuntime()) {
+    return invokeDesktop("desktop_record_mou_step", {
+      id: step.id,
+      action: step.action,
+      notes: step.notes,
+      evidenceBase64: step.evidence_base64 || null,
+    });
+  }
+  return requestWebApi("/api/samples/mou/step", "POST", step);
+}
+
+/** Catat satu dokumen legal; foto dokumen opsional (v2.6). */
+export async function recordLegalDocument(
+  mouId: string,
+  document: LegalRecord,
+  evidenceBase64: string,
+): Promise<{ id: string; status: string }> {
+  const body = { ...document };
+  if (isDesktopRuntime()) {
+    return invokeDesktop("desktop_record_legal_document", {
+      mouId,
+      document: body,
+      evidenceBase64: evidenceBase64 || null,
+    });
+  }
+  return requestWebApi("/api/samples/legal", "POST", {
+    mou_id: mouId,
+    document: body,
+    evidence_base64: evidenceBase64,
+  });
 }
 
 /** Harga Finance untuk iterasi tiket yang sedang `SAMPLE_READY` (v2.2). */

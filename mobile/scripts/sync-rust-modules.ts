@@ -34,6 +34,9 @@ const filesToSync = [
   "notifications.rs",
   "design.rs",
   "mou.rs",
+  "approval.rs",
+  "legal.rs",
+  "sheet_import.rs",
   "finance.rs",
 ];
 

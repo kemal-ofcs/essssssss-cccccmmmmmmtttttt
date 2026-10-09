@@ -4,6 +4,7 @@ import {
   computeUnitPrice,
   formatRupiah,
   isCalendarDate,
+  normalizeApprovalWebUrl,
   REVISION_FEE_INVALID,
   type RndStep,
   readBusinessSettings,
@@ -341,6 +342,28 @@ describe("izin langkah dan isian RnD (izin_langkah_dan_isian_rnd)", () => {
   }
 });
 
+describe("alamat Web persetujuan (alamat_web_persetujuan_dinormalkan)", () => {
+  const cases: [string, string | null][] = [
+    ["", ""],
+    ["  ", ""],
+    ["https://crm.company.id", "https://crm.company.id"],
+    ["https://crm.company.id/", "https://crm.company.id"],
+    ["https://10.0.0.5:3000/maklon/", "https://10.0.0.5:3000/maklon"],
+    ["http://crm.company.id", null],
+    ["https://", null],
+    ["https://crm.company.id:abc", null],
+    ["https://crm.company.id:1:2", null],
+    ["https://crm.company.id/a?b=1", null],
+    ["https://user@crm.company.id", null],
+    [`https://${"a".repeat(200)}.id`, null],
+  ];
+  for (const [value, expected] of cases) {
+    test(JSON.stringify(value).slice(0, 40), () => {
+      expect(normalizeApprovalWebUrl(value)).toBe(expected);
+    });
+  }
+});
+
 describe("readBusinessSettings", () => {
   const defaults = {
     default_free_revision_limit: 1,
@@ -359,6 +382,9 @@ describe("readBusinessSettings", () => {
     telegram_chat_id_design: "",
     default_dummy_fee_idr: 0,
     max_dummy_rejections: 0,
+    dp_percentage_bp: 5000,
+    approval_web_url: "",
+    approval_token_ttl_days: 3,
   };
   test("kosong = bawaan", () => {
     expect(readBusinessSettings({})).toEqual(defaults);
@@ -382,6 +408,9 @@ describe("readBusinessSettings", () => {
         telegram_chat_id_design: "@maklon_design",
         default_dummy_fee_idr: "75000",
         max_dummy_rejections: "3",
+        dp_percentage_bp: "3000",
+        approval_web_url: " https://crm.company.id/ ",
+        approval_token_ttl_days: "7",
       }),
     ).toEqual({
       default_free_revision_limit: 2,
@@ -400,6 +429,9 @@ describe("readBusinessSettings", () => {
       telegram_chat_id_design: "@maklon_design",
       default_dummy_fee_idr: 75_000,
       max_dummy_rejections: 3,
+      dp_percentage_bp: 3000,
+      approval_web_url: "https://crm.company.id",
+      approval_token_ttl_days: 7,
     });
     expect(
       readBusinessSettings({
@@ -410,6 +442,9 @@ describe("readBusinessSettings", () => {
         max_photos_per_sample: "0",
         offline_login_max_days: "9",
         max_dummy_rejections: "21",
+        dp_percentage_bp: "0",
+        approval_web_url: "http://crm.company.id",
+        approval_token_ttl_days: "31",
       }),
     ).toEqual(defaults);
   });
@@ -433,6 +468,9 @@ describe("validateBusinessSettings", () => {
     telegram_chat_id_design: "",
     default_dummy_fee_idr: 50_000,
     max_dummy_rejections: 2,
+    dp_percentage_bp: 10_000,
+    approval_web_url: "",
+    approval_token_ttl_days: 30,
   };
   test("sah", () => {
     expect(validateBusinessSettings(valid)).toEqual({
@@ -473,6 +511,27 @@ describe("validateBusinessSettings", () => {
         [
           { ...valid, max_dummy_rejections: limit },
           "The dummy rejection limit must be a whole number from 0 to 20.",
+        ] as [Record<string, unknown>, string],
+    ),
+    ...["http://crm.company.id", null, "https://crm company.id"].map(
+      (url) =>
+        [
+          { ...valid, approval_web_url: url },
+          "Enter the approval web address as https://..., or leave it empty.",
+        ] as [Record<string, unknown>, string],
+    ),
+    ...[0, 31, "3"].map(
+      (ttl) =>
+        [
+          { ...valid, approval_token_ttl_days: ttl },
+          "Approval links must last a whole number of days from 1 to 30.",
+        ] as [Record<string, unknown>, string],
+    ),
+    ...[0, 10_001, "50"].map(
+      (dp) =>
+        [
+          { ...valid, dp_percentage_bp: dp },
+          "The down payment must be from 0.01% to 100%.",
         ] as [Record<string, unknown>, string],
     ),
     [

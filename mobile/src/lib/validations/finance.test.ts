@@ -185,12 +185,14 @@ describe("jenis tagihan per tiket (jenis_tagihan_per_tiket)", () => {
     is_test_requested: true,
     revision_fee_idr: 750_000,
     dummy_round: 0,
+    mou_accepted: true,
   };
   const free = {
     is_paid_sample: false,
     is_test_requested: false,
     revision_fee_idr: null,
     dummy_round: null,
+    mou_accepted: false,
   };
   const cases: [string, typeof paid | typeof free | null, string | null][] = [
     ["SAMPLE_FEE", paid, null],
@@ -203,6 +205,8 @@ describe("jenis tagihan per tiket (jenis_tagihan_per_tiket)", () => {
     ["SAMPLE_FEE", null, "Choose the sample request this invoice is for."],
     ["DUMMY_FEE", paid, null],
     ["DUMMY_FEE", free, "Request a design for this sample first."],
+    ["DP_PRODUCTION_LEGAL", paid, null],
+    ["DP_PRODUCTION_LEGAL", free, "The client has not accepted the MoU yet."],
     ["PRINT_FEE", paid, "Choose what the invoice is for."],
   ];
   for (const [refType, ticket, expected] of cases) {

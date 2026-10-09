@@ -1,4 +1,6 @@
 pub mod app_identity;
+// Persetujuan klien: SALINAN `desktop/approval.rs` oleh sync-rust-modules.ts.
+pub mod approval;
 // Aturan domain klien: SALINAN `desktop/clients.rs` oleh sync-rust-modules.ts.
 pub mod clients;
 // Aturan tiket sampel: SALINAN `desktop/samples.rs` oleh sync-rust-modules.ts.
@@ -12,6 +14,10 @@ pub mod design;
 pub mod device_storage;
 // Tagihan dan uang masuk: SALINAN `desktop/finance.rs` oleh sync-rust-modules.ts.
 pub mod finance;
+// Dokumen legal: SALINAN `desktop/legal.rs` oleh sync-rust-modules.ts.
+pub mod legal;
+// Impor sheet: SALINAN `desktop/sheet_import.rs` oleh sync-rust-modules.ts.
+pub mod sheet_import;
 // Lisensi offline Ed25519: SALINAN `desktop/license.rs` oleh sync-rust-modules.ts.
 pub mod license;
 pub mod models;

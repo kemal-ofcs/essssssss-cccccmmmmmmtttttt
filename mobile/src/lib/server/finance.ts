@@ -223,6 +223,7 @@ export async function createInvoice(
                 : Number(ticket.revision_fee_idr),
             dummy_round:
               ticket.dummy_round == null ? null : Number(ticket.dummy_round),
+            mou_accepted: ticket.mou_status === "ACCEPTED",
           }
         : null,
     );

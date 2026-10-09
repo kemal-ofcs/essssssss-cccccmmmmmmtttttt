@@ -7,6 +7,7 @@ export const INVOICE_TYPE_LABEL: Record<string, string> = {
   REVISION_FEE: "Revision fee",
   TEST_FEE: "Testing fee",
   DUMMY_FEE: "Dummy fee",
+  DP_PRODUCTION_LEGAL: "Down payment (production & legal)",
   OTHER: "Other",
   INSTALLMENT: "Installment",
 };

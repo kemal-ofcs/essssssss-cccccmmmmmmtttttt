@@ -244,6 +244,35 @@ describe("notifikasi divisi", () => {
     ).toBe(
       "The client wants dummy revision 1: Aura Glow for Aura Beauty (KLN-20261003-WB01)\nNotes: Logo bigger\nSince 2026-10-03 14:05 WIB",
     );
+    expect(
+      renderNotification(
+        "CLIENT_RESPONDED",
+        {
+          ...sample,
+          entity_type: "DUMMY",
+          decision: "REVISE",
+          responder: "Rina",
+        },
+        "2026-10-03 07:05:00",
+        "Asia/Jakarta",
+      ),
+    ).toBe(
+      "The client answered through the approval link: Aura Glow for Aura Beauty (KLN-20261003-WB01)\nPackaging dummy needs changes by Rina\nAnswered 2026-10-03 14:05 WIB",
+    );
+    expect(
+      renderNotification(
+        "MOU_ACCEPTED",
+        {
+          ...sample,
+          mou_number: "MOU-20261009-WB01",
+          dp_amount_idr: 162_500_000,
+        },
+        "2026-10-03 07:05:00",
+        "Asia/Jakarta",
+      ),
+    ).toBe(
+      "MoU accepted, issue the down payment invoice: Aura Glow for Aura Beauty (KLN-20261003-WB01)\nMoU MOU-20261009-WB01, down payment Rp 162.500.000\nAccepted 2026-10-03 14:05 WIB",
+    );
     expect(testMessage("RND")).toBe(
       "Company OS test message for the RND group. Notifications are working.",
     );

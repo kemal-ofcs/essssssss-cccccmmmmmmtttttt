@@ -38,6 +38,7 @@ const filesToCopy = [
   "components/clients/MasterDataCard.tsx",
   // Tagihan dan uang masuk (PRD F-17).
   "components/finance/FinanceOptionsCard.tsx",
+  "components/imports/SheetImport.tsx",
   "components/finance/FinanceWorkspace.tsx",
   "components/finance/FundForm.tsx",
   "components/finance/invoice-download.ts",
@@ -45,10 +46,15 @@ const filesToCopy = [
   "components/finance/labels.ts",
   "components/finance/PartialPaymentForm.tsx",
   // Tiket sampel (PRD F-06) dan setelan bisnis (F-11).
+  "components/samples/ClientApproval.tsx",
+  "components/samples/EvidencePicker.tsx",
   "components/samples/labels.ts",
   "components/samples/SampleDesign.tsx",
   "components/samples/SampleDetail.tsx",
   "components/samples/SampleForm.tsx",
+  "components/samples/SampleLegal.tsx",
+  "components/samples/SampleMou.tsx",
+  "components/samples/mou-download.ts",
   "components/samples/SamplePhotos.tsx",
   "components/samples/SamplePricing.tsx",
   "components/samples/SampleWorkspace.tsx",

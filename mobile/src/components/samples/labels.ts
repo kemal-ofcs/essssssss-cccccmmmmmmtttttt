@@ -71,6 +71,68 @@ export const SAMPLE_ACTION_PAST: Record<string, string> = {
   DUMMY_ACC: "recorded the client's dummy approval",
   DUMMY_REVISE: "recorded a dummy revision request from the client",
   CANCEL_DESIGN: "cancelled the design",
+  // Langkah MoU (v2.5a) di linimasa yang sama.
+  CREATE_MOU: "drafted the MoU",
+  SEND_MOU: "sent the MoU to the client",
+  MOU_ACCEPT: "recorded the client's MoU acceptance",
+  MOU_REVISE: "recorded MoU changes requested by the client",
+  MOU_REJECT: "recorded the client's MoU rejection",
+  CANCEL_MOU: "cancelled the MoU",
+  // Dokumen legal (v2.6) di linimasa yang sama.
+  LEGAL_SIG: "recorded the SIG nutrition test",
+  LEGAL_BPOM: "recorded the BPOM registration",
+  LEGAL_HALAL: "recorded the halal certification",
+  LEGAL_HKI: "recorded the trademark (HKI) registration",
+};
+
+/** Dokumen legal (v2.6, PRD F-21). */
+export const LEGAL_KIND_LABEL: Record<string, string> = {
+  SIG: "SIG nutrition test",
+  BPOM: "BPOM registration",
+  HALAL: "Halal certificate",
+  HKI: "Trademark (HKI)",
+};
+
+export const LEGAL_STATUS_LABEL: Record<string, string> = {
+  SUBMITTED: "Submitted",
+  ISSUED: "Issued",
+  NOT_REQUIRED: "Not required",
+};
+
+export const LEGAL_STATUS_TONE: Record<string, StatusTone> = {
+  SUBMITTED: "info",
+  ISSUED: "success",
+  NOT_REQUIRED: "neutral",
+};
+
+/** Status MoU (v2.5a, PRD F-20). */
+export const MOU_STATUS_LABEL: Record<string, string> = {
+  DRAFT: "Draft",
+  SENT: "Sent to client",
+  ACCEPTED: "Accepted by client",
+  REJECTED: "Rejected by client",
+  CANCELLED: "Cancelled",
+};
+
+export const MOU_STATUS_TONE: Record<string, StatusTone> = {
+  DRAFT: "neutral",
+  SENT: "info",
+  ACCEPTED: "success",
+  REJECTED: "danger",
+  CANCELLED: "neutral",
+};
+
+export const MOU_ACTION_LABEL: Record<string, string> = {
+  SEND_MOU: "Send to client",
+  MOU_ACCEPT: "Client accepted",
+  MOU_REVISE: "Client wants changes",
+  MOU_REJECT: "Client rejected",
+  CANCEL_MOU: "Cancel MoU",
+};
+
+export const REGULATORY_PATH_LABEL: Record<string, string> = {
+  WHITE_LABEL: "White Label",
+  WITH_BPOM: "Registered with BPOM",
 };
 
 /** Status tiket desain (v2.4, PRD F-19). */

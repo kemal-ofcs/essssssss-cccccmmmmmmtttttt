@@ -152,7 +152,8 @@ pub fn compute_invoice(raw: &Value) -> Result<InvoiceTotals, &'static str> {
 // Jenis tagihan dan tiketnya.
 // ---------------------------------------------------------------------------
 
-pub const INVOICE_REF_TYPES: &[&str] = &["SAMPLE_FEE", "REVISION_FEE", "TEST_FEE", "DUMMY_FEE", "OTHER"];
+pub const INVOICE_REF_TYPES: &[&str] =
+    &["SAMPLE_FEE", "REVISION_FEE", "TEST_FEE", "DUMMY_FEE", "DP_PRODUCTION_LEGAL", "OTHER"];
 pub const INVOICE_DESCRIPTION_MAX: usize = 300;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -162,6 +163,8 @@ pub struct InvoiceTicket {
     pub revision_fee_idr: Option<i64>,
     /// Putaran dummy tiket desain aktif; `None` = tanpa tiket desain (v2.4).
     pub dummy_round: Option<i64>,
+    /// MoU aktif tiket itu sudah disetujui klien (v2.5a).
+    pub mou_accepted: bool,
 }
 
 /// Padanan `invoiceTypeError`; `None` = sah.
@@ -182,6 +185,7 @@ pub fn invoice_type_error(ref_type: &str, ticket: Option<&InvoiceTicket>) -> Opt
             Some("Finance has not set a fee for this revision.")
         }
         "DUMMY_FEE" if ticket.dummy_round.is_none() => Some("Request a design for this sample first."),
+        "DP_PRODUCTION_LEGAL" if !ticket.mou_accepted => Some("The client has not accepted the MoU yet."),
         _ => None,
     }
 }
@@ -531,6 +535,7 @@ mod tests {
             is_test_requested: test,
             revision_fee_idr: fee,
             dummy_round: round,
+            mou_accepted: paid,
         };
         let paid = ticket(true, true, Some(750_000), Some(0));
         let free = ticket(false, false, None, None);
@@ -545,6 +550,8 @@ mod tests {
             ("SAMPLE_FEE", None, Some("Choose the sample request this invoice is for.")),
             ("DUMMY_FEE", Some(&paid), None),
             ("DUMMY_FEE", Some(&free), Some("Request a design for this sample first.")),
+            ("DP_PRODUCTION_LEGAL", Some(&paid), None),
+            ("DP_PRODUCTION_LEGAL", Some(&free), Some("The client has not accepted the MoU yet.")),
             ("PRINT_FEE", Some(&paid), Some("Choose what the invoice is for.")),
         ];
         for (ref_type, ticket, expected) in cases {

@@ -206,6 +206,8 @@ export const INVOICE_REF_TYPES = [
   "TEST_FEE",
   // Cetak dummy kemasan (v2.4, PRD F-19); `revision_index` = putaran dummy.
   "DUMMY_FEE",
+  // DP Produksi & Legal dari MoU yang disetujui klien (v2.5a, PRD F-20).
+  "DP_PRODUCTION_LEGAL",
   "OTHER",
 ] as const;
 export type InvoiceRefType = (typeof INVOICE_REF_TYPES)[number];
@@ -217,6 +219,8 @@ export interface InvoiceTicket {
   revision_fee_idr: number | null;
   /** Putaran dummy tiket desain aktif (`dummy_round`); null = tanpa tiket desain. */
   dummy_round: number | null;
+  /** MoU aktif tiket itu sudah disetujui klien (v2.5a). */
+  mou_accepted: boolean;
 }
 
 /**
@@ -246,6 +250,9 @@ export function invoiceTypeError(
   }
   if (refType === "DUMMY_FEE" && ticket.dummy_round === null) {
     return "Request a design for this sample first.";
+  }
+  if (refType === "DP_PRODUCTION_LEGAL" && !ticket.mou_accepted) {
+    return "The client has not accepted the MoU yet.";
   }
   return null;
 }

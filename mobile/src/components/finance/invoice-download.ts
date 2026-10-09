@@ -16,11 +16,21 @@ import { INVOICE_TYPE_LABEL } from "./labels";
  * selalu nilai terbaru. Mengembalikan pesan untuk ditampilkan.
  */
 export async function downloadInvoicePdf(invoice: InvoiceRecord) {
-  const [profile, overview] = await Promise.all([
-    getCompanyProfile(),
+  const [company, overview] = await Promise.all([
+    companyLetterhead(),
     getFinanceOverview(),
   ]);
   const data = invoicePdfData(invoice, {
+    ...company,
+    payment_instructions: overview.defaults.invoice_payment_instructions,
+  });
+  return savePdf(`${invoice.invoice_number}.pdf`, buildInvoicePdf(data));
+}
+
+/** Kop dokumen dari Company profile, dibaca saat tombol ditekan (MoU memakainya juga). */
+export async function companyLetterhead() {
+  const profile = await getCompanyProfile();
+  return {
     name: profile.company_name,
     lines: [
       profile.address ?? "",
@@ -29,14 +39,14 @@ export async function downloadInvoicePdf(invoice: InvoiceRecord) {
         .join(" · "),
     ].filter(Boolean),
     logo: profile.logo_url ? await logoToJpeg(profile.logo_url) : null,
-    payment_instructions: overview.defaults.invoice_payment_instructions,
-  });
-  const saved = await saveDocument(
-    `${invoice.invoice_number}.pdf`,
-    buildInvoicePdf(data),
-  );
+  };
+}
+
+/** Simpan PDF dan kembalikan pesan untuk ditampilkan. */
+export async function savePdf(fileName: string, bytes: Uint8Array) {
+  const saved = await saveDocument(fileName, bytes);
   if (!saved.savedToDevice) return "Saving was cancelled.";
-  return saved.path ? `Saved to ${saved.path}` : "Invoice PDF saved.";
+  return saved.path ? `Saved to ${saved.path}` : "PDF saved.";
 }
 
 interface Letterhead {

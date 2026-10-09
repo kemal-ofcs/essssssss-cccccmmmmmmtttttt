@@ -37,6 +37,9 @@ function suggestedType(sample: SampleRequestRecord | undefined) {
   if (sample.status === "WAITING_REVISION_PAYMENT") return "REVISION_FEE";
   if (sample.is_paid_sample === 1 && sample.status === "WAITING_SAMPLE_PAYMENT")
     return "SAMPLE_FEE";
+  // MoU disetujui: tagihan DP (v2.5a).
+  if (sample.mou_status === "ACCEPTED" && sample.dp_paid !== 1)
+    return "DP_PRODUCTION_LEGAL";
   // Tiket desain aktif sesudah klien ACC: fase dummy (v2.4).
   if (sample.design_status && sample.status === "CLIENT_ACC")
     return "DUMMY_FEE";
@@ -67,6 +70,7 @@ export function InvoiceForm({
     if (refType === "REVISION_FEE") return sample?.revision_fee_idr ?? "";
     if (refType === "DUMMY_FEE")
       return overview.defaults.default_dummy_fee_idr || "";
+    if (refType === "DP_PRODUCTION_LEGAL") return sample?.mou_dp_idr ?? "";
     return "";
   };
 
