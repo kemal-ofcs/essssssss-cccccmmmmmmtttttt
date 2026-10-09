@@ -32,6 +32,9 @@ const filesToSync = [
   "clients.rs",
   "samples.rs",
   "notifications.rs",
+  "design.rs",
+  "mou.rs",
+  "finance.rs",
 ];
 
 for (const file of filesToSync) {

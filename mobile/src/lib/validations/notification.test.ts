@@ -218,6 +218,32 @@ describe("notifikasi divisi", () => {
     ).toBe(
       "Leads that went Cold (2026-10-10): 2\n- Aura (KLN-1), PIC Rina\n- Bina (KLN-2), PIC -",
     );
+    const design = {
+      ...sample,
+      brief: "Box 50 ml, pastel",
+      revision_notes: "Logo bigger",
+      rejection_count: 1,
+    };
+    expect(
+      renderNotification(
+        "DESIGN_REQUESTED",
+        design,
+        "2026-10-03 07:05:00",
+        "Asia/Jakarta",
+      ),
+    ).toBe(
+      "Design requested: Aura Glow for Aura Beauty (KLN-20261003-WB01)\nBrief: Box 50 ml, pastel\nRequested 2026-10-03 14:05 WIB",
+    );
+    expect(
+      renderNotification(
+        "DUMMY_REVISED",
+        design,
+        "2026-10-03 07:05:00",
+        "Asia/Jakarta",
+      ),
+    ).toBe(
+      "The client wants dummy revision 1: Aura Glow for Aura Beauty (KLN-20261003-WB01)\nNotes: Logo bigger\nSince 2026-10-03 14:05 WIB",
+    );
     expect(testMessage("RND")).toBe(
       "Company OS test message for the RND group. Notifications are working.",
     );

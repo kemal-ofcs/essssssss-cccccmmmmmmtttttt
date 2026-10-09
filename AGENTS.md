@@ -362,7 +362,9 @@ Detail lengkap ada di `README.md`.
     `password_reset.approve` (kendali sebuah akun),
     `two_factor.reset` (lapisan kedua akun orang lain),
     `database_backup.restore` (SELURUH data perangkat dalam satu langkah),
-    dan `settings.manage`. Izin domain yang bisa MENGHAPUS data bisnis
+    `finance_options.manage` (pajak dan diskon mengubah nominal setiap
+    tagihan baru), `payments.approve_exception` (menerima kurang bayar
+    menjadi cicilan dan lebih bayar menjadi deposit), dan `settings.manage`. Izin domain yang bisa MENGHAPUS data bisnis
     (mis. `clients.delete` saat ditambahkan) wajib ikut didaftarkan di sana,
     bukan dibiarkan masuk paket Admin secara diam-diam.
 33. `bun run audit:docs` membandingkan DOKUMEN dengan KODE — jumlah rute
@@ -525,3 +527,58 @@ Detail lengkap ada di `README.md`.
     `CompanyProfileCard.tsx` mengganti isi form hanya selama form masih sama
     dengan nilai terakhir dari backend. Kerangka layar dan pola menu ada di
     bagian "Navigasi" `DESIGN.md`.
+43. **Tagihan dan uang masuk (PRD F-17, v2.3a).** Aturan di SATU modul per
+    bahasa, `validations/finance.ts` ↔ `desktop/finance.rs` (vektor kembar,
+    SQL dites per karakter). Pajak dan diskon (`finance_options`) DISALIN ke
+    tagihan saat dibuat (`taxes_json`, `discount_*`); payload membawa tarif
+    salinan itu dan cloud menghitung ulang totalnya dengan `computeInvoice` ↔
+    `compute_invoice` (diskon sebelum pajak, pembulatan ke rupiah terdekat).
+    Lunas TIDAK disimpan: `paid_idr` = jumlah `fund_allocations`, dan tagihan
+    hanya `OPEN`/`CANCELLED`. Alokasi v2.3a wajib persis sebesar sisa tagihan
+    (`allocationCheck` ↔ `allocation_check`, dipakai perangkat, Web, dan
+    `finance_guard` cloud yang menjadikan alokasi ganda dari dua perangkat
+    offline konflik). Batal/void hanya selama belum ada alokasi, alasan
+    wajib. Nomor `INV-YYYYMMDD-<KP><NN>` memakai tag perangkat seperti kode
+    klien, tanpa UNIQUE. Gerbang tiket dibaca dari `SAMPLE_LIST_SQL`
+    (`fee_paid`, `test_paid`): Payment received menunggu tagihan biaya
+    sampel/revisi lunas, Sample sent pada tiket "with testing" menunggu
+    tagihan uji lunas; tagihan TIDAK pernah memindahkan status tiket sendiri.
+    Kurang bayar (v2.3b, D-29) satu langkah oleh pemegang
+    `payments.approve_exception`: rute `invoice/reschedule` membawa alokasi,
+    paket cicilan salinan, dan `remaining_after_idr`; cloud memeriksa sisa
+    itu terhadap datanya sendiri lalu menghitung ulang cicilan dengan
+    `computeInstallments` ↔ `compute_installments` (bunga SEKALI atas sisa,
+    sisa pembulatan di cicilan terakhir, jatuh tempo + k bulan kalender).
+    Tagihan asal menjadi `RESCHEDULED` dan dihitung selesai oleh gerbang
+    tiket; cicilan (`ref_type = 'INSTALLMENT'`) adalah tagihan biasa yang
+    tidak bisa dijadwal ulang lagi. Lebih bayar tetap sisa uang masuk; rute
+    `fund/deposit` hanya menandainya sebagai deposit klien (klien wajib).
+    Invoice PDF (v2.3c, D-35) dibuat di webview oleh penulis PDF sendiri
+    `src/lib/documents/invoice-pdf.ts` (tanpa dependensi, tanpa padanan
+    Rust, seperti kompresi foto): satu halaman A4, Helvetica WinAnsi, logo
+    JPEG `DCTDecode`, huruf di luar Latin-1 dicetak "?". Kop dari Company
+    profile, instruksi pembayaran dari setelan `invoice_payment_instructions`
+    (≤ 1000 karakter, WAJIB dikirim walau kosong). Penyimpanannya lewat
+    gateway `documents.ts`: Android `mobile_save_document` (dialog SAF,
+    aturan 28), Desktop `desktop_save_document` (folder Downloads, nama unik
+    `(2)`…), Web unduhan browser; keduanya menuntut `invoices.view` dan
+    membersihkan nama berkas (`document_file_name`, hanya `.pdf`).
+44. **Tiket desain: mockup dan dummy (PRD F-19, v2.4, D-36).** Aturan di
+    SATU modul per bahasa, `validations/design.ts` ↔ `desktop/design.rs`
+    (vektor kembar, SQL dites per karakter). Satu tiket desain AKTIF per tiket
+    sampel (`design_tickets`, tanpa UNIQUE; `DESIGN_ACTIVE_SQL` di perangkat,
+    Web, dan `design_guard` cloud). CS membuat brief (`samples.manage`),
+    desainer mengunggah mockup sebagai foto `MOCKUP` dan mencetak/mengirim
+    dummy (`design.manage`), CS mencatat respons klien. Langkahnya hanya lewat
+    `applyDesignAction` ↔ `apply_design_action` dan rute `design/transition`;
+    cloud menghitung ulang dengan status, hitungan tolak, dan setelan
+    `max_dummy_rejections` miliknya. Langkah desain ditulis ke
+    `sample_status_log` tiket sampelnya (satu linimasa). Gerbang: Sample sent
+    menunggu mockup bila tiket meminta dummy atau punya tiket desain aktif
+    (`mockup_ready` di `SAMPLE_LIST_SQL`); cetak dummy menunggu klien ACC
+    sampel, mockup, dan tagihan `DUMMY_FEE` (putaran pertama wajib lunas,
+    putaran berikutnya hanya tertahan tagihan putaran itu yang belum lunas;
+    `revision_index` tagihan = putaran). Batas penolakan tercapai = cetak ulang
+    hanya pemegang `design.override_dummy_limit` (ikut paket Admin, tidak
+    di-seed ke role divisi); payload membawa `override_limit` dan auditnya.
+    Kuota foto berlaku per jenis foto. Gerbang MoU (E-20) menyusul di F-20.

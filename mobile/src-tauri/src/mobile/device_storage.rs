@@ -63,25 +63,59 @@ pub async fn mobile_export_database_to_device(
     }))
 }
 
-/// Buka dialog SAF lalu tulis isinya ke tujuan yang dipilih pengguna.
-///
-/// Dipisahkan supaya cabang non-Android hanya ada di satu tempat. Workspace ini
-/// juga dikompilasi untuk host saat `cargo test`, jadi seluruh modul wajib
-/// tetap dapat dibangun tanpa plugin Android-nya.
-#[cfg(target_os = "android")]
+/// Simpan dokumen buatan webview (invoice PDF, v2.3c) lewat pemilih
+/// "Simpan ke…" Android. Isinya dibuat frontend dari data yang memang boleh
+/// dilihat pemegang `invoices.view`; di sini hanya diserahkan ke tujuan yang
+/// dipilih pengguna. `savedToDevice: false` = dialog ditutup (pembatalan).
+#[tauri::command]
+pub async fn mobile_save_document(
+    app: tauri::AppHandle,
+    state: State<'_, MobileState>,
+    file_name: String,
+    data_base64: String,
+) -> Result<Value, CommandError> {
+    use base64::Engine as _;
+    super::commands::require_permission(&state, "invoices.view")?;
+    let name = super::commands::document_file_name(&file_name).ok_or_else(|| {
+        CommandError::new("DOCUMENT_INVALID", "The document name is invalid.")
+    })?;
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(data_base64.as_bytes())
+        .ok()
+        .filter(|bytes| bytes.len() <= super::commands::DOCUMENT_MAX_BYTES)
+        .ok_or_else(|| CommandError::new("DOCUMENT_INVALID", "The document is invalid or too large."))?;
+    let saved = simpan_bytes(&app, bytes, &name, "application/pdf").await?;
+    Ok(json!({ "fileName": name, "savedToDevice": saved }))
+}
+
+/// Baca berkas cadangan lalu serahkan ke `simpan_bytes`.
 async fn simpan_ke_perangkat(
     app: &tauri::AppHandle,
     source_path: &str,
     file_name: &str,
 ) -> Result<bool, CommandError> {
-    use tauri_plugin_android_fs::AndroidFsExt;
-
     let bytes = std::fs::read(source_path).map_err(|error| {
         CommandError::new(
             "BACKUP_READ_FAILED",
             format!("The backup file could not be read: {error}"),
         )
     })?;
+    simpan_bytes(app, bytes, file_name, "application/octet-stream").await
+}
+
+/// Buka dialog SAF lalu tulis isinya ke tujuan yang dipilih pengguna.
+///
+/// Dipisahkan supaya cabang non-Android hanya ada di satu tempat. Workspace ini
+/// juga dikompilasi untuk host saat `cargo test`, jadi seluruh modul wajib
+/// tetap dapat dibangun tanpa plugin Android-nya.
+#[cfg(target_os = "android")]
+async fn simpan_bytes(
+    app: &tauri::AppHandle,
+    bytes: Vec<u8>,
+    file_name: &str,
+    mime: &str,
+) -> Result<bool, CommandError> {
+    use tauri_plugin_android_fs::AndroidFsExt;
 
     // Versi ASINKRON, bukan `android_fs()`. Dialognya menunggu interaksi
     // manusia — memblokir thread runtime selama itu akan membekukan seluruh
@@ -89,7 +123,7 @@ async fn simpan_ke_perangkat(
     let api = app.android_fs_async();
     let uri = api
         .picker()
-        .save_file(None, file_name, Some("application/octet-stream"), false)
+        .save_file(None, file_name, Some(mime), false)
         .await
         .map_err(|error| {
             CommandError::new(
@@ -113,10 +147,11 @@ async fn simpan_ke_perangkat(
 }
 
 #[cfg(not(target_os = "android"))]
-async fn simpan_ke_perangkat(
+async fn simpan_bytes(
     _app: &tauri::AppHandle,
-    _source_path: &str,
+    _bytes: Vec<u8>,
     _file_name: &str,
+    _mime: &str,
 ) -> Result<bool, CommandError> {
     Err(CommandError::new(
         "BACKUP_SAVE_UNSUPPORTED",

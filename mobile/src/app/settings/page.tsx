@@ -15,6 +15,7 @@ import { CompanyProfileCard } from "@/components/CompanyProfileCard";
 import { ClientCodeCard } from "@/components/clients/ClientCodeCard";
 import { MasterDataCard } from "@/components/clients/MasterDataCard";
 import { DatabaseBackupCard } from "@/components/DatabaseBackupCard";
+import { FinanceOptionsCard } from "@/components/finance/FinanceOptionsCard";
 import { LicenseCard } from "@/components/license/LicenseCard";
 import { MailSettingsCard } from "@/components/MailSettingsCard";
 import { MobileAppShell } from "@/components/MobileAppShell";
@@ -525,6 +526,14 @@ export default function SettingsPage() {
           icon: "document",
           show: hasPermission(user, "master_data.manage"),
           content: <MasterDataCard />,
+        },
+        {
+          id: "finance-options",
+          title: "Taxes, discounts, and installments",
+          description: "Rates and installment plans for invoices",
+          icon: "database",
+          show: hasPermission(user, "finance_options.manage"),
+          content: <FinanceOptionsCard />,
         },
         {
           id: "client-code",
