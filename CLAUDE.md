@@ -626,6 +626,11 @@ Detail lengkap ada di `README.md`.
     dihitung (`dp_cleared` di `MOU_LIST_SQL`, `dp_paid` di
     `SAMPLE_LIST_SQL`), tidak disimpan, dan dipakai gerbang F-21. PDF MoU
     memakai penulis PDF v2.3c (`buildMouPdf`, kop bersama `drawHeader`).
+    `CLIENT_ACC` BUKAN akhir tiket sejak v2: daftar Samples menaruhnya di
+    In progress, dan baru di Closed bila MoU terakhirnya ditolak atau
+    dibatalkan tanpa MoU aktif (`mou_closed` di `SAMPLE_LIST_SQL`; MoU baru
+    membukanya lagi). Setelah ACC, Edit request tetap terkunci tetapi foto
+    `REFERENCE` masih boleh (`uploadSampleMedia` ↔ `upload_sample_media`).
 46. **Persetujuan klien: tautan dan jalur manual (PRD F-18, v2.5b, D-38).**
     Satu mesin untuk tiga hal yang menunggu jawaban klien: sampel
     `SAMPLE_SENT`, dummy `DUMMY_SENT`, MoU `SENT`. `approval_tokens`

@@ -219,7 +219,7 @@ mencatat posisi terakhir dan yang belum selesai.
 ## Verifikasi terakhir
 
 - `bun run check` penuh LULUS (2026-10-10, setelah v2.7 dan perbaikan temuan
-  uji perangkat, v2.8 Excel, temuan build kedua, D-42): 885 tes TS (kedua workspace), 154 tes Rust Desktop,
+  uji perangkat, v2.8 Excel, temuan build kedua, D-42, audit sisa MVP): 887 tes TS (kedua workspace), 154 tes Rust Desktop,
   154 tes Rust Mobile, seluruh audit (21 tabel snapshot, 29 rute kanonik, 7 izin
   sensitif). Satu-satunya warning: linker `libsodium` (lama).
 
@@ -244,6 +244,19 @@ mencatat posisi terakhir dan yang belum selesai.
   opsional); galeri foto memberi label semua jenis foto.
 - Bukan kode: Finance menyetujui cicilan = Superadmin mencentang "Approve
   payment exceptions" di Pengaturan › Roles › Finance, lalu login ulang.
+- Tombol Proof di Finance tidak menampilkan apa-apa (Desktop/Android memblokir
+  jendela baru, browser menolak tab `data:`) → foto bukti tampil di dialog.
+- Tiket "Client approved" masuk tab Closed → kini In progress (sejak v2 masih
+  ada dummy, MoU, DP, legal, lalu produksi v3).
+- Audit sisa aturan MVP (setelah ACC): foto referensi boleh ditambah (Edit
+  request tetap terkunci); tiket ACC yang MoU terakhirnya ditolak/dibatalkan
+  tanpa MoU aktif masuk Closed dengan Next step "Order stopped…"
+  (`mou_closed`); MoU baru membukanya lagi.
+- Bukan kode: `/approve` 404 di kemalofcs.my.id karena Web yang ter-deploy
+  masih versi lama; perlu commit + push repo `web-desktop/` agar Vercel
+  men-deploy v2.
+- Ditunda (user, 2026-10-10): menampilkan PIC CS di form/detail tiket sampel;
+  "PIC CRM" tetap opsional sampai serah terima CS → CRM di v3 (F-29).
 
 ## Belum diverifikasi di perangkat (butuh build baru)
 
@@ -261,10 +274,18 @@ mencatat posisi terakhir dan yang belum selesai.
    nomor klien lain sama; dua perangkat offline mendaftarkan nomor sama →
    keduanya diterima tanpa konflik; impor Excel dengan nomor yang sudah ada →
    diimpor dengan catatan "Imported with a note".
+5. Finance › Incoming payments › Proof: foto bukti tampil di dialog (Desktop,
+   Android, Web), bukan jendela kosong atau teks `data:image/…`.
+6. Samples: tiket "Client approved" ada di tab In progress (termasuk yang
+   tagihannya dicicil); Cancel MoU → tiket pindah ke Closed dengan Next step
+   "Order stopped…" → Draft MoU baru → kembali ke In progress. Setelah ACC,
+   tombol Add photo (referensi) masih ada, Edit request tidak.
+7. Tautan persetujuan (v2.5b) setelah Web v2 ter-deploy: buat tautan BARU
+   (berlaku 3 hari), buka di HP lain tanpa login.
 
 ## Tindak lanjut terbuka
 
-- **Sekarang:** user menguji 1–4 di atas pada build baru, lalu commit v2
+- **Sekarang:** user menguji 1–7 di atas pada build baru, lalu commit v2
   (kedua repo). Temuan baru diperbaiki dulu sebelum v3.
 - **F-40 (dashboard + laporan Excel lengkap: rekap order, progres divisi,
   MoU/legal, omzet/piutang) dikerjakan SETELAH v3 selesai** (keputusan user
