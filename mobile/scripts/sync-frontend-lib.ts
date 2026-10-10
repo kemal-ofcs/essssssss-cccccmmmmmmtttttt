@@ -51,6 +51,8 @@ const filesToCopy = [
   // Tiket sampel (PRD F-06) dan setelan bisnis (F-11).
   "components/production/ProductionPanel.tsx",
   "components/production/ProductionWorkspace.tsx",
+  "components/production/ShipmentSection.tsx",
+  "components/production/shipment-download.ts",
   "components/samples/ClientApproval.tsx",
   "components/samples/EvidencePicker.tsx",
   "components/samples/labels.ts",

@@ -19,12 +19,13 @@ mencatat posisi terakhir dan yang belum selesai.
   yang commit setelah uji perangkat sisa selesai. Jangan commit sendiri.
 - Gerbang per irisan: `bun run check` penuh bila menyentuh Rust,
   `check:quick` bila hanya TS/UI.
-- **v3 dimulai (D-43 rencana, D-44 v3.1):** urutan irisan v3.1 F-23/F-24 ✔
-  (ditulis, belum diuji perangkat) → v3.2 F-25 → v3.3 F-26/F-31 → v3.4 F-27
+- **v3 dimulai (D-43 rencana, D-44 v3.1 … D-47 v3.4):** urutan irisan
+  v3.1 F-23/F-24 ✔ → v3.2 F-25 ✔ → v3.3 F-26/F-31 ✔ → v3.4 F-27 ✔
+  (keempatnya ditulis, belum diuji perangkat) → v3.4 F-27
   → v3.5 F-28 → v3.6 F-29/F-30 → v3.7 F-32, lalu F-40. Setiap irisan tetap
   dibuka analisis + keputusan berhuruf sendiri.
-- **Skema database:** versi 18 `production-batches` (v11 s.d. v18 belum
-  pernah dirilis), sentinel Rust `-2026 production-batches-v1`.
+- **Skema database:** versi 20 `shipments` (v11 s.d. v20 belum pernah
+  dirilis), sentinel Rust `-2028 shipments-v1`.
 - **Repo `web-desktop/`** di device ini sudah punya `.git` sendiri lagi
   (remote `wwwwwweeeebbbbb--mmmmcccrrrrr`, HTTPS): commit di dua tempat.
 - **Device kerja berganti** (2026-10-10, `C:\fr\Project CRM`): git di sini
@@ -249,11 +250,70 @@ mencatat posisi terakhir dan yang belum selesai.
   To schedule / Scheduled / All, `ProductionPanel` juga di detail tiket;
   Next step setelah DP lunas mengarah ke PPIC/SPV.
 
+## Yang berubah di v3.2 / F-25 (belum di-commit)
+
+- **Kolom baru** `production_batches.stages_done` (0-4), `packed_at`,
+  `carton_count`, `produced_units` (keempat lapisan + `ensure_column` /
+  `COLUMN_MIGRATIONS`); rute `batch/stage`; command
+  `desktop_record_batch_stage` (kedua workspace) + route
+  `/api/production/stage`. Aturan 50 `CLAUDE.md`, PRD D-45.
+- **Gerbang:** tahap 1 menunggu bahan Ready + jadwal + dokumen legal wajib
+  final (`legal_open` di `BATCH_LIST_SQL`); tahap berikutnya hanya maju satu;
+  tablet basi = konflik. Packing wajib koli + unit jadi. Setelah Penimbangan
+  PO terkunci; tanggal tahap selesai tidak berubah; setelah Packing jadwal
+  terkunci.
+- **Notifikasi** `BATCH_PACKED` ke CS + Finance.
+- **UI:** bagian "Production floor" di panel (tombol besar + konfirmasi,
+  catatan kru, pelaku dan waktu dari linimasa), lencana "Behind schedule"
+  (tanggal perangkat), tab On the floor / Packed, Next step tahap berikutnya
+  lalu "Packed: Finance creates the settlement invoice."
+
+## Yang berubah di v3.3 / F-26 + F-31 (belum di-commit, tanpa perubahan skema)
+
+- **Jenis tagihan** `SETTLEMENT` dan `SHIPPING` (setelah Packing),
+  `STORAGE_FEE` (setelah pelunasan lunas dan biaya titip > 0). Nominal
+  bawaan form: pelunasan = total MoU − DP; biaya titip = hitungan berjalan.
+- **Setelan** `storage_grace_days` (14) dan `storage_fee_idr` (0 = mati) di
+  Business settings.
+- **`BATCH_LIST_SQL` kini subquery** yang menghitung status tagihan dan
+  `storage_days` di database (zona perusahaan dari Company profile);
+  pemanggil memakai `b.id`, bukan `b.rowid`.
+- **Siap kirim** `shipGateError` ↔ `ship_gate_error`, ditempel ke baris tiket
+  (`attachShipState` ↔ `attach_ship_state`): Next step, Finance queue, isian
+  form tagihan. Ditegakkan nanti saat pengiriman dicatat (v3.4).
+- **Notifikasi** `SHIP_CLEARED` ke grup Production saat order siap kirim
+  (alokasi dan pembuatan tagihan, Web + handler cloud), sekali per work order.
+- **UI:** panel "Settlement & storage" (status, hari ditagih, biaya berjalan),
+  tab Awaiting payment / Cleared to ship di Production.
+
+## Yang berubah di v3.4 / F-27 (belum di-commit)
+
+- **Tabel baru** `shipments` (domain `shipment`, keempat lapisan + snapshot),
+  rute `shipment/create` dan `shipment/transition`, guard cloud
+  `shipment_guard`; command `desktop_create_shipment` dan
+  `desktop_record_shipment_step` (kedua workspace) + route
+  `/api/production/shipment` dan `/shipment/step`.
+- **Alur:** Surat Jalan (`PREPARED`, koreksi/batal beralasan) → Shipped (resi
+  opsional, foto `SHIPMENT_PROOF` opsional) → resi menyusul → Sent to client
+  (CS, ekspedisi wajib punya resi). Gerbang lunas ditegakkan saat Surat Jalan
+  diterbitkan.
+- **Izin** `shipping.manage` (seed Logistik + SPV). Menyimpan PDF kini boleh
+  dengan `production.view` (Logistik tanpa `invoices.view`), Desktop dan
+  Android.
+- **Master Data** `CARRIER`; **setelan** `storage_sop_text` (Business settings)
+  dan awalan `delivery_note_prefix` (kartu awalan dokumen).
+- **PDF:** `buildTermsPdf` (MoU kini memakainya) untuk Surat Jalan (3 tanda
+  tangan) dan SOP Penyimpanan; `components/production/shipment-download.ts`.
+- **Notifikasi** `SHIPMENT_SHIPPED` ke grup CS.
+- **UI:** `ShipmentSection.tsx` di panel work order (Record shipment, Mark
+  shipped, Correct, Cancel, Add tracking number, Copy WhatsApp message, Mark
+  sent to client, PDF), tab Shipping / Sent to client, Next step berlanjut.
+
 ## Verifikasi terakhir
 
-- `bun run check` penuh LULUS (2026-10-10, setelah v3.1): 915 tes TS (kedua
-  workspace), 159 tes Rust Desktop, 159 tes Rust Mobile, seluruh audit (23
-  tabel snapshot, 33 rute kanonik, 7 izin sensitif). Satu-satunya warning:
+- `bun run check` penuh LULUS (2026-10-11, setelah v3.4): 941 tes TS (kedua
+  workspace), 162 tes Rust Desktop, 162 tes Rust Mobile, seluruh audit (24
+  tabel snapshot, 36 rute kanonik, 7 izin sensitif). Satu-satunya warning:
   linker `libsodium` (lama).
 
 ## Sudah diverifikasi di perangkat (2026-10-10)
@@ -295,6 +355,12 @@ mencatat posisi terakhir dan yang belum selesai.
 
 - **v3.1** seluruhnya (work order, PO, bahan siap, jadwal, notifikasi
   Production, awalan dokumen, menu Production di Android).
+- **v3.2** seluruhnya (4 tahap, gerbang legal, konflik dua tablet, Packing +
+  notifikasi CS/Finance, kunci PO/jadwal).
+- **v3.3** seluruhnya (tagihan pelunasan/ongkir/biaya titip, hitungan hari
+  titip, siap kirim, notifikasi Cleared to ship).
+- **v3.4** seluruhnya (Surat Jalan + SOP PDF di ketiga target, kirim, resi
+  menyusul, teruskan ke klien, konflik dua perangkat).
 - v2: tidak ada. Build ketiga (2026-10-10) LULUS seluruh uji: lampiran foto,
   ikon mata login, tagihan dummy di Finance queue + desain cetak, nomor
   WhatsApp sama (D-42), Proof di dialog, tab In progress/Closed + order

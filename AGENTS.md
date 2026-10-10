@@ -735,3 +735,46 @@ Detail lengkap ada di `README.md`.
     adalah setelan (`invoice_number_prefix`, `mou_number_prefix`,
     `batch_code_prefix`, aturan sama dengan awalan kode klien); bagian
     `-YYYYMMDD-<KP><NN>` tetap demi keunikan offline.
+    Tahap lantai produksi (F-25, v3.2, D-45) disimpan sebagai
+    `stages_done` (0-4) di work order, tanpa tabel log tersendiri: siapa dan
+    kapan ada di `sample_status_log` (`STAGE_<TAHAP>`). Satu rute
+    `batch/stage` membawa `base_stages_done`; `BATCH_STAGE_SQL` hanya maju
+    satu tahap dari tahap yang dilihat pencatat, dan `production_guard`
+    menolak tablet basi (E-34). Gerbangnya `stageGateError` ↔
+    `stage_gate_error`: tahap 1 menunggu bahan Ready, jadwal, dan
+    `legal_open = 0` (dokumen legal wajib final, OQ-22, dihitung di
+    `BATCH_LIST_SQL`). Packing wajib koli dan unit jadi
+    (`validateStageRecord` ↔ `validate_stage_record`) dan memberi tahu CS +
+    Finance. Setelah Penimbangan PO terkunci (`PRODUCTION_STARTED`), tanggal
+    tahap yang selesai tidak berubah, dan seluruh jadwal terkunci setelah
+    Packing (`scheduleLockError` ↔ `schedule_lock_error`). Tidak ada tombol
+    batal tahap; "Behind schedule" hanya tampilan.
+    Pelunasan dan biaya titip (F-26/F-31, v3.3, D-46) tanpa perubahan skema:
+    jenis tagihan `SETTLEMENT`/`SHIPPING` (setelah Packing) dan `STORAGE_FEE`
+    (setelah pelunasan lunas, biaya > 0) di `invoiceTypeError` ↔
+    `invoice_type_error`. Biaya titip dan status tagihan dihitung DATABASE di
+    `BATCH_LIST_SQL` (kini subquery: pemanggil memakai `b.id`, bukan
+    `b.rowid`): hari ditagih = tanggal terima uang pelunasan (selama belum
+    lunas: hari ini, zona perusahaan) − tanggal Packing − `storage_grace_days`,
+    × koli × `storage_fee_idr` (`storageFeeDue`). Siap kirim =
+    `shipGateError` ↔ `ship_gate_error` (cicilan pelunasan harus lunas
+    semua), ditempel ke baris tiket oleh `attachShipState` ↔
+    `attach_ship_state` untuk Next step, Finance queue, dan isian bawaan form
+    tagihan; ditegakkan saat pengiriman dicatat (v3.4). Notifikasi
+    `SHIP_CLEARED` ke grup Production dirakit dari `BATCH_LIST_SQL`
+    (`notifyShipClearedSql` ↔ `notify_ship_cleared_sql`) di transaksi
+    alokasi dan pembuatan tagihan, sekali per work order.
+    Pengiriman (F-27, v3.4, D-47): tabel `shipments` (domain `shipment`),
+    satu aktif per work order (`SHIPMENT_ACTIVE_SQL`, tanpa UNIQUE). Surat
+    Jalan hanya terbit bila `shipGateError` lolos, dihitung ulang di
+    perangkat, Web, dan `shipment_guard` cloud (`shipmentRequestError` ↔
+    `shipment_request_error`). Langkah `PREPARED` → `SHIPPED` → `FORWARDED`
+    (koreksi/batal hanya selama `PREPARED`, resi boleh menyusul) hanya lewat
+    `applyShipmentAction` ↔ `apply_shipment_action`, dijaga status +
+    `updated_at`; izinnya `shipmentActionPermission` ↔
+    `shipment_action_permission` (Forwarded = `samples.manage`, sisanya
+    `shipping.manage`). Surat Jalan dan SOP Penyimpanan (`storage_sop_text`)
+    adalah PDF webview lewat `buildTermsPdf` (MoU memakai fungsi yang sama);
+    menyimpan PDF menuntut `invoices.view` ATAU `production.view`. Nomor
+    `SJ-YYYYMMDD-<KP><NN>`, awalan `delivery_note_prefix`. Notifikasi
+    `SHIPMENT_SHIPPED` ke grup CS.

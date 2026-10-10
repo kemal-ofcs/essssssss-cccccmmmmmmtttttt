@@ -75,7 +75,9 @@ pub async fn mobile_save_document(
     data_base64: String,
 ) -> Result<Value, CommandError> {
     use base64::Engine as _;
-    super::commands::require_permission(&state, "invoices.view")?;
+    // Invoice/MoU (v2.3c) dan Surat Jalan/SOP (v3.4).
+    super::commands::require_permission(&state, "invoices.view")
+        .or_else(|_| super::commands::require_permission(&state, "production.view"))?;
     let name = super::commands::document_file_name(&file_name).ok_or_else(|| {
         CommandError::new("DOCUMENT_INVALID", "The document name is invalid.")
     })?;
