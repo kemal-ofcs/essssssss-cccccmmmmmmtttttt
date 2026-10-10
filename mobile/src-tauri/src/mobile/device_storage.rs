@@ -88,6 +88,34 @@ pub async fn mobile_save_document(
     Ok(json!({ "fileName": name, "savedToDevice": saved }))
 }
 
+/// Simpan .xlsx (ekspor daftar atau template impor, v2.8) lewat dialog SAF.
+/// Aturannya sama dengan `desktop_save_xlsx` (`checked_xlsx`); ekspor dicatat
+/// di log audit hanya bila pengguna benar-benar menyimpannya.
+#[tauri::command]
+pub async fn mobile_save_xlsx(
+    app: tauri::AppHandle,
+    state: State<'_, MobileState>,
+    file_name: String,
+    data_base64: String,
+    purpose: String,
+    subject: String,
+    rows: i64,
+) -> Result<Value, CommandError> {
+    let actor = super::commands::require_permission(&state, super::commands::export_permission(&purpose))?;
+    let (name, bytes) = super::commands::checked_xlsx(&actor, &file_name, &data_base64, &purpose, &subject)?;
+    let saved = simpan_bytes(
+        &app,
+        bytes,
+        &name,
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+    .await?;
+    if saved {
+        super::commands::record_export(&state, &actor, &subject, &name, rows)?;
+    }
+    Ok(json!({ "fileName": name, "savedToDevice": saved }))
+}
+
 /// Baca berkas cadangan lalu serahkan ke `simpan_bytes`.
 async fn simpan_ke_perangkat(
     app: &tauri::AppHandle,

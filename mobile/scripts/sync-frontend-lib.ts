@@ -28,6 +28,7 @@ const filesToCopy = [
   "components/ui/StatusBadge.tsx",
   "components/AutoSyncRunner.tsx",
   "components/QuarantineBanner.tsx",
+  "components/RejectedChangesBanner.tsx",
   // Domain MaklonOS: workspace klien dan kartu Pengaturan-nya.
   "components/clients/ClientCodeCard.tsx",
   "components/clients/ClientImport.tsx",
@@ -38,6 +39,8 @@ const filesToCopy = [
   "components/clients/MasterDataCard.tsx",
   // Tagihan dan uang masuk (PRD F-17).
   "components/finance/FinanceOptionsCard.tsx",
+  "components/imports/ExportButton.tsx",
+  "components/imports/ImportColumnGuide.tsx",
   "components/imports/SheetImport.tsx",
   "components/finance/FinanceWorkspace.tsx",
   "components/finance/FundForm.tsx",

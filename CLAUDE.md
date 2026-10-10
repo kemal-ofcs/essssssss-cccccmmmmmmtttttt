@@ -204,6 +204,11 @@ untuk database baru, dan `ALTER TABLE` (`ensure_column` di Rust,
     Pemakainya WAJIB memakai `android_fs_async()`, bukan `android_fs()`:
     dialognya menunggu manusia, dan memblokir thread runtime selama itu
     membekukan seluruh antarmuka termasuk dialog yang sedang ditunggu.
+    Kebalikannya juga berlaku: `public_output_dirs` hanya memuat folder
+    Android di build Android (`cfg!(target_os = "android")`). Di Windows
+    `/storage/emulated/0/Download` dibaca `C:\storage\emulated\0\Download`,
+    foldernya dibuat diam-diam, dan PDF "tersimpan" di tempat yang tidak
+    pernah dicari (temuan uji perangkat v2).
 29. `company_profile` adalah tabel PLATFORM, bukan domain contoh. Bentuknya
     baris tunggal ber-kunci konstanta `'default_company'`, dan barisnya
     SENGAJA tidak di-seed saat provisioning: menyeednya berarti setiap perangkat
@@ -385,7 +390,7 @@ Detail lengkap ada di `README.md`.
     Gerbangnya ada di tiga tempat dan tidak boleh ditambal di tempat lain:
     `gate_login` di awal `desktop_login` (satu kali untuk jalur online dan
     offline), `enforce_any` di `require_permission` (mode baca-saja: hanya
-    `*.view`, `sync.retry`, `database_backup.export`), dan
+    `*.view`, `sync.retry`, `database_backup.export`, `data.export`), dan
     `check_installable` sebelum Superadmin dibuat. Lisensi disimpan di
     `setting_gex_system.app_license` (ikut sinkronisasi, rute `setting/update`)
     dan TIDAK boleh masuk `DEVICE_LOCAL_SETTING_KEYS`. Tes memakai vektor
@@ -428,6 +433,14 @@ Detail lengkap ada di `README.md`.
     dihapus, dan tetap menjaga barisnya dari `delete_missing`; hanya
     pemiliknya yang memutuskan Kirim atau Buang (`sync.retry`, tercatat di
     log audit). Mode Database Lokal tidak membuka sesi cloud.
+    Membuang perubahan, baik dari karantina maupun konflik (perubahan
+    yang ditolak cloud), memanggil `forget_local_entity` (`sync.rs`):
+    baris yang berasal dari cloud kehilangan jejak hash supaya pull
+    menimpanya, baris buatan perangkat yang tidak pernah diterima cloud
+    dihapus. Tanpanya alokasi yang ditolak tetap terhitung di perangkat
+    selamanya. Konflik tampil di `RejectedChangesBanner` untuk semua role;
+    pemiliknya boleh Buang atau Kirim ulang miliknya sendiri, milik orang
+    lain menuntut `sync.retry`.
 37. **Tiket sampel (PRD FR-06) dan setelan bisnis (FR-11).** Aturan langkah
     ada di SATU fungsi per bahasa, `applySampleAction` (`sample.ts`) ↔
     `apply_sample_action` (`samples.rs`), dengan vektor kembar; UI hanya
@@ -665,3 +678,20 @@ Detail lengkap ada di `README.md`.
     `sheet_import_permission` (`finance.manage`, `rnd.manage`,
     `design.manage`); izin PRD `data_import.run` tidak dipakai. Cloud
     memeriksa ulang arsip dengan `archive_payload_error` (khusus Rust).
+49. **Ekspor Excel dan template impor (v2.8, D-41).** Berkas .xlsx dibuat
+    webview oleh penulis sendiri `src/lib/documents/xlsx.ts` (tanpa
+    dependensi, zip tanpa kompresi + XML; teks tetap teks sehingga nomor
+    WhatsApp tidak menjadi `6.28E+12`, angka berpemisah ribuan, tanggal
+    sebagai tanggal Excel) dari daftar yang sedang tampil, lalu disimpan
+    lewat `saveXlsx` (`gateways/documents.ts`): Android `mobile_save_xlsx`
+    (SAF, aturan 28), Desktop `desktop_save_xlsx` (Downloads), Web unduhan
+    browser SETELAH `/api/export/record`. Impor menerima .xlsx (`readXlsx`:
+    sheet pertama, deflate lewat `DecompressionStream`, sel tanggal Excel
+    diubah menjadi `YYYY-MM-DD[ HH:MM]`, rumus dibaca nilainya) dan .csv.
+    Ekspor menuntut izin `data.export` (ikut paket Admin, tidak di-seed ke
+    role divisi, boleh di mode baca-saja lisensi) dan setiap ekspor tercatat
+    di log audit (`data.export`); Desktop/Mobile mencatatnya hanya bila
+    berkas benar-benar tersimpan. Template impor (`purpose: "template"`)
+    cukup izin impor mana pun dan `checked_xlsx` membatasinya 16 KB, karena
+    Rust tidak membaca isi zip. Kolom ekspor klien dan uang masuk = kolom
+    impornya, jadi berkasnya bisa diimpor ulang. Laporan ringkasan tetap F-40.

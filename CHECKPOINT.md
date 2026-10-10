@@ -17,8 +17,8 @@ mencatat posisi terakhir dan yang belum selesai.
 - **Build Desktop/APK ditunda sampai seluruh v2 selesai** (keputusan user).
   Gerbang per irisan: `bun run check` penuh bila menyentuh Rust,
   `check:quick` bila hanya TS/UI.
-- **Skema database:** versi 16 `imported-records` (v11 s.d. v16 belum pernah
-  dirilis), sentinel Rust `-2024 imported-records-v1`.
+- **Skema database:** versi 17 `data-export` (v11 s.d. v17 belum pernah
+  dirilis), sentinel Rust `-2025 data-export-v1`.
 - **Repo `web-desktop/`** di device ini sudah punya `.git` sendiri lagi
   (remote `wwwwwweeeebbbbb--mmmmcccrrrrr`, HTTPS): commit di dua tempat.
 - **Device kerja berganti** (2026-10-10, `C:\fr\Project CRM`): git di sini
@@ -185,12 +185,41 @@ mencatat posisi terakhir dan yang belum selesai.
   menggeneralisasi tebakan header.
 - Izin tidak bertambah: `finance.manage`, `rnd.manage`, `design.manage`.
 
+## Temuan uji perangkat v2 (2026-10-10, sudah diperbaiki, belum di-commit)
+
+- PDF/cadangan di Desktop Windows tersimpan ke `C:\storage\emulated\0\Download`
+  (folder Android dipilih di Windows) → kini hanya di build Android (aturan 28).
+- Mobile tidak punya tombol Sign out → ikon keluar di header `MobileAppShell`.
+- Giliran berikutnya tidak terlihat (mis. setelah "Accepted by RnD" CS yang
+  Proceed) → baris "Next step" di detail tiket (`nextSampleStep`, hanya tampilan).
+- Pilihan tiket di form tagihan kini memuat status dan waktu dibuat (brand sama).
+- Halaman Finance: tab status dengan jumlah (Unpaid bawaan, Overdue, Paid, In
+  installments, Cancelled, All; uang masuk Unallocated bawaan, Deposits,
+  Allocated, Void, All), pencarian, total piutang/overdue/belum dialokasikan,
+  100 baris per tampilan + Show more.
+- Bukan bug: Accept partial payment / Keep as deposit butuh izin sensitif
+  `payments.approve_exception`; izin terbaca saat login.
+- Konflik alokasi dari dua perangkat offline tidak bisa diselesaikan (tidak
+  ada layar) dan alokasi yang ditolak tetap di perangkat → banner "Rejected
+  by the cloud" (Discard my change / Try again, pemilik boleh tanpa
+  `sync.retry`) dan Buang menyamakan baris lokal (`forget_local_entity`,
+  juga untuk karantina). HP yang sudah terlanjur: tekan Discard my change di
+  build baru.
+- Mobile: tarik ke bawah dari puncak halaman = sinkron lalu muat ulang.
+- **v2.8 (D-41):** tim memakai Excel: daftar kolom + Download Excel template
+  di kedua layar impor; impor menerima .xlsx dan .csv; tombol Export Excel
+  di Clients, Samples, Finance (Invoices / Incoming payments) mengikuti
+  filter; penulis/pembaca .xlsx sendiri `src/lib/documents/xlsx.ts`; izin
+  baru `data.export` (Admin), audit `data.export`; command
+  `desktop_save_xlsx` (kedua workspace) dan `mobile_save_xlsx`, route
+  `/api/export/record`. Skema v17, sentinel `-2025 data-export-v1`.
+
 ## Verifikasi terakhir
 
-- `bun run check` penuh LULUS (setelah v2.5b, device baru): 820 tes TS
-  (kedua workspace), 144 tes Rust Desktop, 144 tes Rust Mobile, seluruh audit
-  (19 tabel snapshot, 27 rute kanonik, 7 izin sensitif). Satu-satunya warning: linker
-  `libsodium` (lama).
+- `bun run check` penuh LULUS (2026-10-10, setelah v2.7 dan perbaikan temuan
+  uji perangkat, v2.8 Excel): 881 tes TS (kedua workspace), 154 tes Rust Desktop,
+  154 tes Rust Mobile, seluruh audit (21 tabel snapshot, 29 rute kanonik, 7 izin
+  sensitif). Satu-satunya warning: linker `libsodium` (lama).
 
 ## Belum diverifikasi di perangkat (build setelah seluruh v2 selesai)
 

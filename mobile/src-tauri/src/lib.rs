@@ -101,6 +101,7 @@ pub fn run() {
             mobile::commands::desktop_update_company_profile,
             mobile::device_storage::mobile_export_database_to_device,
             mobile::device_storage::mobile_save_document,
+            mobile::device_storage::mobile_save_xlsx,
             mobile::commands::desktop_get_server_url,
             mobile::commands::desktop_set_server_url,
             // Domain contoh — ganti dengan domain aplikasi Anda.
@@ -149,6 +150,7 @@ pub fn run() {
             mobile::commands::desktop_accept_partial_payment,
             mobile::commands::desktop_confirm_deposit,
             mobile::commands::desktop_save_document,
+            mobile::commands::desktop_save_xlsx,
             mobile::commands::desktop_upload_sample_media,
             mobile::commands::desktop_get_media,
         ])
