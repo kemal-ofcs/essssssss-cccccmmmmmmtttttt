@@ -219,7 +219,7 @@ mencatat posisi terakhir dan yang belum selesai.
 ## Verifikasi terakhir
 
 - `bun run check` penuh LULUS (2026-10-10, setelah v2.7 dan perbaikan temuan
-  uji perangkat, v2.8 Excel, temuan build kedua): 883 tes TS (kedua workspace), 154 tes Rust Desktop,
+  uji perangkat, v2.8 Excel, temuan build kedua, D-42): 885 tes TS (kedua workspace), 154 tes Rust Desktop,
   154 tes Rust Mobile, seluruh audit (21 tabel snapshot, 29 rute kanonik, 7 izin
   sensitif). Satu-satunya warning: linker `libsodium` (lama).
 
@@ -256,10 +256,15 @@ mencatat posisi terakhir dan yang belum selesai.
    "Design: print the dummy." → Start printing dengan/tanpa desain cetak →
    foto "Dummy artwork" tampil di galeri. MoU disetujui dengan DP belum
    lunas juga muncul di Finance queue.
+4. Nomor WhatsApp sama (D-42): New lead dengan nomor klien lain → peringatan
+   kuning menyebut klien pemiliknya → Save anyway → tersimpan; edit klien ke
+   nomor klien lain sama; dua perangkat offline mendaftarkan nomor sama →
+   keduanya diterima tanpa konflik; impor Excel dengan nomor yang sudah ada →
+   diimpor dengan catatan "Imported with a note".
 
 ## Tindak lanjut terbuka
 
-- **Sekarang:** user menguji 1–3 di atas pada build baru, lalu commit v2
+- **Sekarang:** user menguji 1–4 di atas pada build baru, lalu commit v2
   (kedua repo). Temuan baru diperbaiki dulu sebelum v3.
 - **F-40 (dashboard + laporan Excel lengkap: rekap order, progres divisi,
   MoU/legal, omzet/piutang) dikerjakan SETELAH v3 selesai** (keputusan user

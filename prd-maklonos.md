@@ -57,6 +57,7 @@
 | D-40 | v2.7 (F-22): Data Uang Masuk diimpor menjadi uang masuk biasa (belum dialokasikan, tanpa foto); admin hanya mengimpor mutasi yang belum dicocokkan di sheet. Database Formulasi dan Database Desain menjadi arsip hanya-baca per klien (`imported_records`: tanggal, kode, nama produk/brand, harga jual opsional, catatan), tampil di detail klien; HPP dan margin tidak diimpor. Kode Klien wajib dan harus terdaftar untuk arsip, opsional untuk uang masuk. Nominal menerima Rp, titik/koma ribuan, `,00` dan `,-`; sen bukan nol ditolak. Impor ulang menambah nol (uang masuk per tanggal + nominal + keterangan, arsip per jenis + klien + kode + judul + tanggal). Izin domain: uang masuk `finance.manage`, formulasi `rnd.manage`, desain `design.manage`; `data_import.run` tidak dipakai. Satu halaman Import sheets (tautan dari Finance dan Samples), pemetaan kolom di layar karena contoh CSV asli belum ada (OQ-24), tanpa notifikasi, satu entri audit per impor. Skema v16. | analisis v2.7, 2026-10-10 |
 | D-41 | v2.8 (temuan uji perangkat): tim memakai Excel, bukan CSV. Setiap layar impor menampilkan daftar kolom (wajib/opsional, contoh) dan tombol Download Excel template (header + satu baris contoh); impor menerima .xlsx (sheet pertama, sel tanggal Excel dikenali) dan .csv. Ekspor Excel (.xlsx) untuk daftar Clients, Samples, Invoices, dan Incoming payments sesuai filter dan pencarian yang tampil; kolom klien dan uang masuk sama dengan kolom impornya; nomor tetap teks, nominal angka, tanggal sebagai tanggal Excel. Penulis/pembaca .xlsx sendiri tanpa dependensi. Izin baru `data.export` (paket Admin, tidak di-seed ke role divisi, boleh saat lisensi baca-saja), setiap ekspor tercatat di log audit. Laporan ringkasan tetap F-40. Skema v17. | uji perangkat v2, 2026-10-10 |
 
+| D-42 | Nomor WhatsApp klien boleh sama untuk beberapa klien (satu pemilik, banyak brand). Simpan klien baru/edit dengan nomor yang sudah dipakai menampilkan peringatan berisi kode dan nama klien pemiliknya, dan baru tersimpan setelah "Save anyway"; impor mencatatnya sebagai peringatan, bukan melewati; cloud tidak lagi menjadikannya konflik (E-04 diubah). Nomor operator tidak terpengaruh. | permintaan user, 2026-10-10 |
 ---
 
 ## 1. Problem Statement
@@ -469,7 +470,7 @@ Semua status sebelum CLIENT_ACC ─► CANCELLED
 | Status Lead | tidak diimpor sebagai segmen, karena segmen dihitung (nilai kolom: OQ-24) |
 
 4. Alur: pilih berkas → petakan kolom → pratinjau (jumlah valid, alasan gagal per baris) → konfirmasi → simpan.
-5. Hanya menambah. Kode Klien atau nomor WhatsApp yang sudah ada dilewati dan dilaporkan, tidak menimpa.
+5. Hanya menambah. Kode Klien yang sudah ada dilewati dan dilaporkan, tidak menimpa. Nomor WhatsApp yang sudah dipakai klien lain tetap diimpor dengan peringatan (D-42).
 6. Satu impor = satu transaksi lokal; gagal di tengah → nol baris tersimpan.
 7. Setiap impor tercatat di audit (pelaku, nama berkas, jumlah ditambah/dilewati).
 8. Impor bisa dilewati; aplikasi berfungsi penuh dengan database kosong.
@@ -609,14 +610,14 @@ media_asset N─1 pemilik mana pun lewat owner_type/owner_id
 | E-01 | Dua perangkat offline membuat klien di tanggal yang sama | Kode berbeda karena `KP` berbeda (FR-04.5). |
 | E-02 | Perangkat baru belum pernah tersambung | Tidak bisa membuat klien sampai mendapat `KP`; semua fitur baca tetap jalan. |
 | E-03 | CS login di laptop, lalu di HP; laptop masih offline | Laptop tetap bekerja. Saat online, laptop tersusul; outbox masuk karantina (FR-03). |
-| E-04 | Dua CS offline mendaftarkan nomor WhatsApp yang sama | Push kedua menjadi konflik di layar Sinkronisasi dengan `kode_klien` pemilik nomor; CS memindahkan catatan secara manual. Gabung otomatis: F-43. |
+| E-04 | Dua CS mendaftarkan nomor WhatsApp yang sama | Diizinkan (D-42): satu pemilik bisa punya beberapa brand/klien. Form meminta konfirmasi "Save anyway" dengan menyebut klien pemilik nomor; dua perangkat offline keduanya diterima cloud. Gabung klien dobel: F-43. |
 | E-05 | Dua perangkat mengubah lead yang sama saat offline | `base_revision` menjadikan perubahan kedua konflik, bukan menimpa diam-diam. |
 | E-06 | Jam perangkat salah | Segmentasi offline di perangkat itu bisa keliru. Saat sync, peringatan tampil bila selisih jam perangkat dengan database > 5 menit. |
 | E-07 | RnD menolak kelayakan | Tiket `RND_REJECTED`; CS membuat tiket baru untuk produk lain. Bila tidak ada tiket aktif lain, klien kembali `LEAD` (FR-05.5). |
 | E-08 | Revisi melampaui kuota di MVP | Tiket berhenti di `PENDING_FEE_ASSESSMENT` sampai v2 (D-10). |
 | E-09 | Token bot salah atau bot dikeluarkan dari grup | Mutasi tetap tersimpan; notifikasi `FAILED` setelah 5 kali; pesan error Telegram tampil apa adanya di Pengaturan. |
 | E-10 | Gambar > 300 KB setelah kompresi | Ditolak dengan instruksi potong; tiket tetap bisa disimpan tanpa foto. |
-| E-11 | CSV berisi Kode Klien atau nomor yang sudah ada | Dilewati dan dilaporkan di pratinjau. |
+| E-11 | Berkas impor berisi Kode Klien atau nomor yang sudah ada | Kode Klien yang sudah ada dilewati; nomor yang sudah dipakai tetap diimpor dengan peringatan (D-42). |
 | E-12 | CSV rusak (encoding, kolom bergeser) | Pratinjau 0 valid + alasan; tombol simpan nonaktif. |
 | E-13 | CSV memuat Kode Asal Lead atau kategori yang belum ada di Master Data | Baris ditolak per baris dengan nama nilai yang hilang; Admin menambahkannya lalu mengimpor ulang. |
 | E-14 | Master Data kosong di database baru | Form intake memberi tahu dan menautkan ke Master Data (FR-12.2). |

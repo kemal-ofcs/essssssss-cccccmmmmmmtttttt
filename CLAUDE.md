@@ -517,8 +517,13 @@ Detail lengkap ada di `README.md`.
     `validate_import_row`/`parse_sheet_date`/`normalize_import_phone`
     (`clients.rs`, vektor kembar). Urutan tanggal (DMY/MDY) WAJIB dipilih,
     tidak pernah ditebak diam-diam: `12/5/2026` sah di kedua urutan. Hanya
-    menambah: kode (tanpa membedakan huruf besar-kecil) atau nomor yang sudah
-    ada dilewati. Jawaban PIC menjadi interaksi `INBOUND`/`OTHER` pada waktu
+    menambah: kode yang sudah ada (tanpa membedakan huruf besar-kecil)
+    dilewati. Nomor WhatsApp BOLEH dipakai beberapa klien (D-42): impor
+    hanya mencatatnya sebagai peringatan, form klien meminta konfirmasi
+    (`confirm_shared_phone`, pesan `sharedPhoneMessage` ↔
+    `shared_phone_message`, dikenali form dari
+    `CLIENT_PHONE_SHARED_SUFFIX`), dan cloud tidak lagi menjadikannya
+    konflik. Operator tidak terpengaruh. Jawaban PIC menjadi interaksi `INBOUND`/`OTHER` pada waktu
     respons terakhir supaya Jumlah FU dari sheet tidak bertambah di cloud.
     Payload `client/register` hasil impor membawa `imported: true` dan handler
     push TIDAK menulis notifikasi untuknya. Impor menuntut `clients.manage`
