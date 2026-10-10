@@ -49,6 +49,8 @@ const filesToCopy = [
   "components/finance/labels.ts",
   "components/finance/PartialPaymentForm.tsx",
   // Tiket sampel (PRD F-06) dan setelan bisnis (F-11).
+  "components/production/ProductionPanel.tsx",
+  "components/production/ProductionWorkspace.tsx",
   "components/samples/ClientApproval.tsx",
   "components/samples/EvidencePicker.tsx",
   "components/samples/labels.ts",

@@ -24,6 +24,7 @@ const NAV_ITEMS: readonly NavItem[] = [
   { area: "clients", href: "/clients", label: "Clients" },
   { area: "samples", href: "/samples", label: "Samples" },
   { area: "finance", href: "/finance", label: "Finance" },
+  { area: "production", href: "/production", label: "Production" },
   { area: "audit", href: "/audit", label: "Audit" },
   { area: "settings", href: "/settings", label: "Settings" },
 ];
@@ -185,7 +186,7 @@ export function MobileAppShell({ children, title }: MobileAppShellProps) {
                 key={item.href}
                 href={item.href}
                 aria-current={active ? "page" : undefined}
-                className={`flex min-h-14 flex-1 flex-col items-center justify-center gap-1 text-body-sm font-semibold transition-colors ${
+                className={`flex min-h-14 min-w-0 flex-1 flex-col items-center justify-center gap-1 text-body-sm font-semibold transition-colors ${
                   active ? "text-secondary" : "text-on-surface-variant"
                 }`}
               >
@@ -195,7 +196,7 @@ export function MobileAppShell({ children, title }: MobileAppShellProps) {
                     active ? "bg-secondary" : "bg-transparent"
                   }`}
                 />
-                {item.label}
+                <span className="max-w-full truncate px-0.5">{item.label}</span>
               </Link>
             );
           })}

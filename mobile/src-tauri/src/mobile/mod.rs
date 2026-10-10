@@ -26,6 +26,8 @@ pub mod mou;
 // Notifikasi divisi: SALINAN `desktop/notifications.rs` oleh sync-rust-modules.ts.
 pub mod notifications;
 pub mod portability;
+// Work order produksi: SALINAN `desktop/production.rs` oleh sync-rust-modules.ts.
+pub mod production;
 pub mod secrets;
 pub mod sql_backend;
 pub mod storage;

@@ -19,8 +19,12 @@ mencatat posisi terakhir dan yang belum selesai.
   yang commit setelah uji perangkat sisa selesai. Jangan commit sendiri.
 - Gerbang per irisan: `bun run check` penuh bila menyentuh Rust,
   `check:quick` bila hanya TS/UI.
-- **Skema database:** versi 17 `data-export` (v11 s.d. v17 belum pernah
-  dirilis), sentinel Rust `-2025 data-export-v1`.
+- **v3 dimulai (D-43 rencana, D-44 v3.1):** urutan irisan v3.1 F-23/F-24 ✔
+  (ditulis, belum diuji perangkat) → v3.2 F-25 → v3.3 F-26/F-31 → v3.4 F-27
+  → v3.5 F-28 → v3.6 F-29/F-30 → v3.7 F-32, lalu F-40. Setiap irisan tetap
+  dibuka analisis + keputusan berhuruf sendiri.
+- **Skema database:** versi 18 `production-batches` (v11 s.d. v18 belum
+  pernah dirilis), sentinel Rust `-2026 production-batches-v1`.
 - **Repo `web-desktop/`** di device ini sudah punya `.git` sendiri lagi
   (remote `wwwwwweeeebbbbb--mmmmcccrrrrr`, HTTPS): commit di dua tempat.
 - **Device kerja berganti** (2026-10-10, `C:\fr\Project CRM`): git di sini
@@ -216,12 +220,41 @@ mencatat posisi terakhir dan yang belum selesai.
   `desktop_save_xlsx` (kedua workspace) dan `mobile_save_xlsx`, route
   `/api/export/record`. Skema v17, sentinel `-2025 data-export-v1`.
 
+## Yang berubah di v3.1 / F-23 + F-24 (belum di-commit)
+
+- **Modul baru** `validations/production.ts` ↔ `desktop/production.rs` (ikut
+  `sync-rust-modules.ts`); aturan 50 `CLAUDE.md`, PRD D-43/D-44.
+- **Tabel baru** `production_batches` (domain `batch`) dan
+  `batch_purchase_orders` (domain `purchase-order`), keempat lapisan +
+  snapshot; rute `batch/create`, `batch/ready`, `batch/schedule`,
+  `purchase-order/record`; guard cloud `production_guard`.
+- **5 command** `desktop_list_production`, `desktop_create_batch`,
+  `desktop_record_purchase_order`, `desktop_mark_materials_ready`,
+  `desktop_save_batch_schedule` (kedua workspace) + route
+  `/api/production/{query,batch,purchase-order,ready,schedule}`; gateway
+  `gateways/production.ts`.
+- **Izin:** `production.view` (PPIC, SPV, QC, Logistik, CS, CRM, Finance),
+  `ppic.manage` (PPIC), `production.manage` (SPV),
+  `notifications_production.view` (PPIC, SPV, QC, Logistik); seed sekali
+  `production_permissions_seeded`. `landingPath` → `/production` bagi role
+  tanpa `clients.view`.
+- **Notifikasi** divisi PRODUCTION (`telegram_chat_id_production` di
+  Business settings, uji kirim di Telegram): work order baru, PO terlambat
+  (juga CS), jadwal disimpan (CS).
+- **Master Data** `SUPPLIER`. **Awalan dokumen** (D-43): tagihan, MoU, work
+  order disetel di kartu "Client codes and document numbers"; Surat Jalan
+  menyusul di v3.4.
+- **UI:** menu Production (Desktop sidebar, Android navigasi bawah; label
+  menu Android kini dipotong bila sempit), tab Ready for PPIC / Materials /
+  To schedule / Scheduled / All, `ProductionPanel` juga di detail tiket;
+  Next step setelah DP lunas mengarah ke PPIC/SPV.
+
 ## Verifikasi terakhir
 
-- `bun run check` penuh LULUS (2026-10-10, setelah v2.7 dan perbaikan temuan
-  uji perangkat, v2.8 Excel, temuan build kedua, D-42, audit sisa MVP): 887 tes TS (kedua workspace), 154 tes Rust Desktop,
-  154 tes Rust Mobile, seluruh audit (21 tabel snapshot, 29 rute kanonik, 7 izin
-  sensitif). Satu-satunya warning: linker `libsodium` (lama).
+- `bun run check` penuh LULUS (2026-10-10, setelah v3.1): 915 tes TS (kedua
+  workspace), 159 tes Rust Desktop, 159 tes Rust Mobile, seluruh audit (23
+  tabel snapshot, 33 rute kanonik, 7 izin sensitif). Satu-satunya warning:
+  linker `libsodium` (lama).
 
 ## Sudah diverifikasi di perangkat (2026-10-10)
 
@@ -258,35 +291,19 @@ mencatat posisi terakhir dan yang belum selesai.
 - Ditunda (user, 2026-10-10): menampilkan PIC CS di form/detail tiket sampel;
   "PIC CRM" tetap opsional sampai serah terima CS → CRM di v3 (F-29).
 
-## Belum diverifikasi di perangkat (butuh build baru)
+## Belum diverifikasi di perangkat
 
-1. Lampiran foto di jawaban klien, dokumen legal, dan Start printing dummy:
-   tombol Choose image → Attached → Replace / Remove; tidak ada lagi teks
-   "No file chosen".
-2. Login Desktop: hanya satu tombol Show/Hide di kolom password.
-3. Tiket "Perlu dummy" setelah Client ACC: Next step menunjuk Finance dan
-   tiket muncul di Finance queue → tagihan Dummy fee lunas → Next step
-   "Design: print the dummy." → Start printing dengan/tanpa desain cetak →
-   foto "Dummy artwork" tampil di galeri. MoU disetujui dengan DP belum
-   lunas juga muncul di Finance queue.
-4. Nomor WhatsApp sama (D-42): New lead dengan nomor klien lain → peringatan
-   kuning menyebut klien pemiliknya → Save anyway → tersimpan; edit klien ke
-   nomor klien lain sama; dua perangkat offline mendaftarkan nomor sama →
-   keduanya diterima tanpa konflik; impor Excel dengan nomor yang sudah ada →
-   diimpor dengan catatan "Imported with a note".
-5. Finance › Incoming payments › Proof: foto bukti tampil di dialog (Desktop,
-   Android, Web), bukan jendela kosong atau teks `data:image/…`.
-6. Samples: tiket "Client approved" ada di tab In progress (termasuk yang
-   tagihannya dicicil); Cancel MoU → tiket pindah ke Closed dengan Next step
-   "Order stopped…" → Draft MoU baru → kembali ke In progress. Setelah ACC,
-   tombol Add photo (referensi) masih ada, Edit request tidak.
-7. Tautan persetujuan (v2.5b) setelah Web v2 ter-deploy: buat tautan BARU
-   (berlaku 3 hari), buka di HP lain tanpa login.
+- **v3.1** seluruhnya (work order, PO, bahan siap, jadwal, notifikasi
+  Production, awalan dokumen, menu Production di Android).
+- v2: tidak ada. Build ketiga (2026-10-10) LULUS seluruh uji: lampiran foto,
+  ikon mata login, tagihan dummy di Finance queue + desain cetak, nomor
+  WhatsApp sama (D-42), Proof di dialog, tab In progress/Closed + order
+  berhenti, dan tautan persetujuan setelah Web v2 ter-deploy.
 
 ## Tindak lanjut terbuka
 
-- **Sekarang:** user menguji 1–7 di atas pada build baru, lalu commit v2
-  (kedua repo). Temuan baru diperbaiki dulu sebelum v3.
+- **Sekarang:** seluruh v2 LULUS uji perangkat. User commit v2 (kedua repo:
+  root dan `web-desktop/`) bila belum.
 - **F-40 (dashboard + laporan Excel lengkap: rekap order, progres divisi,
   MoU/legal, omzet/piutang) dikerjakan SETELAH v3 selesai** (keputusan user
   2026-10-10), supaya data produksi dan pengiriman ikut.

@@ -712,3 +712,26 @@ Detail lengkap ada di `README.md`.
     cukup izin impor mana pun dan `checked_xlsx` membatasinya 16 KB, karena
     Rust tidak membaca isi zip. Kolom ekspor klien dan uang masuk = kolom
     impornya, jadi berkasnya bisa diimpor ulang. Laporan ringkasan tetap F-40.
+50. **Work order produksi (PRD F-23/F-24, v3.1, D-43/D-44).** Aturan di SATU
+    modul per bahasa, `validations/production.ts` ↔ `desktop/production.rs`
+    (vektor kembar, SQL dites per karakter). Satu work order per MoU
+    (`production_batches`, tanpa UNIQUE; `BATCH_ACTIVE_SQL` di perangkat, Web,
+    dan `production_guard` cloud), dibuat PPIC (`ppic.manage`) hanya untuk MoU
+    `ACCEPTED` yang DP-nya lunas (`batchRequestError` ↔ `batch_request_error`),
+    paralel dengan dokumen legal (OQ-22); tahap lantai produksi (v3.2) yang
+    menunggu `legalComplete`. PO banyak per work order (`batch_purchase_orders`,
+    domain sync sendiri `purchase-order`, satu entitas per PO, supplier dari
+    Master Data `SUPPLIER`); langkahnya hanya lewat `applyPoAction` ↔
+    `apply_po_action`, dan cloud menolak langkah dari status/ETA basi. Bahan
+    siap hanya tanpa PO terbuka (`BATCH_READY_SQL` menjaga dirinya sendiri).
+    Jadwal 4 tahap oleh SPV (`production.manage`), berurutan, beralasan bila
+    mengubah jadwal yang ada, dijaga `schedule_updated_at` (bukan
+    `updated_at`, supaya langkah PO dari perangkat lain tidak membuat jadwal
+    konflik). PO terlambat menandai `needs_reschedule` sampai jadwal disimpan
+    lagi. Langkahnya ditulis ke `sample_status_log` tiket sampel. Notifikasi
+    divisi PRODUCTION (satu grup PPIC/SPV/QC/Logistik,
+    `telegram_chat_id_production`): work order baru → Production, PO terlambat
+    → CS + Production, jadwal → CS. Awalan nomor tagihan, MoU, dan work order
+    adalah setelan (`invoice_number_prefix`, `mou_number_prefix`,
+    `batch_code_prefix`, aturan sama dengan awalan kode klien); bagian
+    `-YYYYMMDD-<KP><NN>` tetap demi keunikan offline.

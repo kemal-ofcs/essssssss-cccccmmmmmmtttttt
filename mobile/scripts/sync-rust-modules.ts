@@ -38,6 +38,7 @@ const filesToSync = [
   "legal.rs",
   "sheet_import.rs",
   "finance.rs",
+  "production.rs",
 ];
 
 for (const file of filesToSync) {
