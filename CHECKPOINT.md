@@ -1,4 +1,4 @@
-# Checkpoint 2026-10-10
+# Checkpoint 2026-10-10 (akhir v2)
 
 Titik lanjut pekerjaan Company OS (nama proyek: MaklonOS). Dokumen developer,
 berbahasa Indonesia. Aturan lengkap tetap di `CLAUDE.md`; berkas ini hanya
@@ -12,10 +12,12 @@ mencatat posisi terakhir dan yang belum selesai.
   desain/dummy ✔ → v2.5a F-20 MoU + DP ✔ → v2.5b F-18 tautan persetujuan +
   jalur manual ✔ → **v2.6 F-21 dokumen legal ✔** (v2.3a s.d. v2.4
   di-commit `0534728 v2 belum selesai`; v2.5a sebagian ikut commit itu;
-  sisanya belum di-commit — commit setelah v2 selesai) → **v2.7 F-22 impor
-  sheet ✔**. Seluruh irisan v2 sudah ditulis.
-- **Build Desktop/APK ditunda sampai seluruh v2 selesai** (keputusan user).
-  Gerbang per irisan: `bun run check` penuh bila menyentuh Rust,
+  sisanya belum di-commit) → v2.7 F-22 impor sheet ✔ → **v2.8 perbaikan
+  uji perangkat + Excel ✔**. Seluruh v2 sudah ditulis; build pertama v2
+  sudah diuji user di Desktop + Android (2026-10-10, poin 1–5 lulus).
+- **Commit v2 menunggu user** (kedua repo: root dan `web-desktop/`); user
+  yang commit setelah uji perangkat sisa selesai. Jangan commit sendiri.
+- Gerbang per irisan: `bun run check` penuh bila menyentuh Rust,
   `check:quick` bila hanya TS/UI.
 - **Skema database:** versi 17 `data-export` (v11 s.d. v17 belum pernah
   dirilis), sentinel Rust `-2025 data-export-v1`.
@@ -185,7 +187,7 @@ mencatat posisi terakhir dan yang belum selesai.
   menggeneralisasi tebakan header.
 - Izin tidak bertambah: `finance.manage`, `rnd.manage`, `design.manage`.
 
-## Temuan uji perangkat v2 (2026-10-10, sudah diperbaiki, belum di-commit)
+## Temuan uji perangkat v2 + v2.8 (2026-10-10, sudah diperbaiki, belum di-commit)
 
 - PDF/cadangan di Desktop Windows tersimpan ke `C:\storage\emulated\0\Download`
   (folder Android dipilih di Windows) → kini hanya di build Android (aturan 28).
@@ -221,49 +223,37 @@ mencatat posisi terakhir dan yang belum selesai.
   154 tes Rust Mobile, seluruh audit (21 tabel snapshot, 29 rute kanonik, 7 izin
   sensitif). Satu-satunya warning: linker `libsodium` (lama).
 
-## Belum diverifikasi di perangkat (build setelah seluruh v2 selesai)
+## Sudah diverifikasi di perangkat (2026-10-10)
 
-1. v2.1/v2.2: role R&D (RnD queue, isian wajib), role Finance (Finance queue,
-   panel Price 19.500 × 40% = Rp 32.500, Set revision fee), CS tanpa
-   `pricing.view` tidak melihat HPP, Telegram per divisi.
-2. v2.3a: Pengaturan › Taxes and discounts (tambah PPN 11%, diskon);
-   tiket berbayar → Create invoice dari detail tiket → Record payment →
-   Allocate (nominal tidak cocok ditolak dengan selisihnya) → Payment received
-   terbuka; tiket "with testing" baru bisa Sample sent setelah tagihan uji
-   lunas; Cancel/Void hanya selama belum ada alokasi.
-3. Sinkron Desktop ↔ Android untuk tagihan, uang masuk, dan alokasi; dua
-   perangkat offline melunasi tagihan yang sama → yang kedua jadi konflik.
-4. v2.3b (beri izin Approve payment exceptions dulu): tambah paket "3 months
-   10%"; tagihan 5.000.000, uang masuk 2.000.000 → Accept partial payment →
-   3 cicilan Rp 1.100.000 jatuh tempo +1/+2/+3 bulan, tagihan asal "In
-   installments", Payment received di tiket terbuka; sisa uang masuk → Keep
-   as deposit → muncul di Client deposits.
+- Uji 1–5 lama LULUS: RnD/Finance queue + harga, pajak/diskon + tagihan +
+  alokasi + gerbang, sinkron Desktop ↔ Android, cicilan + deposit, invoice
+  PDF + Company profile; lonceng Telegram keempat divisi; alur CS sampai
+  RnD. Uji offline dua perangkat menemukan bug konflik (sudah diperbaiki,
+  uji ulang di poin 6).
 
-5. v2.3c: isi Company profile (logo) dan Payment instructions → PDF dari
-   halaman Finance dan detail tiket; Android memunculkan dialog Simpan ke…,
-   Desktop menyimpan ke Downloads (nama kedua `(2)`); cap PAID/CANCELLED/IN
-   INSTALLMENTS benar; logo PNG transparan berlatar putih.
-6. v2.4 (beri role Design ke satu operator): tiket "Perlu dummy" → Sample
+## Belum diverifikasi di perangkat (butuh build baru)
+
+1. v2.4 (beri role Design ke satu operator): tiket "Perlu dummy" → Sample
    sent tertahan "Upload the mockup…" → CS Request design → desainer Add
    mockup (tab Design queue) → Sample sent → Client ACC → Finance tagihan
    Dummy fee → lunas → Start printing dummy → Dummy sent (resi) → Client
    wants a dummy revision; dengan Pengaturan "Dummy rejections" = 1 cetak
    ulang hanya untuk Admin; lonceng Design dan Telegram grup Design.
 
-7. v2.5a: tiket ACC → Draft MoU (harga terisi dari sampel, DP 50%) →
+2. v2.5a: tiket ACC → Draft MoU (harga terisi dari sampel, DP 50%) →
    Finance ubah harga/DP saat draf → Send to client (tertahan bila dummy
    belum ACC) → Client wants changes → kembali draf → kirim → Client
    accepted → Finance: tagihan "Down payment (production & legal)" terisi
    nominal DP → lunas → MoU "Down payment paid"; PDF MoU; lonceng Finance.
 
-8. v2.5b (Web ter-deploy, isi "Approval web address"): tiket Sent to client
+3. v2.5b (Web ter-deploy, isi "Approval web address"): tiket Sent to client
    → Create approval link → buka di HP lain tanpa login → Setuju → tiket
    menjadi Client approved, linimasa "Client", lonceng/Telegram CS; buka
    tautan yang sama lagi → halaman "not valid" + tombol WhatsApp; Copy
    WhatsApp message; catat jawaban manual tanpa tangkapan layar → ditolak;
    Desktop offline → Create approval link menyarankan WhatsApp.
 
-9. v2.6 (beri role Legal ke satu operator): MoU Dengan BPOM disetujui →
+4. v2.6 (beri role Legal ke satu operator): MoU Dengan BPOM disetujui →
    bagian Legal documents "Waiting for Finance…" → DP lunas → Legal queue
    memuat tiketnya; BPOM tertahan "Record the SIG nutrition test first." →
    RnD SIG Not required (alasan wajib) → BPOM Record submission (MD/NA) →
@@ -271,21 +261,48 @@ mencatat posisi terakhir dan yang belum selesai.
    produk; MoU White Label hanya menampilkan Halal (materials); dua
    perangkat offline mencatat dokumen yang sama → yang kedua konflik.
 
-10. v2.7 (CSV kecil buatan sendiri): Finance › Import CSV › Incoming
-    payments → kolom ter-tebak, urutan tanggal → Check file (baris "1,50"
+5. v2.7 (berkas kecil buatan sendiri, .xlsx atau .csv): Finance › Import
+    Excel › Incoming payments → kolom ter-tebak, urutan tanggal → Check file (baris "1,50"
     ditolak) → Import → muncul di Incoming payments, bisa dialokasikan;
-    impor ulang berkas yang sama → semua "Skipped". Samples › Import CSV ›
+    impor ulang berkas yang sama → semua "Skipped". Samples › Import Excel ›
     Formulas dengan Kode Klien yang ada dan yang tidak ada → yang tidak ada
     ditolak; detail klien menampilkan "Imported history"; sinkron ke
     perangkat lain dan terlihat offline. Role tanpa izin tidak melihat
     tombolnya dan `/import` menolak.
 
+6. Perbaikan uji perangkat: PDF Desktop masuk folder Downloads (bukan
+   `C:\storage\…`; folder itu boleh dihapus); Sign out di header Mobile;
+   baris "Next step" di detail tiket; pilihan tiket di form tagihan memuat
+   status + waktu; Finance: tab status + jumlah, pencarian, total, Show more.
+7. Konflik offline: dua perangkat offline Allocate uang masuk yang sama →
+   online → perangkat kedua menampilkan banner "Rejected by the cloud" →
+   Review → Discard my change → alokasi lokalnya hilang, angka Conflicts 0,
+   data sama dengan cloud; akun Finance (tanpa `sync.retry`) bisa
+   menyelesaikan miliknya sendiri. HP yang sudah terlanjur konflik: lakukan
+   Discard di build baru.
+8. Mobile: tarik ke bawah dari puncak halaman → "Release to refresh" →
+   sinkron lalu muat ulang; tidak aktif saat dialog terbuka.
+9. v2.8 Excel: Export Excel di Clients/Samples/Finance (akun Admin; akun
+   tanpa `data.export` tidak melihat tombolnya) → buka di Excel: nomor
+   WhatsApp utuh, nominal angka, tanggal bisa difilter; log audit "Exported
+   … rows"; impor ulang berkas ekspor Clients → semua Skipped; Download
+   Excel template → isi 2 baris di Excel → Save .xlsx → impor; berkas .xls
+   ditolak dengan pesan Save As .xlsx.
+
 ## Tindak lanjut terbuka
 
-- **Berikutnya:** seluruh v2 sudah ditulis. Build Desktop/APK (user), uji
-  daftar di atas di perangkat, perbaiki temuan, lalu commit v2 (kedua repo:
-  root dan `web-desktop/`). Setelah itu v3 (PPIC/produksi).
-- OQ-24 tetap terbuka: contoh CSV asli ketiga sheet F-22 belum ada; header
-  bawaan (`SHEET_FIELDS`) bisa disesuaikan begitu contohnya datang.
-- Open question tersisa sebelum v2: OQ-16b (mockup), 21, 24 (contoh CSV
-  asli), 27, 29.
+- **Sekarang:** user menyelesaikan uji 1–9 di atas pada build baru, lalu
+  commit v2 (kedua repo). Temuan baru diperbaiki dulu sebelum v3.
+- **Berikutnya: v3 (PRD bagian v3, F-23 s/d F-32, mockup SCR-15..18).**
+  Mulai dengan analisis + usulan urutan irisan + keputusan berhuruf, tunggu
+  persetujuan, baru kode. Role divisi v3 (PPIC, Production SPV, QC,
+  Logistics) sudah di-seed sejak MVP tanpa izin domain.
+- **Wajib dijawab sebelum sprint v3 (PRD):** OQ-22 sisa (PPIC menunggu BPOM
+  terbit atau jalan paralel setelah DP lunas; `legalComplete` sudah
+  disiapkan untuk gerbang ini), OQ-30 (biaya titip gudang per hari per
+  batch/koli/pcs), OQ-33 (jawaban sementara: Surat Jalan setelah gerbang
+  lunas, sebelum barang keluar). OQ-32 sudah: isi mockup v3 di luar PRD
+  tidak masuk scope (F-45).
+- OQ-24 tetap terbuka: contoh sheet asli (Excel) belum ada; header bawaan
+  (`IMPORT_FIELDS`, `SHEET_FIELDS`) bisa disesuaikan begitu contohnya datang.
+- Open question lama: OQ-16b (mockup), 21, 25, 26 (sebelum rilis), 27, 29.

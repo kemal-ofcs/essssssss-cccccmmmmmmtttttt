@@ -314,7 +314,7 @@ export function SampleWorkspace() {
               {/* Database Formulasi/Desain lama (v2.7, PRD F-22). */}
               {canRnd || canDesign ? (
                 <Link href="/import" className="app-btn app-btn-secondary">
-                  Import CSV
+                  Import Excel
                 </Link>
               ) : null}
             </div>
