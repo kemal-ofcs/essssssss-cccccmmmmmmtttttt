@@ -595,6 +595,13 @@ Detail lengkap ada di `README.md`.
     hanya pemegang `design.override_dummy_limit` (ikut paket Admin, tidak
     di-seed ke role divisi); payload membawa `override_limit` dan auditnya.
     Kuota foto berlaku per jenis foto. Gerbang MoU (E-20) menyusul di F-20.
+    Start printing dummy boleh melampirkan desain cetak (foto
+    `DUMMY_ARTWORK`, opsional, per putaran); jenis foto yang ikut sebuah
+    langkah ditentukan SATU fungsi `stepEvidencePurpose` ↔
+    `step_evidence_purpose` (balasan klien wajib, desain cetak opsional),
+    termasuk di handler cloud. `dummy_paid` di `SAMPLE_LIST_SQL` (aturan
+    `DESIGN_LIST_SQL`) membuat tiket yang menunggu tagihan dummy masuk
+    Finance queue dan baris Next step.
 45. **MoU produksi dan DP (PRD F-20, v2.5a, D-37).** Aturan di SATU modul
     per bahasa, `validations/mou.ts` ↔ `desktop/mou.rs` (vektor kembar, SQL
     dites per karakter). Satu MoU per order (OQ-22) dan satu MoU aktif per

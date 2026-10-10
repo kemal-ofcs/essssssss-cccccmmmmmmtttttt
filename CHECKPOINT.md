@@ -219,80 +219,51 @@ mencatat posisi terakhir dan yang belum selesai.
 ## Verifikasi terakhir
 
 - `bun run check` penuh LULUS (2026-10-10, setelah v2.7 dan perbaikan temuan
-  uji perangkat, v2.8 Excel): 881 tes TS (kedua workspace), 154 tes Rust Desktop,
+  uji perangkat, v2.8 Excel, temuan build kedua): 883 tes TS (kedua workspace), 154 tes Rust Desktop,
   154 tes Rust Mobile, seluruh audit (21 tabel snapshot, 29 rute kanonik, 7 izin
   sensitif). Satu-satunya warning: linker `libsodium` (lama).
 
 ## Sudah diverifikasi di perangkat (2026-10-10)
 
-- Uji 1–5 lama LULUS: RnD/Finance queue + harga, pajak/diskon + tagihan +
-  alokasi + gerbang, sinkron Desktop ↔ Android, cicilan + deposit, invoice
-  PDF + Company profile; lonceng Telegram keempat divisi; alur CS sampai
-  RnD. Uji offline dua perangkat menemukan bug konflik (sudah diperbaiki,
-  uji ulang di poin 6).
+- Uji build pertama v2 (1–5 lama) dan build kedua (1–9: desain/dummy, MoU +
+  DP, tautan persetujuan, dokumen legal, impor sheet, perbaikan uji
+  perangkat, konflik offline, tarik-untuk-refresh, Excel) seluruhnya LULUS.
+  Alur tiket sudah sampai "All documents are done. Production planning comes
+  next." (ujung v2).
+
+## Temuan uji build kedua (sudah diperbaiki, belum di-commit)
+
+- Lampiran foto langkah (`EvidencePicker`): input berkas bawaan diganti
+  tombol bergaya (Choose / Replace / Remove) dalam bingkai.
+- Login Desktop: ikon mata bawaan WebView2 di kolom password disembunyikan
+  (`::-ms-reveal`, kedua `globals.css`), tinggal tombol Show/Hide.
+- Next step dummy kini "Finance: create the Dummy fee invoice…" selama
+  tagihan dummy putaran itu belum lunas (`dummy_paid` di `SAMPLE_LIST_SQL`);
+  tiket itu, dan MoU disetujui yang DP-nya belum lunas, masuk Finance queue.
+- Start printing dummy boleh melampirkan desain cetak (foto `DUMMY_ARTWORK`,
+  opsional); galeri foto memberi label semua jenis foto.
+- Bukan kode: Finance menyetujui cicilan = Superadmin mencentang "Approve
+  payment exceptions" di Pengaturan › Roles › Finance, lalu login ulang.
 
 ## Belum diverifikasi di perangkat (butuh build baru)
 
-1. v2.4 (beri role Design ke satu operator): tiket "Perlu dummy" → Sample
-   sent tertahan "Upload the mockup…" → CS Request design → desainer Add
-   mockup (tab Design queue) → Sample sent → Client ACC → Finance tagihan
-   Dummy fee → lunas → Start printing dummy → Dummy sent (resi) → Client
-   wants a dummy revision; dengan Pengaturan "Dummy rejections" = 1 cetak
-   ulang hanya untuk Admin; lonceng Design dan Telegram grup Design.
-
-2. v2.5a: tiket ACC → Draft MoU (harga terisi dari sampel, DP 50%) →
-   Finance ubah harga/DP saat draf → Send to client (tertahan bila dummy
-   belum ACC) → Client wants changes → kembali draf → kirim → Client
-   accepted → Finance: tagihan "Down payment (production & legal)" terisi
-   nominal DP → lunas → MoU "Down payment paid"; PDF MoU; lonceng Finance.
-
-3. v2.5b (Web ter-deploy, isi "Approval web address"): tiket Sent to client
-   → Create approval link → buka di HP lain tanpa login → Setuju → tiket
-   menjadi Client approved, linimasa "Client", lonceng/Telegram CS; buka
-   tautan yang sama lagi → halaman "not valid" + tombol WhatsApp; Copy
-   WhatsApp message; catat jawaban manual tanpa tangkapan layar → ditolak;
-   Desktop offline → Create approval link menyarankan WhatsApp.
-
-4. v2.6 (beri role Legal ke satu operator): MoU Dengan BPOM disetujui →
-   bagian Legal documents "Waiting for Finance…" → DP lunas → Legal queue
-   memuat tiketnya; BPOM tertahan "Record the SIG nutrition test first." →
-   RnD SIG Not required (alasan wajib) → BPOM Record submission (MD/NA) →
-   Correct submission → Record issue (foto) → tombol hilang; HKI dan Halal
-   produk; MoU White Label hanya menampilkan Halal (materials); dua
-   perangkat offline mencatat dokumen yang sama → yang kedua konflik.
-
-5. v2.7 (berkas kecil buatan sendiri, .xlsx atau .csv): Finance › Import
-    Excel › Incoming payments → kolom ter-tebak, urutan tanggal → Check file (baris "1,50"
-    ditolak) → Import → muncul di Incoming payments, bisa dialokasikan;
-    impor ulang berkas yang sama → semua "Skipped". Samples › Import Excel ›
-    Formulas dengan Kode Klien yang ada dan yang tidak ada → yang tidak ada
-    ditolak; detail klien menampilkan "Imported history"; sinkron ke
-    perangkat lain dan terlihat offline. Role tanpa izin tidak melihat
-    tombolnya dan `/import` menolak.
-
-6. Perbaikan uji perangkat: PDF Desktop masuk folder Downloads (bukan
-   `C:\storage\…`; folder itu boleh dihapus); Sign out di header Mobile;
-   baris "Next step" di detail tiket; pilihan tiket di form tagihan memuat
-   status + waktu; Finance: tab status + jumlah, pencarian, total, Show more.
-7. Konflik offline: dua perangkat offline Allocate uang masuk yang sama →
-   online → perangkat kedua menampilkan banner "Rejected by the cloud" →
-   Review → Discard my change → alokasi lokalnya hilang, angka Conflicts 0,
-   data sama dengan cloud; akun Finance (tanpa `sync.retry`) bisa
-   menyelesaikan miliknya sendiri. HP yang sudah terlanjur konflik: lakukan
-   Discard di build baru.
-8. Mobile: tarik ke bawah dari puncak halaman → "Release to refresh" →
-   sinkron lalu muat ulang; tidak aktif saat dialog terbuka.
-9. v2.8 Excel: Export Excel di Clients/Samples/Finance (akun Admin; akun
-   tanpa `data.export` tidak melihat tombolnya) → buka di Excel: nomor
-   WhatsApp utuh, nominal angka, tanggal bisa difilter; log audit "Exported
-   … rows"; impor ulang berkas ekspor Clients → semua Skipped; Download
-   Excel template → isi 2 baris di Excel → Save .xlsx → impor; berkas .xls
-   ditolak dengan pesan Save As .xlsx.
+1. Lampiran foto di jawaban klien, dokumen legal, dan Start printing dummy:
+   tombol Choose image → Attached → Replace / Remove; tidak ada lagi teks
+   "No file chosen".
+2. Login Desktop: hanya satu tombol Show/Hide di kolom password.
+3. Tiket "Perlu dummy" setelah Client ACC: Next step menunjuk Finance dan
+   tiket muncul di Finance queue → tagihan Dummy fee lunas → Next step
+   "Design: print the dummy." → Start printing dengan/tanpa desain cetak →
+   foto "Dummy artwork" tampil di galeri. MoU disetujui dengan DP belum
+   lunas juga muncul di Finance queue.
 
 ## Tindak lanjut terbuka
 
-- **Sekarang:** user menyelesaikan uji 1–9 di atas pada build baru, lalu
-  commit v2 (kedua repo). Temuan baru diperbaiki dulu sebelum v3.
+- **Sekarang:** user menguji 1–3 di atas pada build baru, lalu commit v2
+  (kedua repo). Temuan baru diperbaiki dulu sebelum v3.
+- **F-40 (dashboard + laporan Excel lengkap: rekap order, progres divisi,
+  MoU/legal, omzet/piutang) dikerjakan SETELAH v3 selesai** (keputusan user
+  2026-10-10), supaya data produksi dan pengiriman ikut.
 - **Berikutnya: v3 (PRD bagian v3, F-23 s/d F-32, mockup SCR-15..18).**
   Mulai dengan analisis + usulan urutan irisan + keputusan berhuruf, tunggu
   persetujuan, baru kode. Role divisi v3 (PPIC, Production SPV, QC,

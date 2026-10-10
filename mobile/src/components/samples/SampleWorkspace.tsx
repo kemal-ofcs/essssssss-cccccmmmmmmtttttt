@@ -63,6 +63,12 @@ const RND_QUEUE_STATUSES = ["RND_REVIEW", "IN_RND"];
 function inFinanceQueue(row: SampleRequestRecord) {
   return (
     (row.status === "SAMPLE_READY" && row.unit_price_idr == null) ||
+    // Tagihan dummy dan DP yang menunggu pembayaran (temuan uji v2).
+    (row.status === "CLIENT_ACC" &&
+      (row.design_status === "MOCKUP" ||
+        row.design_status === "DUMMY_REVISION") &&
+      row.dummy_paid !== 1) ||
+    (row.mou_status === "ACCEPTED" && row.dp_paid !== 1) ||
     [
       "PENDING_FEE_ASSESSMENT",
       "WAITING_SAMPLE_PAYMENT",
