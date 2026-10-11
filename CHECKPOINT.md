@@ -19,13 +19,15 @@ mencatat posisi terakhir dan yang belum selesai.
   yang commit setelah uji perangkat sisa selesai. Jangan commit sendiri.
 - Gerbang per irisan: `bun run check` penuh bila menyentuh Rust,
   `check:quick` bila hanya TS/UI.
-- **v3 dimulai (D-43 rencana, D-44 v3.1 … D-47 v3.4):** urutan irisan
+- **v3 dimulai (D-43 rencana, D-44 v3.1 … D-50 v3.6b):** urutan irisan
   v3.1 F-23/F-24 ✔ → v3.2 F-25 ✔ → v3.3 F-26/F-31 ✔ → v3.4 F-27 ✔
-  (keempatnya ditulis, belum diuji perangkat) → v3.4 F-27
-  → v3.5 F-28 → v3.6 F-29/F-30 → v3.7 F-32, lalu F-40. Setiap irisan tetap
+  → v3.5 F-28 ✔ → v3.6a F-29 ✔ → v3.6b F-30 ✔ → v3.7 F-32 ✔ → F-40a
+  dashboard ✔ → F-40b laporan Excel ✔ (D-52). Semua ditulis, BELUM diuji
+  perangkat: langkah berikutnya build ulang Desktop + Android dan uji v3 +
+  F-40 sekaligus, lalu perbaiki temuannya. Setiap irisan tetap
   dibuka analisis + keputusan berhuruf sendiri.
-- **Skema database:** versi 20 `shipments` (v11 s.d. v20 belum pernah
-  dirilis), sentinel Rust `-2028 shipments-v1`.
+- **Skema database:** versi 24 `imported-history` (v11 s.d. v24 belum pernah
+  dirilis), sentinel Rust `-2032 imported-history-v1`.
 - **Repo `web-desktop/`** di device ini sudah punya `.git` sendiri lagi
   (remote `wwwwwweeeebbbbb--mmmmcccrrrrr`, HTTPS): commit di dua tempat.
 - **Device kerja berganti** (2026-10-10, `C:\fr\Project CRM`): git di sini
@@ -309,11 +311,89 @@ mencatat posisi terakhir dan yang belum selesai.
   shipped, Correct, Cancel, Add tracking number, Copy WhatsApp message, Mark
   sent to client, PDF), tab Shipping / Sent to client, Next step berlanjut.
 
+## Yang berubah di v3.5 / F-28 (belum di-commit)
+
+- **Tabel baru** `qc_claims` (domain `qc-claim`, keempat lapisan + snapshot)
+  dan kolom `shipments.received_at`; rute `qc-claim/decide`, guard cloud
+  `qc_claim_guard`; command `desktop_decide_qc_claim` (kedua workspace) +
+  route `/api/production/claim`.
+- **Alur:** dari Shipped/Sent to client, CS mencatat "Client received it"
+  atau "Client reports a problem" (tangkapan layar wajib, foto kerusakan
+  `COMPLAINT` opsional), atau mengirim tautan konfirmasi penerimaan (jenis
+  `RECEIPT`). Komplain = satu klaim `OPEN`; QC memutuskan sekali (salah
+  pabrik → retur disetujui + Replace/Credit/Other, salah penerima →
+  retur ditolak), foto `QC_EVIDENCE` opsional, PDF Berita Acara
+  `BA-<nomor SJ>`.
+- **Izin** `qc.manage` (seed role qc, ikut paket Admin).
+- **Notifikasi** `DELIVERY_COMPLAINT` (CS + Production), `CLAIM_DECIDED` (CS).
+- **UI:** tombol penerimaan + "Ask the client" di `ShipmentSection`,
+  `QcClaimSection.tsx` (baru), tab Complaints / Delivered di Production,
+  label "Delivery confirmation" di `/approve`; tiket dengan order selesai
+  masuk Closed di Samples.
+
+## Yang berubah di v3.6a / F-29 (belum di-commit)
+
+- **Tanpa tabel baru.** Versi skema 22 hanya membawa izin `crm.manage` dan
+  `notifications_crm.view` beserta seed role crm (+ `leads.manage`).
+- **Serah terima:** order selesai (diterima / komplain diputuskan) membuat
+  klien `EXISTING_CLIENT` dan mengisi PIC CRM dari tiket; notifikasi
+  `CLIENT_HANDOVER` ke grup CRM.
+- **Gerbang CS:** tiket baru, sunting klien, dan interaksi klien CRM menuntut
+  `crm.manage`; CS melihat kotak "Forward to CRM" di detail klien.
+- **Rute baru** `client/assign-crm` dan `client/forward-crm`; command
+  `desktop_list_crm`, `desktop_assign_crm`, `desktop_forward_to_crm` (kedua
+  workspace) + route `/api/crm/query|assign|forward`.
+- **Setelan** `crm_reorder_days` dan `telegram_chat_id_crm` (Business
+  settings); ringkasan harian `REORDER_DUE`.
+- **UI:** menu CRM (`/crm`, `CrmWorkspace.tsx`: Due for reorder /
+  Unassigned / All, pilih PIC), `CrmForward.tsx`.
+
+## Yang berubah di v3.6b / F-30 (belum di-commit)
+
+- **Kolom baru** `sample_requests.repeat_of_id` (keempat lapisan + snapshot),
+  rute `sample/repeat`; command `desktop_repeat_sample_order` (kedua
+  workspace) + route `/api/crm/repeat`.
+- **Alur:** tombol "Start repeat order" di kartu CRM (bila tidak ada order
+  berjalan) membuat tiket baru langsung Client approved dari tiket order
+  terakhir, menyalin formula dan harga, lalu membuka tiket itu di Samples.
+  MoU tiket repeat otomatis membawa dokumen legal final tiket asal.
+- **Seed role crm** kini juga `samples.manage`, `mou.manage`,
+  `production.view`.
+
+## Yang berubah di v3.7 / F-32 (belum di-commit)
+
+- **Jenis sheet baru** Riwayat Batch (`production.manage`) dan Riwayat
+  Pengiriman (`shipping.manage`) di layar Import Excel (tombol baru di
+  Production), dengan template Excel-nya; arsipnya tampil di detail klien.
+- **Kolom baru** `imported_records.quantity` (keempat lapisan + snapshot).
+- **CRM:** setiap riwayat pengiriman menjadikan klien `EXISTING_CLIENT`
+  (Unassigned) dan tanggal kirimnya dipakai untuk perkiraan repeat order.
+
+## Yang berubah di F-40a / dashboard (belum di-commit, tanpa perubahan skema)
+
+- **Menu Dashboard** (`/dashboard`, Web/Desktop/Android) untuk
+  `dashboard.view`: Sales (funnel lead → order selesai, segmen lead, waktu
+  proses), Finance, Production and delivery, CRM; bagian mengikuti izin.
+- **Command** `desktop_get_dashboard` (kedua workspace) + route
+  `/api/dashboard/query`; modul `validations/dashboard.ts` ↔ `dashboard.rs`.
+- **Android:** navigasi bawah kini bisa digeser saat menunya banyak (Admin
+  memegang 8 menu), label tidak lagi terpotong.
+
+## Yang berubah di F-40b / laporan Excel (belum di-commit, tanpa perubahan skema)
+
+- **Tombol "Download report"** di Dashboard (`data.export`): satu workbook
+  .xlsx untuk periode terpilih, sheet mengikuti izin (Summary, New clients,
+  CRM, New sample requests, Invoices, Incoming payments, Work orders,
+  Shipments, Complaints). Tercatat di log audit (subjek `report`).
+- **`xlsx.ts`**: `buildXlsxWorkbook` (banyak sheet); `buildXlsx` kini
+  memakainya.
+
 ## Verifikasi terakhir
 
-- `bun run check` penuh LULUS (2026-10-11, setelah v3.4): 941 tes TS (kedua
-  workspace), 162 tes Rust Desktop, 162 tes Rust Mobile, seluruh audit (24
-  tabel snapshot, 36 rute kanonik, 7 izin sensitif). Satu-satunya warning:
+- `bun run check` penuh LULUS (2026-10-11, setelah F-40b): seluruh tes TS
+  kedua workspace tanpa gagal, 170 tes Rust Desktop, 170 tes Rust Mobile,
+  seluruh audit (25 tabel snapshot, 40 rute kanonik, 49 permission, 7 izin
+  sensitif). Satu-satunya warning:
   linker `libsodium` (lama).
 
 ## Sudah diverifikasi di perangkat (2026-10-10)

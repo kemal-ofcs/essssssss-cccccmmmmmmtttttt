@@ -21,10 +21,12 @@ interface NavItem {
 }
 
 const NAV_ITEMS: readonly NavItem[] = [
+  { area: "dashboard", href: "/dashboard", label: "Dashboard" },
   { area: "clients", href: "/clients", label: "Clients" },
   { area: "samples", href: "/samples", label: "Samples" },
   { area: "finance", href: "/finance", label: "Finance" },
   { area: "production", href: "/production", label: "Production" },
+  { area: "crm", href: "/crm", label: "CRM" },
   { area: "audit", href: "/audit", label: "Audit" },
   { area: "settings", href: "/settings", label: "Settings" },
 ];
@@ -175,7 +177,8 @@ export function MobileAppShell({ children, title }: MobileAppShellProps) {
         aria-label="Main"
         className="mobile-safe-bottom fixed inset-x-0 bottom-0 z-40 border-t border-surface-container bg-surface-container-lowest"
       >
-        <div className="mx-auto flex max-w-lg items-stretch">
+        {/* Admin bisa memegang 8 menu: geser horizontal, label tetap utuh. */}
+        <div className="mx-auto flex max-w-lg items-stretch overflow-x-auto">
           {visible.map((item) => {
             const active =
               item.href === "/"
@@ -186,7 +189,7 @@ export function MobileAppShell({ children, title }: MobileAppShellProps) {
                 key={item.href}
                 href={item.href}
                 aria-current={active ? "page" : undefined}
-                className={`flex min-h-14 min-w-0 flex-1 flex-col items-center justify-center gap-1 text-body-sm font-semibold transition-colors ${
+                className={`flex min-h-14 min-w-16 flex-1 shrink-0 flex-col items-center justify-center gap-1 text-body-sm font-semibold transition-colors ${
                   active ? "text-secondary" : "text-on-surface-variant"
                 }`}
               >

@@ -28,6 +28,10 @@ pub mod notifications;
 pub mod portability;
 // Work order produksi: SALINAN `desktop/production.rs` oleh sync-rust-modules.ts.
 pub mod production;
+// Serah terima CRM: SALINAN `desktop/crm.rs` oleh sync-rust-modules.ts.
+pub mod crm;
+// Dashboard: SALINAN `desktop/dashboard.rs` oleh sync-rust-modules.ts.
+pub mod dashboard;
 pub mod secrets;
 pub mod sql_backend;
 pub mod storage;

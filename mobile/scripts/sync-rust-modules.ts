@@ -39,6 +39,8 @@ const filesToSync = [
   "sheet_import.rs",
   "finance.rs",
   "production.rs",
+  "crm.rs",
+  "dashboard.rs",
 ];
 
 for (const file of filesToSync) {

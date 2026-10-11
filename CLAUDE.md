@@ -711,7 +711,8 @@ Detail lengkap ada di `README.md`.
     berkas benar-benar tersimpan. Template impor (`purpose: "template"`)
     cukup izin impor mana pun dan `checked_xlsx` membatasinya 16 KB, karena
     Rust tidak membaca isi zip. Kolom ekspor klien dan uang masuk = kolom
-    impornya, jadi berkasnya bisa diimpor ulang. Laporan ringkasan tetap F-40.
+    impornya, jadi berkasnya bisa diimpor ulang. Laporan ringkasan ada di
+    dashboard (aturan 53).
 50. **Work order produksi (PRD F-23/F-24, v3.1, D-43/D-44).** Aturan di SATU
     modul per bahasa, `validations/production.ts` ↔ `desktop/production.rs`
     (vektor kembar, SQL dites per karakter). Satu work order per MoU
@@ -778,3 +779,100 @@ Detail lengkap ada di `README.md`.
     menyimpan PDF menuntut `invoices.view` ATAU `production.view`. Nomor
     `SJ-YYYYMMDD-<KP><NN>`, awalan `delivery_note_prefix`. Notifikasi
     `SHIPMENT_SHIPPED` ke grup CS.
+    Penerimaan dan klaim QC (F-28, v3.5, D-48): langkah `SHIP_RECEIVED`
+    dan `SHIP_COMPLAINT` (dari `SHIPPED` atau `FORWARDED`, izin
+    `samples.manage`) lewat rute `shipment/transition` yang sama; keduanya
+    ada di `CLIENT_DECISION_ACTIONS`, jadi dicatat staf WAJIB membawa
+    tangkapan layar (aturan 46). Komplain melahirkan satu baris `qc_claims`
+    (domain `qc-claim`, snapshot) di transaksi yang SAMA, dan `shipment_guard`
+    memeriksa ulang `validateComplaint` ↔ `validate_complaint` dengan unit di
+    cloud. QC (`qc.manage`, seed ke role qc) memutuskan SEKALI lewat rute
+    `qc-claim/decide` (`CLAIM_DECIDE_SQL` hanya untuk `OPEN` dengan
+    `updated_at` yang dilihat QC, `qc_claim_guard`): salah pabrik = retur
+    disetujui dengan tindak lanjut, salah penerima/ekspedisi = retur ditolak
+    (`validateClaimDecision` ↔ `validate_claim_decision`). Tautan persetujuan
+    jenis `RECEIPT` membaca `SHIPPED`/`FORWARDED` sebagai `IN_TRANSIT`
+    (`APPROVAL_TARGET_SQL`), supaya meneruskan resi tidak menggugurkan
+    tautannya; "ada masalah" lewat tautan menjadi komplain tanpa jumlah unit.
+    Keluhan maks 950 dan temuan QC maks 900 karakter karena keduanya masuk
+    linimasa (batas 1000) bersama awalannya. Order selesai (`orderCompleted`,
+    tidak disimpan) = diterima, atau komplainnya sudah diputuskan; Samples
+    menaruhnya di Closed. Berita Acara (`BA-<nomor SJ>`) adalah PDF webview
+    `buildTermsPdf`. Notifikasi `DELIVERY_COMPLAINT` ke CS + Production,
+    `CLAIM_DECIDED` ke CS.
+51. **Serah terima CS ke CRM (PRD F-29, v3.6a, D-49).** Aturan di SATU modul
+    per bahasa, `validations/crm.ts` ↔ `desktop/crm.rs` (vektor kembar, SQL
+    dites per karakter). Klien menjadi `EXISTING_CLIENT` begitu sebuah
+    ordernya selesai (`SHIP_RECEIVED`, atau klaim QC diputuskan) lewat
+    `CLIENT_HANDOVER_SQL` di transaksi yang SAMA dengan langkah itu, di
+    perangkat, Web, dan handler cloud (`hand_over_to_crm`); aman diulang dan
+    tidak pernah kembali. PIC CRM terisi dari PIC CRM tiket order itu, kosong
+    = antrean Unassigned; pemegang `crm.manage` memindahkannya lewat rute
+    `client/assign-crm` (cloud menolak klien yang belum diserahkan).
+    Gerbang CS hanya di titik masuk: tiket baru, sunting klien, dan interaksi
+    untuk klien `EXISTING_CLIENT` menuntut `crm.manage` (`crmOwnerError` ↔
+    `crm_owner_error`, lewat `assertCrmOwner` di Web dan `crm_owner_gate` di
+    Rust; pemegangnya boleh mencatat interaksi tanpa syarat PIC CS). Cloud
+    sengaja tidak menolak tiket CS yang dibuat offline sebelum serah terima
+    diketahui. CS meneruskan permintaan klien lewat rute `client/forward-crm`
+    (cloud hanya menulis notifikasi; auditnya ikut outbox). Layar CRM membaca
+    `CRM_CLIENT_LIST_SQL`: perkiraan repeat = order terakhir selesai +
+    setelan `crm_reorder_days` (7-365, bawaan 60), dan tiket lain yang
+    dibuat sejak itu menandai "order in progress". Divisi notifikasi CRM
+    (`telegram_chat_id_crm`, `notifications_crm.view`): `CLIENT_HANDOVER`,
+    `CRM_FORWARD`, dan ringkasan harian `REORDER_DUE` (pola ringkasan Cold,
+    `reorderDigestRange` ↔ `reorder_digest_range`). Role crm di-seed
+    `crm.manage`, `leads.manage`, `notifications_crm.view`, `samples.manage`,
+    `mou.manage`, dan `production.view` (`CRM_PERMISSION_SEED_SQL`, penanda
+    `crm_permissions_seeded`).
+    Repeat order (F-30, v3.6b, D-50): rute `sample/repeat` (`crm.manage`)
+    menyalin tiket `CLIENT_ACC` yang ordernya selesai (`repeatOrderError` ↔
+    `repeat_order_error`, dihitung ulang di cloud dengan `REPEAT_SOURCE_SQL`)
+    menjadi tiket baru berstatus `CLIENT_ACC` dengan `repeat_of_id`, tanpa
+    dummy, PIC CRM = PIC CRM klien. Formula dan harga terakhir ikut disalin
+    sehingga harga bawaan MoU tetap jalan; dokumen legal final MoU tiket asal
+    disalin saat MoU tiket repeat dibuat (`LEGAL_REPEAT_COPY_SQL`, di
+    perangkat, Web, dan handler `mou/create`). Semua salinan memakai SQL yang
+    sama persis dengan id deterministik (`<id baru>:formula`, `:price`,
+    `<id MoU>:<jenis>`), jadi pull tidak menggandakan baris.
+52. **Riwayat batch dan pengiriman dari sheet lama (PRD F-32, v3.7, D-51).**
+    Jenis sheet `BATCH` dan `SHIPMENT` memakai mesin impor aturan 48 apa
+    adanya (`planSheetImport` untuk pratinjau dan simpan, kunci arsip yang
+    sama) dan menjadi arsip hanya-baca `imported_records` dengan kolom
+    `quantity` (jumlah unit, `parseSheetQuantity` ↔ `parse_sheet_quantity`);
+    tidak pernah membuat baris `production_batches`/`shipments`. Tanggal
+    wajib untuk keduanya, juga di `archive_payload_error` cloud. Setiap baris
+    `SHIPMENT` adalah order lama yang sudah selesai: `IMPORT_HANDOVER_SQL`
+    menjadikan kliennya `EXISTING_CLIENT` di transaksi impor yang sama
+    (perangkat, Web, handler `imported-record/record`), tanpa PIC CRM dan
+    tanpa notifikasi. `CRM_CLIENT_LIST_SQL` memakai tanggal terbaru antara
+    order selesai di aplikasi dan pengiriman hasil impor, dan produk/unit
+    impor bila belum ada order di aplikasi (`last_sample_id` kosong = tanpa
+    tombol repeat order). Izin `production.manage` (Batch) dan
+    `shipping.manage` (Pengiriman); halaman impor dan template Excel
+    menurunkan daftar izinnya dari `SHEET_KINDS` + `sheetImportPermission`.
+53. **Dashboard eksekutif (PRD F-40a, D-52).** Menu Dashboard ber-izin
+    `dashboard.view`; bagiannya dipotong izin yang sudah ada
+    (`DASHBOARD_SECTION_PERMISSION` ↔ `DASHBOARD_SECTIONS`: penjualan dan CRM
+    `clients.view`, sampel `samples.view`, keuangan `invoices.view`,
+    produksi/pengiriman `production.view`), di backend, bukan hanya di layar.
+    Setiap bagian satu SQL kembar (`validations/dashboard.ts` ↔
+    `desktop/dashboard.rs`, dites per karakter dan dijalankan di skema
+    lokal perangkat) dengan ?1/?2 = tanggal awal/akhir zona perusahaan;
+    angka "saat ini" memakai hari ini dari database. Waktu proses memakai
+    rata-rata. Perangkat menghitung dari data lokalnya (sinkronisasi
+    terakhir), Web dari database. Tagihan cicilan tidak dihitung ulang di
+    "Invoiced"; jatuh tempo repeat memakai aturan `CRM_CLIENT_LIST_SQL`
+    yang sama (dites `toContain`). Tanpa library grafik: kotak angka dan
+    batang CSS. Periode paling panjang dua tahun (`validateDashboardRange` ↔
+    `validate_dashboard_range`).
+    Laporan Excel (F-40b): tombol "Download report" (`data.export`) menyusun
+    satu workbook (`buildXlsxWorkbook`, nama tab dibersihkan dan unik) di
+    webview dari gateway yang sama dengan layar masing-masing
+    (`components/dashboard/report-workbook.ts`): Summary dari angka
+    dashboard, lalu daftar aktivitas periode itu (klien baru, CRM, tiket
+    sampel baru, tagihan, uang masuk, work order, pengiriman, komplain).
+    Sheet yang izinnya tidak dipegang tidak dibuat dan datanya tidak
+    diambil. Stempel UTC difilter dengan tanggal zona perusahaan. Disimpan
+    lewat `saveXlsx` dengan subjek `report` (`EXPORT_SUBJECTS` Rust dan
+    `SUBJECTS` route Web), jadi tercatat di log audit seperti ekspor v2.8.
