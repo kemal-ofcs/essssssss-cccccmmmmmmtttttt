@@ -1,5 +1,12 @@
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
+import { dirname, join } from "node:path";
 
 /**
  * Pasang ulang dua perubahan wajib di proyek Android hasil `tauri android init`.
@@ -130,6 +137,31 @@ if (existsSync(stringsFile) && existsSync(tauriConfig)) {
     `$1"${productName}"$2`,
   );
   if (productName && renamed !== strings) writeFileSync(stringsFile, renamed);
+}
+
+// Ikon peluncur: `tauri android init` memasang ikon bawaan Tauri. Ikon produk
+// dihasilkan `tauri icon` ke `src-tauri/icons/android` (ikut di-commit).
+const iconSource = join(androidDir, "..", "..", "icons", "android");
+const iconTarget = join(androidDir, "app", "src", "main", "res");
+if (!existsSync(iconSource)) {
+  console.error(
+    "src-tauri/icons/android tidak ada. Jalankan `tauri icon` sesuai web-desktop/src-tauri/icons/sumber/README.md.",
+  );
+  process.exit(1);
+}
+for (const file of readdirSync(iconSource, { recursive: true }).map(String)) {
+  const source = join(iconSource, file);
+  if (!statSync(source).isFile()) continue;
+  const content = readFileSync(source);
+  const target = join(iconTarget, file);
+  if (!existsSync(target) || !readFileSync(target).equals(content)) {
+    mkdirSync(dirname(target), { recursive: true });
+    writeFileSync(target, content);
+  }
+  if (!readFileSync(target).equals(content)) {
+    console.error(`Ikon peluncur gagal disalin: res/${file}`);
+    process.exit(1);
+  }
 }
 
 if (!existsSync(propertiesFile)) {
